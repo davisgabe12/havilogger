@@ -1,0 +1,3368 @@
+Deleted apps/web/src/app/page.tsx (+0 -3101)
+       1 -"use client";
+       2 -
+       3 -import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+       4 -import { ArrowUpRight, Copy, Menu, Mic, Share2, Square } from "lucide-react";
+       5 -import ReactMarkdown, { type Components } from "react-markdown";
+       6 -import remarkGfm from "remark-gfm";
+       7 -
+       8 -import { TimelinePanel } from "@/components/timeline/timeline-panel";
+       9 -import { Button } from "@/components/ui/button";
+      10 -import {
+      11 -  Card,
+      12 -  CardContent,
+      13 -  CardDescription,
+      14 -  CardHeader,
+      15 -  CardTitle,
+      16 -} from "@/components/ui/card";
+      17 -import { ScrollArea } from "@/components/ui/scroll-area";
+      18 -import { Textarea } from "@/components/ui/textarea";
+      19 -import { cn } from "@/lib/utils";
+      20 -
+      21 -const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
+      22 -
+      23 -type ActionMetadata = {
+      24 -  amount_value?: number | null;
+      25 -  amount_unit?: string | null;
+      26 -  substance?: string | null;
+      27 -  measurement_type?: string | null;
+      28 -  measurement_unit?: string | null;
+      29 -  duration_minutes?: number | null;
+      30 -  outcome?: string | null;
+      31 -  sleep_type?: string | null;
+      32 -  sleep_start_mood?: string | null;
+      33 -  sleep_end_mood?: string | null;
+      34 -  sleep_location?: string | null;
+      35 -  sleep_method?: string | null;
+      36 -  extra?: Record<string, string | number | boolean>;
+      37 -};
+      38 -
+      39 -type Action = {
+      40 -  action_type: string;
+      41 -  timestamp: string;
+      42 -  note?: string | null;
+      43 -  metadata: ActionMetadata;
+      44 -  is_core_action: boolean;
+      45 -  custom_action_label?: string | null;
+      46 -};
+      47 -
+      48 -type ConversationSession = {
+      49 -  id: number;
+      50 -  title: string;
+      51 -  is_active: boolean;
+      52 -  last_message_at: string;
+      53 -};
+      54 -
+      55 -type InferenceCard = {
+      56 -  id: number;
+      57 -  inference_type: string;
+      58 -  payload: Record<string, unknown>;
+      59 -  confidence: number;
+      60 -  created_at: string;
+      61 -};
+      62 -
+      63 -type TaskItem = {
+      64 -  id: number;
+      65 -  title: string;
+      66 -  status: "open" | "done";
+      67 -  due_at?: string | null;
+      68 -  created_at: string;
+      69 -  user_id?: number | null;
+      70 -  child_id?: number | null;
+      71 -  assigned_to_user_id?: number | null;
+      72 -  assigned_to_name?: string | null;
+      73 -};
+      74 -
+      75 -type ApiResponse = {
+      76 -  actions: Action[];
+      77 -  assistant_message?: string;
+      78 -  raw_message: string;
+      79 -  model: string;
+      80 -  latency_ms: number;
+      81 -  question_category?: string;
+      82 -  session_id?: number;
+      83 -  user_message_id?: number;
+      84 -  assistant_message_id?: number;
+      85 -  intent?: string;
+      86 -};
+      87 -
+      88 -type ChatEntry = {
+      89 -  id: string;
+      90 -  role: "user" | "havi";
+      91 -  text: string;
+      92 -  messageId?: string;
+      93 -  createdAt: string;
+      94 -  senderType?: "self" | "assistant" | "caregiver";
+      95 -  senderName?: string;
+      96 -};
+      97 -
+      98 -type Panel = "havi" | "timeline" | "tasks" | "history" | "knowledge" | "integrati
+          ons" | "settings";
+      99 -
+     100 -type ChipTemplate = {
+     101 -  id: string;
+     102 -  label: string;
+     103 -  text: string;
+     104 -  requiresHistory?: boolean;
+     105 -  onlyWhenNoHistory?: boolean;
+     106 -  requiresSymptom?: boolean;
+     107 -  requiresProfile?: boolean;
+     108 -  requiresRoutine?: boolean;
+     109 -};
+     110 -
+     111 -const chipLibrary: ChipTemplate[] = [
+     112 -  {
+     113 -    id: "diaper_now",
+     114 -    label: "Changed a dirty diaper",
+     115 -    text: "I just changed a dirty diaper for {child}—please log it.",
+     116 -  },
+     117 -  {
+     118 -    id: "bath_wrap",
+     119 -    label: "Finished bath routine",
+     120 -    text: "{child} just finished a bath and diaper change about 10 minutes ago.",
+     121 -  },
+     122 -  {
+     123 -    id: "feed_combo",
+     124 -    label: "Feed and diaper change 10 minutes ago",
+     125 -    text: "Finished a feed and diaper change for {child} about 10 minutes ago.",
+     126 -  },
+     127 -  {
+     128 -    id: "symptom_followup",
+     129 -    label: "Cough check-in",
+     130 -    text: "{child} has a cough—what should I watch for?",
+     131 -    requiresSymptom: true,
+     132 -  },
+     133 -  {
+     134 -    id: "milestones_today",
+     135 -    label: "What’s Ahead Today",
+     136 -    text: "Tell me about the next milestone for {child}.",
+     137 -    requiresProfile: true,
+     138 -  },
+     139 -  {
+     140 -    id: "week_intro",
+     141 -    label: "What happens in week {week}?",
+     142 -    text: "What development milestones are expected for week {week}?",
+     143 -    onlyWhenNoHistory: true,
+     144 -    requiresProfile: true,
+     145 -  },
+     146 -  {
+     147 -    id: "routine_setup",
+     148 -    label: "Routine setup",
+     149 -    text: "Can you help me build a routine for {child} based on recent days?",
+     150 -    requiresRoutine: true,
+     151 -  },
+     152 -];
+     153 -
+     154 -type ConversationState =
+     155 -  | "idle"
+     156 -  | "sending"
+     157 -  | "thinking_short"
+     158 -  | "thinking_rich"
+     159 -  | "streaming_response"
+     160 -  | "error_soft_retry"
+     161 -  | "error_hard"
+     162 -  | "network_offline"
+     163 -  | "rate_limited";
+     164 -
+     165 -type LoadingCategory = "generic" | "sleep" | "routine" | "health";
+     166 -
+     167 -const LOADING_MESSAGES: Record<
+     168 -  LoadingCategory,
+     169 -  { short: string; rich: string[] }
+     170 -> = {
+     171 -  generic: {
+     172 -    short: "Havi is on it…",
+     173 -    rich: [
+     174 -      "I’m taking a moment to review what you just shared.",
+     175 -      "Let me pull a clear, calm answer together for you.",
+     176 -    ],
+     177 -  },
+     178 -  sleep: {
+     179 -    short: "Havi is on it…",
+     180 -    rich: [
+     181 -      "I’m reviewing recent naps, wake windows, and bedtime notes.",
+     182 -      "I’m lining up what’s typical for babies this age and sleep patterns like y
+          ours.",
+     183 -    ],
+     184 -  },
+     185 -  routine: {
+     186 -    short: "Havi is on it…",
+     187 -    rich: [
+     188 -      "I’m checking recent feeds, diapers, and patterns to see what stands out.",
+     189 -      "I’m reviewing your baby’s recent days to spot any trends.",
+     190 -    ],
+     191 -  },
+     192 -  health: {
+     193 -    short: "Havi is on it…",
+     194 -    rich: [
+     195 -      "I'm comparing what you shared with common patterns for babies this age.",
+     196 -      "I'm organizing what might be normal, what to watch, and when to call your
+          doctor.",
+     197 -    ],
+     198 -  },
+     199 -};
+     200 -
+     201 -const CHIP_CATEGORY_HINTS: Record<string, LoadingCategory> = {
+     202 -  milestones_today: "sleep",
+     203 -  week_intro: "sleep",
+     204 -  routine_setup: "routine",
+     205 -  symptom_followup: "health",
+     206 -};
+     207 -
+     208 -const API_BASE_URL =
+     209 -  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+     210 -const DEMO_CHILD_NAME = process.env.NEXT_PUBLIC_CHILD_NAME ?? "baby";
+     211 -const DEFAULT_TIMEZONE = "America/Los_Angeles";
+     212 -
+     213 -const newId = () =>
+     214 -  typeof crypto !== "undefined" && crypto.randomUUID
+     215 -    ? crypto.randomUUID()
+     216 -    : Math.random().toString(36).slice(2);
+     217 -
+     218 -const AutoResizeTextarea = ({
+     219 -  className,
+     220 -  inputRef,
+     221 -  ...props
+     222 -}: React.ComponentProps<typeof Textarea> & { inputRef?: React.RefObject<HTMLTextA
+          reaElement> }) => {
+     223 -  const fallbackRef = useRef<HTMLTextAreaElement | null>(null);
+     224 -  const ref = inputRef ?? fallbackRef;
+     225 -  const resize = useCallback(() => {
+     226 -    if (!ref.current) return;
+     227 -    ref.current.style.height = "0px";
+     228 -    ref.current.style.height = `${ref.current.scrollHeight}px`;
+     229 -  }, []);
+     230 -
+     231 -  useEffect(() => {
+     232 -    resize();
+     233 -  }, [resize, props.value]);
+     234 -
+     235 -  return (
+     236 -    <Textarea
+     237 -      ref={ref}
+     238 -      {...props}
+     239 -      className={cn(
+     240 -        "min-h-[52px] resize-none bg-card placeholder:text-muted-foreground place
+          holder:opacity-80",
+     241 -        CHAT_BODY_TEXT,
+     242 -        className,
+     243 -      )}
+     244 -      style={{ font: "inherit" }}
+     245 -    />
+     246 -  );
+     247 -};
+     248 -
+     249 -const InlineSpinner = () => (
+     250 -  <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-
+          muted-foreground border-t-transparent" />
+     251 -);
+     252 -
+     253 -export default function Home() {
+     254 -  const [message, setMessage] = useState("");
+     255 -  const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
+     256 -  const [activePanel, setActivePanel] = useState<Panel>("havi");
+     257 -  const [navOpen, setNavOpen] = useState(false);
+     258 -  const [conversationState, setConversationState] = useState<ConversationState>("
+          idle");
+     259 -  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+     260 -  const [scrollViewport, setScrollViewport] = useState<HTMLDivElement | null>(nul
+          l);
+     261 -  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
+     262 -  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+     263 -  const [primaryChildId, setPrimaryChildId] = useState<string>("demo-child");
+     264 -  const [activeChildId, setActiveChildId] = useState<string | null>(null);
+     265 -  const [activeChildName, setActiveChildName] = useState<string>(DEMO_CHILD_NAME)
+          ;
+     266 -  const [lastIntent, setLastIntent] = useState<string | null>(null);
+     267 -  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null);
+     268 -  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>
+          (null);
+     269 -  const [pinnedTimestampId, setPinnedTimestampId] = useState<string | null>(null)
+          ;
+     270 -  const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES.generic.s
+          hort);
+     271 -  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+     272 -  const thinkingShortStartRef = useRef<number | null>(null);
+     273 -  const thinkingRichStartRef = useRef<number | null>(null);
+     274 -  const retryCountRef = useRef(0);
+     275 -  const activeSessionIdRef = useRef<number | null>(null);
+     276 -  const [questionCategory, setQuestionCategory] = useState<LoadingCategory>("gene
+          ric");
+     277 -  const [pendingCategoryHint, setPendingCategoryHint] = useState<LoadingCategory
+          | null>(null);
+     278 -  const [networkOffline, setNetworkOffline] = useState<boolean>(
+     279 -    typeof navigator !== "undefined" ? !navigator.onLine : false,
+     280 -  );
+     281 -  const [rateLimitedMessage, setRateLimitedMessage] = useState<string | null>(nul
+          l);
+     282 -  const [hardErrorMessage, setHardErrorMessage] = useState<string | null>(null);
+     283 -  const [lastMessageDraft, setLastMessageDraft] = useState("");
+     284 -  const [shareMessage, setShareMessage] = useState<string | null>(null);
+     285 -  const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+     286 -  const knowledgeToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(nul
+          l);
+     287 -
+     288 -  const [sessions, setSessions] = useState<ConversationSession[]>([]);
+     289 -  const [historyLoading, setHistoryLoading] = useState(false);
+     290 -  const [historyError, setHistoryError] = useState<string | null>(null);
+     291 -  const [hasAnyLog, setHasAnyLog] = useState(false);
+     292 -  const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
+     293 -  const [hydrated, setHydrated] = useState(false);
+     294 -
+     295 -  const hasUserMessage = useMemo(
+     296 -    () => chatEntries.some((entry) => entry.role === "user" || entry.senderType =
+          == "self"),
+     297 -    [chatEntries],
+     298 -  );
+     299 -  const shareEnabled = hasUserMessage || hasAnyLog;
+     300 -
+     301 -  const [inferenceCards, setInferenceCards] = useState<InferenceCard[]>([]);
+     302 -  const [inferenceLoading, setInferenceLoading] = useState(false);
+     303 -  const [inferenceError, setInferenceError] = useState<string | null>(null);
+     304 -  const [knowledgeToast, setKnowledgeToast] = useState<string | null>(null);
+     305 -  const [expandedInferences, setExpandedInferences] = useState<Set<number>>(new S
+          et());
+     306 -  const [voiceListening, setVoiceListening] = useState(false);
+     307 -  const [voiceError, setVoiceError] = useState<string | null>(null);
+     308 -  const recognitionRef = useRef<any>(null);
+     309 -  const voiceBaseRef = useRef<string>("");
+     310 -  const voiceTranscriptRef = useRef<string>("");
+     311 -  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribi
+          ng">("idle");
+     312 -  const [voiceSeconds, setVoiceSeconds] = useState(0);
+     313 -  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+     314 -  const [showCaregiverForm, setShowCaregiverForm] = useState(false);
+     315 -  const [showChildForm, setShowChildForm] = useState(false);
+     316 -  const [caregiverSnapshot, setCaregiverSnapshot] = useState({
+     317 -    first_name: "",
+     318 -    last_name: "",
+     319 -    phone: "",
+     320 -    email: "",
+     321 -    relationship: "",
+     322 -  });
+     323 -  const [childSnapshot, setChildSnapshot] = useState({
+     324 -    first_name: "",
+     325 -    last_name: "",
+     326 -    birth_date: "",
+     327 -    due_date: "",
+     328 -    gender: "",
+     329 -    birth_weight: "",
+     330 -    birth_weight_unit: "oz",
+     331 -    latest_weight: "",
+     332 -    latest_weight_date: "",
+     333 -    timezone: DEFAULT_TIMEZONE,
+     334 -  });
+     335 -  const [birthStatus, setBirthStatus] = useState<"born" | "expected">("born");
+     336 -  const [hasUnsaved, setHasUnsaved] = useState(false);
+     337 -
+     338 -  const [tasks, setTasks] = useState<TaskItem[]>([]);
+     339 -  const [tasksLoading, setTasksLoading] = useState(false);
+     340 -  const [tasksError, setTasksError] = useState<string | null>(null);
+     341 -  const [tasksView, setTasksView] = useState<"open" | "scheduled" | "completed">(
+          "open");
+     342 -  const [tasksAssigneeFilter, setTasksAssigneeFilter] = useState<"all" | "me" | "
+          others">("all");
+     343 -  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+     344 -  const [taskDetailTitle, setTaskDetailTitle] = useState("");
+     345 -  const [taskDetailDue, setTaskDetailDue] = useState<string>("");
+     346 -  const [taskSaving, setTaskSaving] = useState(false);
+     347 -  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+     348 -
+     349 -  const [relationship, setRelationship] = useState("Mom");
+     350 -  const [caregiverFirstName, setCaregiverFirstName] = useState("Alex");
+     351 -  const [caregiverLastName, setCaregiverLastName] = useState("Davis");
+     352 -  const [caregiverPhone, setCaregiverPhone] = useState("(555) 555-1212");
+     353 -  const [caregiverEmail, setCaregiverEmail] = useState("alex@example.com");
+     354 -  const [childFirstName, setChildFirstName] = useState("Lev");
+     355 -  const [childLastName, setChildLastName] = useState("Davis");
+     356 -  const [currentUserId, setCurrentUserId] = useState<number | null>(1);
+     357 -  const [currentUserName, setCurrentUserName] = useState<string>("Alex Davis");
+     358 -  const [childDob, setChildDob] = useState("05-01-2024");
+     359 -  const [childDueDate, setChildDueDate] = useState("05-07-2024");
+     360 -  const [childGender, setChildGender] = useState("");
+     361 -  const [childBirthWeight, setChildBirthWeight] = useState("");
+     362 -  const [childBirthWeightUnit, setChildBirthWeightUnit] = useState("oz");
+     363 -  const [childLatestWeight, setChildLatestWeight] = useState("");
+     364 -  const [childLatestWeightDate, setChildLatestWeightDate] = useState("");
+     365 -  const [childTimezone, setChildTimezone] = useState(DEFAULT_TIMEZONE);
+     366 -  const [settingsLoading, setSettingsLoading] = useState(false);
+     367 -  const [settingsSaving, setSettingsSaving] = useState(false);
+     368 -  const [settingsError, setSettingsError] = useState<string | null>(null);
+     369 -  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+     370 -  const settingsSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(nu
+          ll);
+     371 -  const [chipTemplates, setChipTemplates] = useState<ChipTemplate[]>(chipLibrary.
+          slice(0, 4));
+     372 -  const [profilePromptCount, setProfilePromptCount] = useState(0);
+     373 -  const [routineEligible, setRoutineEligible] = useState(false);
+     374 -  const isComposerLocked = ["sending", "thinking_short", "thinking_rich", "stream
+          ing_response"].includes(
+     375 -    conversationState,
+     376 -  );
+     377 -  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+     378 -  const [inviteOpen, setInviteOpen] = useState(false);
+     379 -  const [inviteEmail, setInviteEmail] = useState("");
+     380 -  const [inviteRole, setInviteRole] = useState("Parent");
+     381 -  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+     382 -
+     383 -  const agentCards = useMemo(
+     384 -    () => [
+     385 -      {
+     386 -        id: "remind-agent",
+     387 -        name: "Remind Agent",
+     388 -        icon: "⏰",
+     389 -        shortDescription: "Set lightweight reminders that stay visible.",
+     390 -        longDescription: "Capture quick reminders and keep them handy across chat
+           and daily routines.",
+     391 -        createdBy: "Havi",
+     392 -        createdAt: "2024-08-01",
+     393 -        usedXTimes: 128,
+     394 -        usedByYUsers: 64,
+     395 -        savedPrompt: "Remind Agent: Capture a quick reminder for me—make it conci
+          se and actionable.",
+     396 -        statusBadge: "Available",
+     397 -      },
+     398 -      {
+     399 -        id: "routine-wiz",
+     400 -        name: "Routine Wiz",
+     401 -        icon: "🪄",
+     402 -        shortDescription: "Draft calm, repeatable routines.",
+     403 -        longDescription: "Suggest wake windows and nap routines tuned to recent d
+          ays and gentle rhythms.",
+     404 -        createdBy: "Havi",
+     405 -        createdAt: "2024-08-10",
+     406 -        usedXTimes: 0,
+     407 -        usedByYUsers: 0,
+     408 -        savedPrompt: "Routine Wiz: Build a simple routine based on the last 3 day
+          s of logs.",
+     409 -        statusBadge: "Coming soon",
+     410 -      },
+     411 -      {
+     412 -        id: "behavior-coach",
+     413 -        name: "Behavior Coach",
+     414 -        icon: "🧠",
+     415 -        shortDescription: "Gentle scripts and guidance.",
+     416 -        longDescription: "Offer calm, age-appropriate responses for tricky moment
+          s and tantrums.",
+     417 -        createdBy: "Havi",
+     418 -        createdAt: "2024-08-15",
+     419 -        usedXTimes: 0,
+     420 -        usedByYUsers: 0,
+     421 -        savedPrompt: "Behavior Coach: Give a short script to defuse a fussy momen
+          t.",
+     422 -        statusBadge: "Coming soon",
+     423 -      },
+     424 -      {
+     425 -        id: "travel-guide",
+     426 -        name: "Travel Guide",
+     427 -        icon: "✈️",
+     428 -        shortDescription: "Prep lists and travel routines.",
+     429 -        longDescription: "Assemble packing lists and travel-day plans matched to
+          your child’s needs.",
+     430 -        createdBy: "Havi",
+     431 -        createdAt: "2024-08-20",
+     432 -        usedXTimes: 0,
+     433 -        usedByYUsers: 0,
+     434 -        savedPrompt: "Travel Guide: Draft a packing list and travel day plan for
+          a short flight.",
+     435 -        statusBadge: "Coming soon",
+     436 -      },
+     437 -      {
+     438 -        id: "activity-ace",
+     439 -        name: "Activity Ace",
+     440 -        icon: "🎨",
+     441 -        shortDescription: "Bite-sized play ideas.",
+     442 -        longDescription: "Surface quick activities based on energy, space, and wh
+          at you have on hand.",
+     443 -        createdBy: "Havi",
+     444 -        createdAt: "2024-08-25",
+     445 -        usedXTimes: 0,
+     446 -        usedByYUsers: 0,
+     447 -        savedPrompt: "Activity Ace: Suggest a 10-minute activity with common hous
+          ehold items.",
+     448 -        statusBadge: "Coming soon",
+     449 -      },
+     450 -      {
+     451 -        id: "entertainer-eddy",
+     452 -        name: "Entertainer Eddy",
+     453 -        icon: "🎭",
+     454 -        shortDescription: "Distraction and calm-down ideas.",
+     455 -        longDescription: "Suggest soothing distractions for transitions or fussy
+          moments.",
+     456 -        createdBy: "Havi",
+     457 -        createdAt: "2024-08-28",
+     458 -        usedXTimes: 0,
+     459 -        usedByYUsers: 0,
+     460 -        savedPrompt: "Entertainer Eddy: Give a playful distraction for a tough di
+          aper change.",
+     461 -        statusBadge: "Coming soon",
+     462 -      },
+     463 -    ],
+     464 -    [],
+     465 -  );
+     466 -
+     467 -  const inferenceMetaFor = useCallback((inferenceType: string, payload: Record<st
+          ring, unknown>) => {
+     468 -    const lower = inferenceType?.toLowerCase?.() ?? "";
+     469 -    const name = (value?: unknown) => (typeof value === "string" ? value : "");
+     470 -    if (lower.includes("sibling")) {
+     471 -      const child = name((payload as Record<string, unknown>).child_name) || "Chi
+          ld";
+     472 -      const sibling = name((payload as Record<string, unknown>).sibling_name) ||
+          "Sibling";
+     473 -      const relation = name((payload as Record<string, unknown>).relationship) ||
+           "sibling";
+     474 -      return { title: "Sibling link", summary: `${sibling} is ${child}’s ${relati
+          on}.` };
+     475 -    }
+     476 -    if (lower.includes("routine")) {
+     477 -      const prompt = name((payload as Record<string, unknown>).prompt) || "A rout
+          ine prompt is ready.";
+     478 -      return { title: "Routine cue", summary: prompt };
+     479 -    }
+     480 -    if (lower.includes("feeding") || lower.includes("bottle") || lower.includes("
+          breast")) {
+     481 -      const method = name((payload as Record<string, unknown>).method) || "a feed
+          ing pattern";
+     482 -      return { title: "Feeding note", summary: `Noticed ${method}.` };
+     483 -    }
+     484 -    if (lower.includes("allergy")) {
+     485 -      const item = name((payload as Record<string, unknown>).item) || "something
+          new";
+     486 -      return { title: "Allergy watch", summary: `Possible sensitivity to ${item}.
+          ` };
+     487 -    }
+     488 -    if (lower.includes("sleep")) {
+     489 -      const hint = name((payload as Record<string, unknown>).note) || "Sleep patt
+          ern insight.";
+     490 -      return { title: "Sleep note", summary: hint };
+     491 -    }
+     492 -    if (lower.includes("med") || lower.includes("medicine")) {
+     493 -      const med = name((payload as Record<string, unknown>).name) || "a medicatio
+          n update";
+     494 -      return { title: "Medication note", summary: med };
+     495 -    }
+     496 -    return { title: "New memory", summary: "Review details below." };
+     497 -  }, []);
+     498 -
+     499 -  const timelineChildOptions = useMemo(
+     500 -    () =>
+     501 -      activeChildId
+     502 -        ? [
+     503 -            {
+     504 -              id: activeChildId,
+     505 -              name: activeChildName || childFirstName || DEMO_CHILD_NAME,
+     506 -            },
+     507 -          ]
+     508 -        : [],
+     509 -    [activeChildId, activeChildName, childFirstName],
+     510 -  );
+     511 -
+     512 -  useEffect(() => {
+     513 -    setActiveChildName(childFirstName || DEMO_CHILD_NAME);
+     514 -  }, [childFirstName]);
+     515 -  useEffect(() => {
+     516 -    setChatEntries((prev) =>
+     517 -      prev.length
+     518 -        ? prev
+     519 -        : [
+     520 -            {
+     521 -              id: newId(),
+     522 -              role: "havi",
+     523 -              text: `Hi! I can log ${DEMO_CHILD_NAME}'s day, tell you what's expe
+          cted, or compare to yesterday.`,
+     524 -              createdAt: new Date().toISOString(),
+     525 -              senderType: "assistant",
+     526 -              senderName: "Havi",
+     527 -            },
+     528 -          ],
+     529 -    );
+     530 -  }, []);
+     531 -
+     532 -  const fillTemplate = useCallback(
+     533 -    (template: string) => {
+     534 -      const childName = childFirstName?.trim() || DEMO_CHILD_NAME;
+     535 -      const caregiverName = caregiverFirstName?.trim() || relationship || "caregi
+          ver";
+     536 -      const weekNumber =
+     537 -        computeWeekFromDob(childDob) ?? computeWeekFromDob(childDueDate) ?? 1;
+     538 -      return template
+     539 -        .replace(/\{child\}/gi, childName)
+     540 -        .replace(/\{caregiver\}/gi, caregiverName)
+     541 -        .replace(/\{week\}/gi, weekNumber.toString());
+     542 -    },
+     543 -    [caregiverFirstName, childFirstName, childDob, childDueDate, relationship],
+     544 -  );
+     545 -
+     546 -  const pickLoadingCopy = useCallback(
+     547 -    (category: LoadingCategory, richness: "short" | "rich") => {
+     548 -      const bucket = LOADING_MESSAGES[category] ?? LOADING_MESSAGES.generic;
+     549 -      if (richness === "short") {
+     550 -        return bucket.short;
+     551 -      }
+     552 -      const pool = bucket.rich.length ? bucket.rich : LOADING_MESSAGES.generic.ri
+          ch;
+     553 -      return pool[Math.floor(Math.random() * pool.length)];
+     554 -    },
+     555 -    [],
+     556 -  );
+     557 -
+     558 -  const getClientTimezone = useCallback((): string | undefined => {
+     559 -    try {
+     560 -      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+     561 -    } catch {
+     562 -      return undefined;
+     563 -    }
+     564 -  }, []);
+     565 -
+     566 -  const computeMissingExpectationFields = useCallback(() => {
+     567 -    const missing: string[] = [];
+     568 -    if (!childDob) missing.push("date of birth");
+     569 -    if (!childGender) missing.push("gender");
+     570 -    if (!childBirthWeight) missing.push("birth weight");
+     571 -    if (!childLatestWeight || !childLatestWeightDate) missing.push("latest weight
+           + date");
+     572 -    if (!childDueDate) missing.push("due date");
+     573 -    return missing;
+     574 -  }, [childBirthWeight, childDob, childDueDate, childGender, childLatestWeight, c
+          hildLatestWeightDate]);
+     575 -
+     576 -  const startLoadingTimer = useCallback(
+     577 -    (category: LoadingCategory) => {
+     578 -      if (loadingTimerRef.current) {
+     579 -        clearTimeout(loadingTimerRef.current);
+     580 -      }
+     581 -      thinkingShortStartRef.current = performance.now();
+     582 -      thinkingRichStartRef.current = null;
+     583 -      setConversationState("thinking_short");
+     584 -      setLoadingMessage(pickLoadingCopy(category, "short"));
+     585 -      loadingTimerRef.current = setTimeout(() => {
+     586 -        setConversationState((state) => (state === "thinking_short" ? "thinking_r
+          ich" : state));
+     587 -        setLoadingMessage(pickLoadingCopy(category, "rich"));
+     588 -        thinkingRichStartRef.current = performance.now();
+     589 -      }, 2000);
+     590 -    },
+     591 -    [pickLoadingCopy],
+     592 -  );
+     593 -
+     594 -  const clearLoadingTimers = useCallback(() => {
+     595 -    if (loadingTimerRef.current) {
+     596 -      clearTimeout(loadingTimerRef.current);
+     597 -      loadingTimerRef.current = null;
+     598 -    }
+     599 -  }, []);
+     600 -
+     601 -  useEffect(() => {
+     602 -    setHydrated(true);
+     603 -  }, []);
+     604 -
+     605 -  const postClientMetrics = useCallback(
+     606 -    (errorType?: string) => {
+     607 -      if (thinkingShortStartRef.current == null) {
+     608 -        return;
+     609 -      }
+     610 -      const now = performance.now();
+     611 -      const shortEnd = thinkingRichStartRef.current ?? now;
+     612 -      const shortMs = Math.max(0, Math.round(shortEnd - thinkingShortStartRef.cur
+          rent));
+     613 -      const richMs =
+     614 -        thinkingRichStartRef.current != null
+     615 -          ? Math.max(0, Math.round(now - thinkingRichStartRef.current))
+     616 -          : undefined;
+     617 -      thinkingShortStartRef.current = null;
+     618 -      thinkingRichStartRef.current = null;
+     619 -      void fetch(`${API_BASE_URL}/api/v1/metrics/loading`, {
+     620 -        method: "POST",
+     621 -        headers: {
+     622 -          "Content-Type": "application/json",
+     623 -        },
+     624 -        body: JSON.stringify({
+     625 -          session_id: activeSessionIdRef.current,
+     626 -          thinking_short_ms: shortMs,
+     627 -          thinking_rich_ms: richMs,
+     628 -          error_type: errorType ?? null,
+     629 -          retry_count: retryCountRef.current,
+     630 -        }),
+     631 -      }).catch(() => {
+     632 -        // Swallow metric errors to avoid impacting the user flow.
+     633 -      });
+     634 -    },
+     635 -    [],
+     636 -  );
+     637 -
+     638 -  const renderChipLabel = useCallback(
+     639 -    (chip: ChipTemplate) => fillTemplate(chip.label),
+     640 -    [fillTemplate],
+     641 -  );
+     642 -  const rotateChips = useCallback(() => {
+     643 -    const hasSymptomMention = chatEntries
+     644 -      .slice(-5)
+     645 -      .some((entry) => /cough|fever|rash|vomit|spit[\s-]?up/i.test(entry.text));
+     646 -    const hasHistory = hasAnyLog || sessions.length > 0;
+     647 -    const hasProfileInfo = Boolean(childDob || childDueDate);
+     648 -    const suppressProfileChips = profilePromptCount >= 2 && !hasProfileInfo;
+     649 -    const filtered = chipLibrary.filter((chip) => {
+     650 -      if (chip.requiresSymptom && !hasSymptomMention) return false;
+     651 -      if (chip.requiresHistory && !hasHistory) return false;
+     652 -      if (chip.onlyWhenNoHistory && hasHistory) return false;
+     653 -      if (chip.requiresProfile && suppressProfileChips) return false;
+     654 -       if (chip.requiresRoutine && !routineEligible) return false;
+     655 -      return true;
+     656 -    });
+     657 -    const selection = filtered.length ? filtered.slice(0, 5) : chipLibrary.slice(
+          0, 5);
+     658 -    setChipTemplates(selection);
+     659 -  }, [chatEntries, hasAnyLog, sessions, childDob, childDueDate, profilePromptCoun
+          t, routineEligible]);
+     660 -
+     661 -  const handleScrollViewportRef = useCallback((node: HTMLDivElement | null) => {
+     662 -    scrollViewportRef.current = node;
+     663 -    setScrollViewport(node);
+     664 -  }, []);
+     665 -
+     666 -  useEffect(() => {
+     667 -    rotateChips();
+     668 -  }, [rotateChips]);
+     669 -
+     670 -  useEffect(() => {
+     671 -    if (!scrollViewport) return;
+     672 -    const handleScroll = () => {
+     673 -      const distanceFromBottom =
+     674 -        scrollViewport.scrollHeight - scrollViewport.scrollTop - scrollViewport.c
+          lientHeight;
+     675 -      setAutoScrollEnabled(distanceFromBottom < 80);
+     676 -    };
+     677 -    scrollViewport.addEventListener("scroll", handleScroll);
+     678 -    handleScroll();
+     679 -    return () => {
+     680 -      scrollViewport.removeEventListener("scroll", handleScroll);
+     681 -    };
+     682 -  }, [scrollViewport]);
+     683 -
+     684 -  useEffect(() => {
+     685 -    if (!focusedMessageId) return;
+     686 -    const target = document.querySelector<HTMLElement>(
+     687 -      `[data-message-id="${focusedMessageId}"]`,
+     688 -    );
+     689 -    if (target) {
+     690 -      target.scrollIntoView({ behavior: "smooth", block: "center" });
+     691 -      setHighlightedMessageId(focusedMessageId);
+     692 -    }
+     693 -    setFocusedMessageId(null);
+     694 -  }, [focusedMessageId]);
+     695 -
+     696 -  useEffect(() => {
+     697 -    if (!highlightedMessageId) return;
+     698 -    const timer = window.setTimeout(() => setHighlightedMessageId(null), 3000);
+     699 -    return () => window.clearTimeout(timer);
+     700 -  }, [highlightedMessageId]);
+     701 -
+     702 -  useEffect(() => {
+     703 -    if (!scrollViewport || !autoScrollEnabled) return;
+     704 -    scrollViewport.scrollTo({
+     705 -      top: scrollViewport.scrollHeight,
+     706 -      behavior: "smooth",
+     707 -    });
+     708 -  }, [autoScrollEnabled, chatEntries, conversationState, loadingMessage, scrollVi
+          ewport]);
+     709 -
+     710 -  useEffect(() => {
+     711 -    const handleOnline = () => {
+     712 -      setNetworkOffline(false);
+     713 -      setHardErrorMessage(null);
+     714 -      setRateLimitedMessage(null);
+     715 -      setConversationState((state) => (state === "network_offline" ? "idle" : sta
+          te));
+     716 -    };
+     717 -    const handleOffline = () => {
+     718 -      setNetworkOffline(true);
+     719 -      setConversationState("network_offline");
+     720 -    };
+     721 -    window.addEventListener("online", handleOnline);
+     722 -    window.addEventListener("offline", handleOffline);
+     723 -    return () => {
+     724 -      window.removeEventListener("online", handleOnline);
+     725 -      window.removeEventListener("offline", handleOffline);
+     726 -    };
+     727 -  }, []);
+     728 -
+     729 -  useEffect(() => {
+     730 -    if (childDob || childDueDate) {
+     731 -      setProfilePromptCount(0);
+     732 -    }
+     733 -  }, [childDob, childDueDate]);
+     734 -
+     735 -  useEffect(() => {
+     736 -    return () => {
+     737 -      clearLoadingTimers();
+     738 -      thinkingShortStartRef.current = null;
+     739 -      thinkingRichStartRef.current = null;
+     740 -    };
+     741 -  }, [clearLoadingTimers]);
+     742 -
+     743 -  useEffect(() => {
+     744 -    return () => {
+     745 -      if (loadingTimerRef.current) {
+     746 -        clearTimeout(loadingTimerRef.current);
+     747 -      }
+     748 -    };
+     749 -  }, []);
+     750 -
+     751 -  useEffect(() => {
+     752 -    return () => {
+     753 -      try {
+     754 -        recognitionRef.current?.stop();
+     755 -      } catch (err) {
+     756 -        // ignore
+     757 -      }
+     758 -      if (voiceTimerRef.current) {
+     759 -        clearInterval(voiceTimerRef.current);
+     760 -      }
+     761 -    };
+     762 -  }, []);
+     763 -
+     764 -  useEffect(() => {
+     765 -    return () => {
+     766 -      if (shareTimerRef.current) {
+     767 -        clearTimeout(shareTimerRef.current);
+     768 -      }
+     769 -      if (knowledgeToastTimerRef.current) {
+     770 -        clearTimeout(knowledgeToastTimerRef.current);
+     771 -      }
+     772 -      if (voiceTimerRef.current) {
+     773 -        clearInterval(voiceTimerRef.current);
+     774 -      }
+     775 -    };
+     776 -  }, []);
+     777 -
+     778 -  const fetchHistory = useCallback(
+     779 -    async (options?: { silent?: boolean }) => {
+     780 -      const childId = activeChildId && !Number.isNaN(Number(activeChildId)) ? act
+          iveChildId : null;
+     781 -      if (!childId) {
+     782 -        if (!options?.silent) {
+     783 -          setHistoryLoading(false);
+     784 -          setHistoryError("Select a child to load history.");
+     785 -        }
+     786 -        setSessions([]);
+     787 -        return;
+     788 -      }
+     789 -      if (!options?.silent) {
+     790 -        setHistoryLoading(true);
+     791 -        setHistoryError(null);
+     792 -      }
+     793 -      try {
+     794 -        const res = await fetch(
+     795 -          `${API_BASE_URL}/api/v1/sessions?child_id=${encodeURIComponent(childId)
+          }`,
+     796 -        );
+     797 -        if (!res.ok) throw new Error("Unable to load history");
+     798 -        const data: ConversationSession[] = await res.json();
+     799 -        setSessions(data);
+     800 -        if (data.length > 0) {
+     801 -          setHasAnyLog(true);
+     802 -        }
+     803 -      } catch (err) {
+     804 -        const reason = err instanceof Error ? err.message : "Unknown error";
+     805 -        if (!options?.silent) {
+     806 -          setHistoryError(reason);
+     807 -        }
+     808 -      } finally {
+     809 -        if (!options?.silent) {
+     810 -          setHistoryLoading(false);
+     811 -        }
+     812 -      }
+     813 -    },
+     814 -    [activeChildId],
+     815 -  );
+     816 -
+     817 -  useEffect(() => {
+     818 -    if (activePanel === "history") {
+     819 -      fetchHistory();
+     820 -    }
+     821 -  }, [activePanel, fetchHistory]);
+     822 -
+     823 -  useEffect(() => {
+     824 -    fetchHistory({ silent: true });
+     825 -  }, [fetchHistory]);
+     826 -
+     827 -  const loadInferences = useCallback(async () => {
+     828 -    const childId = activeChildId && !Number.isNaN(Number(activeChildId)) ? activ
+          eChildId : null;
+     829 -    if (!childId) {
+     830 -      setInferenceCards([]);
+     831 -      setInferenceError("Select a child to load insights.");
+     832 -      setInferenceLoading(false);
+     833 -      return;
+     834 -    }
+     835 -    setInferenceLoading(true);
+     836 -    setInferenceError(null);
+     837 -    try {
+     838 -      const params = new URLSearchParams({
+     839 -        status: "pending",
+     840 -        child_id: childId,
+     841 -      });
+     842 -      const res = await fetch(`${API_BASE_URL}/api/v1/inferences?${params}`);
+     843 -      if (!res.ok) throw new Error("Unable to load insights");
+     844 -      const data: InferenceCard[] = await res.json();
+     845 -      setInferenceCards(data);
+     846 -    } catch (err) {
+     847 -      const reason = err instanceof Error ? err.message : "Unknown error";
+     848 -      setInferenceError(reason);
+     849 -    } finally {
+     850 -      setInferenceLoading(false);
+     851 -    }
+     852 -  }, [activeChildId]);
+     853 -
+     854 -  useEffect(() => {
+     855 -    loadInferences();
+     856 -  }, [loadInferences]);
+     857 -
+     858 -  useEffect(() => {
+     859 -    if (activePanel === "knowledge") {
+     860 -      loadInferences();
+     861 -    }
+     862 -  }, [activePanel, loadInferences]);
+     863 -
+     864 -  const loadTasks = useCallback(async () => {
+     865 -    setTasksLoading(true);
+     866 -    setTasksError(null);
+     867 -    try {
+     868 -      const params = new URLSearchParams({
+     869 -        view: tasksView,
+     870 -      });
+     871 -      if (activeChildId && !Number.isNaN(Number(activeChildId))) {
+     872 -        params.append("child_id", activeChildId);
+     873 -      }
+     874 -      const res = await fetch(`${API_BASE_URL}/api/v1/tasks?${params}`);
+     875 -      if (!res.ok) throw new Error("Unable to load tasks");
+     876 -      const data: TaskItem[] = await res.json();
+     877 -      setTasks(data);
+     878 -    } catch (err) {
+     879 -      const reason = err instanceof Error ? err.message : "Unknown error";
+     880 -      setTasksError(reason);
+     881 -      setTasks([]);
+     882 -    } finally {
+     883 -      setTasksLoading(false);
+     884 -    }
+     885 -  }, [activeChildId, tasksView]);
+     886 -
+     887 -  useEffect(() => {
+     888 -    if (activePanel === "tasks") {
+     889 -      loadTasks();
+     890 -    }
+     891 -  }, [activePanel, loadTasks]);
+     892 -
+     893 -  const loadSettings = useCallback(async () => {
+     894 -    setSettingsLoading(true);
+     895 -    setSettingsError(null);
+     896 -    try {
+     897 -      const res = await fetch(`${API_BASE_URL}/api/v1/settings`);
+     898 -      if (!res.ok) {
+     899 -        throw new Error("Unable to load settings");
+     900 -      }
+     901 -      const data = await res.json();
+     902 -      const caregiver = data.caregiver ?? {};
+     903 -      const child = data.child ?? {};
+     904 -      const nextChildId = child.id ? String(child.id) : null;
+     905 -      setPrimaryChildId(nextChildId ?? "demo-child");
+     906 -      setActiveChildId(nextChildId);
+     907 -      setActiveChildName(child.first_name ?? DEMO_CHILD_NAME);
+     908 -      setCaregiverFirstName(caregiver.first_name ?? "");
+     909 -      setCaregiverLastName(caregiver.last_name ?? "");
+     910 -      setCaregiverPhone(caregiver.phone ?? "");
+     911 -      setCaregiverEmail(caregiver.email ?? "");
+     912 -      setRelationship(caregiver.relationship ?? "");
+     913 -      setChildFirstName(child.first_name ?? "");
+     914 -      setChildLastName(child.last_name ?? "");
+     915 -      setChildDob(formatDisplayDate(child.birth_date ?? ""));
+     916 -      setChildDueDate(formatDisplayDate(child.due_date ?? ""));
+     917 -      setChildGender(child.gender ?? "");
+     918 -      setChildBirthWeight(
+     919 -        typeof child.birth_weight === "number" ? String(child.birth_weight) : chi
+          ld.birth_weight ?? "",
+     920 -      );
+     921 -      setChildBirthWeightUnit(child.birth_weight_unit ?? "oz");
+     922 -      setChildLatestWeight(
+     923 -        typeof child.latest_weight === "number" ? String(child.latest_weight) : c
+          hild.latest_weight ?? "",
+     924 -      );
+     925 -      setChildLatestWeightDate(formatDisplayDate(child.latest_weight_date ?? ""))
+          ;
+     926 -      setChildTimezone(child.timezone || DEFAULT_TIMEZONE);
+     927 -      setRoutineEligible(Boolean(child.routine_eligible));
+     928 -      setCaregiverSnapshot({
+     929 -        first_name: caregiver.first_name ?? "",
+     930 -        last_name: caregiver.last_name ?? "",
+     931 -        phone: caregiver.phone ?? "",
+     932 -        email: caregiver.email ?? "",
+     933 -        relationship: caregiver.relationship ?? "",
+     934 -      });
+     935 -      setChildSnapshot({
+     936 -        first_name: child.first_name ?? "",
+     937 -        last_name: child.last_name ?? "",
+     938 -        birth_date: formatDisplayDate(child.birth_date ?? ""),
+     939 -        due_date: formatDisplayDate(child.due_date ?? ""),
+     940 -        gender: child.gender ?? "",
+     941 -        birth_weight: child.birth_weight ? String(child.birth_weight) : "",
+     942 -        birth_weight_unit: child.birth_weight_unit ?? "oz",
+     943 -        latest_weight: child.latest_weight ? String(child.latest_weight) : "",
+     944 -        latest_weight_date: formatDisplayDate(child.latest_weight_date ?? ""),
+     945 -        timezone: child.timezone || DEFAULT_TIMEZONE,
+     946 -      });
+     947 -      setBirthStatus(child.birth_date ? "born" : "expected");
+     948 -    } catch (err) {
+     949 -      const reason = err instanceof Error ? err.message : "Unknown error";
+     950 -      setSettingsError(reason);
+     951 -    } finally {
+     952 -      setSettingsLoading(false);
+     953 -    }
+     954 -  }, []);
+     955 -
+     956 -  useEffect(() => {
+     957 -    loadSettings();
+     958 -  }, [loadSettings]);
+     959 -
+     960 -  useEffect(() => {
+     961 -    const caregiverChanged =
+     962 -      caregiverFirstName !== caregiverSnapshot.first_name ||
+     963 -      caregiverLastName !== caregiverSnapshot.last_name ||
+     964 -      caregiverPhone !== caregiverSnapshot.phone ||
+     965 -      caregiverEmail !== caregiverSnapshot.email ||
+     966 -      relationship !== caregiverSnapshot.relationship;
+     967 -    const childChanged =
+     968 -      childFirstName !== childSnapshot.first_name ||
+     969 -      childLastName !== childSnapshot.last_name ||
+     970 -      childDob !== childSnapshot.birth_date ||
+     971 -      childDueDate !== childSnapshot.due_date ||
+     972 -      childGender !== childSnapshot.gender ||
+     973 -      childBirthWeight !== childSnapshot.birth_weight ||
+     974 -      childBirthWeightUnit !== childSnapshot.birth_weight_unit ||
+     975 -      childLatestWeight !== childSnapshot.latest_weight ||
+     976 -      childLatestWeightDate !== childSnapshot.latest_weight_date ||
+     977 -      childTimezone !== childSnapshot.timezone;
+     978 -    setHasUnsaved(caregiverChanged || childChanged);
+     979 -  }, [
+     980 -    caregiverEmail,
+     981 -    caregiverFirstName,
+     982 -    caregiverLastName,
+     983 -    caregiverPhone,
+     984 -    caregiverSnapshot.email,
+     985 -    caregiverSnapshot.first_name,
+     986 -    caregiverSnapshot.last_name,
+     987 -    caregiverSnapshot.phone,
+     988 -    caregiverSnapshot.relationship,
+     989 -    relationship,
+     990 -    childBirthWeight,
+     991 -    childBirthWeightUnit,
+     992 -    childDueDate,
+     993 -    childDob,
+     994 -    childFirstName,
+     995 -    childGender,
+     996 -    childLastName,
+     997 -    childLatestWeight,
+     998 -    childLatestWeightDate,
+     999 -    childTimezone,
+    1000 -    childSnapshot.birth_date,
+    1001 -    childSnapshot.due_date,
+    1002 -    childSnapshot.first_name,
+    1003 -    childSnapshot.gender,
+    1004 -    childSnapshot.last_name,
+    1005 -    childSnapshot.latest_weight,
+    1006 -    childSnapshot.latest_weight_date,
+    1007 -    childSnapshot.birth_weight,
+    1008 -    childSnapshot.birth_weight_unit,
+    1009 -    childSnapshot.timezone,
+    1010 -  ]);
+    1011 -
+    1012 -  const appendEntry = useCallback((entry: ChatEntry) => {
+    1013 -    setChatEntries((prev) => [...prev, entry]);
+    1014 -  }, []);
+    1015 -
+    1016 -  const handleUseAgentPrompt = useCallback(
+    1017 -    (prompt: string) => {
+    1018 -      setActivePanel("havi");
+    1019 -      setNavOpen(false);
+    1020 -      setMessage((prev) => (prev?.trim() ? `${prev} ${prompt}` : prompt));
+    1021 -      if (composerRef.current) {
+    1022 -        composerRef.current.focus();
+    1023 -      }
+    1024 -    },
+    1025 -    [],
+    1026 -  );
+    1027 -
+    1028 -  const startVoice = useCallback(() => {
+    1029 -    setVoiceError(null);
+    1030 -    voiceBaseRef.current = message.trim();
+    1031 -    const SpeechRecognitionConstructor =
+    1032 -      (typeof window !== "undefined" &&
+    1033 -        ((window as any).SpeechRecognition || (window as any).webkitSpeechRecogni
+          tion)) ||
+    1034 -      null;
+    1035 -    if (!SpeechRecognitionConstructor) {
+    1036 -      setVoiceError("Voice not supported in this browser.");
+    1037 -      return;
+    1038 -    }
+    1039 -    try {
+    1040 -      const recognition: any = new SpeechRecognitionConstructor();
+    1041 -      recognition.continuous = false;
+    1042 -      recognition.interimResults = true;
+    1043 -      recognition.lang = "en-US";
+    1044 -      recognition.onstart = () => {
+    1045 -        setVoiceListening(true);
+    1046 -        setVoiceState("recording");
+    1047 -        setVoiceSeconds(0);
+    1048 -        if (voiceTimerRef.current) {
+    1049 -          clearInterval(voiceTimerRef.current);
+    1050 -        }
+    1051 -        voiceTimerRef.current = setInterval(() => {
+    1052 -          setVoiceSeconds((prev) => prev + 1);
+    1053 -        }, 1000);
+    1054 -      };
+    1055 -      recognition.onerror = () => {
+    1056 -        setVoiceError("Voice not supported in this browser.");
+    1057 -        setVoiceListening(false);
+    1058 -        setVoiceState("idle");
+    1059 -        if (voiceTimerRef.current) {
+    1060 -          clearInterval(voiceTimerRef.current);
+    1061 -          voiceTimerRef.current = null;
+    1062 -        }
+    1063 -      };
+    1064 -      recognition.onresult = (event: any) => {
+    1065 -        const transcript = Array.from(event.results)
+    1066 -          .map((result) => result[0].transcript)
+    1067 -          .join(" ")
+    1068 -          .trim();
+    1069 -        if (transcript) {
+    1070 -          voiceTranscriptRef.current = transcript;
+    1071 -        }
+    1072 -      };
+    1073 -      recognition.onend = () => {
+    1074 -        setVoiceListening(false);
+    1075 -        if (voiceState === "transcribing" || voiceTranscriptRef.current) {
+    1076 -          const base = voiceBaseRef.current;
+    1077 -          const combined = voiceTranscriptRef.current
+    1078 -            ? (base ? `${base} ${voiceTranscriptRef.current}` : voiceTranscriptRe
+          f.current).trim()
+    1079 -            : base;
+    1080 -          setMessage(combined);
+    1081 -        }
+    1082 -        voiceTranscriptRef.current = "";
+    1083 -        setVoiceState("idle");
+    1084 -        if (voiceTimerRef.current) {
+    1085 -          clearInterval(voiceTimerRef.current);
+    1086 -          voiceTimerRef.current = null;
+    1087 -        }
+    1088 -      };
+    1089 -      recognitionRef.current = recognition;
+    1090 -      recognition.start();
+    1091 -    } catch (err) {
+    1092 -      setVoiceError("Unable to start voice input.");
+    1093 -      setVoiceListening(false);
+    1094 -      setVoiceState("idle");
+    1095 -    }
+    1096 -  }, []);
+    1097 -
+    1098 -  const stopVoice = useCallback(() => {
+    1099 -    try {
+    1100 -      recognitionRef.current?.stop();
+    1101 -    } catch (err) {
+    1102 -      // ignore stop errors
+    1103 -    }
+    1104 -    setVoiceListening(false);
+    1105 -    setVoiceState("transcribing");
+    1106 -    if (voiceTimerRef.current) {
+    1107 -      clearInterval(voiceTimerRef.current);
+    1108 -      voiceTimerRef.current = null;
+    1109 -    }
+    1110 -  }, []);
+    1111 -
+    1112 -  const sendMessage = useCallback(
+    1113 -    async (
+    1114 -      overrideText?: string,
+    1115 -      categoryHint?: LoadingCategory,
+    1116 -      options?: {
+    1117 -        skipEcho?: boolean;
+    1118 -        source?: "chat" | "chip" | "manual" | "import";
+    1119 -        localEntryId?: string | null;
+    1120 -      },
+    1121 -    ) => {
+    1122 -      const textToSend = (overrideText ?? message).trim();
+    1123 -      if (!textToSend) return;
+    1124 -      if (
+    1125 -        ["sending", "thinking_short", "thinking_rich", "streaming_response"].incl
+          udes(conversationState)
+    1126 -      ) {
+    1127 -        return;
+    1128 -      }
+    1129 -      if (typeof navigator !== "undefined" && !navigator.onLine) {
+    1130 -        setNetworkOffline(true);
+    1131 -        setConversationState("network_offline");
+    1132 -        setHardErrorMessage("It looks like we’re offline. Please check your conne
+          ction and retry.");
+    1133 -        return;
+    1134 -      }
+    1135 -      const numericChildId = [activeChildId, primaryChildId]
+    1136 -        .map((val) => (val && !Number.isNaN(Number(val)) ? Number(val) : null))
+    1137 -        .find((val) => val !== null);
+    1138 -      if (numericChildId === null) {
+    1139 -        setHardErrorMessage("Select an active child before sending.");
+    1140 -        setConversationState("error_hard");
+    1141 -        return;
+    1142 -      }
+    1143 -      if (!activeChildId && primaryChildId && numericChildId !== null) {
+    1144 -        setActiveChildId(String(numericChildId));
+    1145 -      }
+    1146 -      setHardErrorMessage(null);
+    1147 -      setRateLimitedMessage(null);
+    1148 -      setAutoScrollEnabled(true);
+    1149 -      const category = categoryHint ?? pendingCategoryHint ?? questionCategory;
+    1150 -      setPendingCategoryHint(categoryHint ?? null);
+    1151 -      setConversationState("sending");
+    1152 -      let userEntryLocalId = options?.localEntryId ?? null;
+    1153 -      if (!options?.skipEcho && !userEntryLocalId) {
+    1154 -        userEntryLocalId = newId();
+    1155 -        appendEntry({
+    1156 -          id: userEntryLocalId,
+    1157 -          role: "user",
+    1158 -          text: textToSend,
+    1159 -          createdAt: new Date().toISOString(),
+    1160 -          senderType: "self",
+    1161 -          senderName: caregiverFirstName || "You",
+    1162 -        });
+    1163 -      }
+    1164 -      setLastMessageDraft(textToSend);
+    1165 -      startLoadingTimer(category);
+    1166 -
+    1167 -      const timezone = childTimezone || DEFAULT_TIMEZONE;
+    1168 -      const resolvedSource = options?.source ?? "chat";
+    1169 -
+    1170 -      try {
+    1171 -        const res = await fetch(`${API_BASE_URL}/api/v1/activities`, {
+    1172 -          method: "POST",
+    1173 -          headers: {
+    1174 -            "Content-Type": "application/json",
+    1175 -          },
+    1176 -          body: JSON.stringify({
+    1177 -            message: textToSend,
+    1178 -            timezone,
+    1179 -            source: resolvedSource,
+    1180 -            child_id: numericChildId,
+    1181 -          }),
+    1182 -        });
+    1183 -
+    1184 -        if (res.status === 429) {
+    1185 -          const detail = await res.json().catch(() => ({}));
+    1186 -          clearLoadingTimers();
+    1187 -          postClientMetrics("rate_limited");
+    1188 -          setConversationState("rate_limited");
+    1189 -          setRateLimitedMessage(
+    1190 -            detail?.detail ??
+    1191 -              "I’m a bit busy helping other families right now. Give me a moment
+          and try again.",
+    1192 -          );
+    1193 -          return;
+    1194 -        }
+    1195 -
+    1196 -        if (!res.ok) {
+    1197 -          const detail = await res.json().catch(() => ({}));
+    1198 -          throw new Error(detail?.detail ?? "I’m sorry — I couldn’t finish that o
+          ne.");
+    1199 -        }
+    1200 -
+    1201 -        const data: ApiResponse & { question_category?: LoadingCategory } = await
+           res.json();
+    1202 -        setLastIntent(data.intent ?? null);
+    1203 -        activeSessionIdRef.current = data.session_id ?? activeSessionIdRef.curren
+          t;
+    1204 -        if (data.actions?.length) {
+    1205 -          setHasAnyLog(true);
+    1206 -          setTimelineRefreshKey((prev) => prev + 1);
+    1207 -        }
+    1208 -        clearLoadingTimers();
+    1209 -        setConversationState("streaming_response");
+    1210 -        if (data.question_category) {
+    1211 -          setQuestionCategory(data.question_category as LoadingCategory);
+    1212 -        } else if (categoryHint) {
+    1213 -          setQuestionCategory(categoryHint);
+    1214 -        }
+    1215 -        if (userEntryLocalId && data.user_message_id) {
+    1216 -          setChatEntries((prev) =>
+    1217 -            prev.map((entry) =>
+    1218 -              entry.id === userEntryLocalId
+    1219 -                ? { ...entry, messageId: String(data.user_message_id) }
+    1220 -                : entry,
+    1221 -            ),
+    1222 -          );
+    1223 -        }
+    1224 -
+    1225 -        const summary = data.assistant_message?.trim()?.length
+    1226 -          ? data.assistant_message
+    1227 -          : describeActions(data.actions ?? []);
+    1228 -        appendEntry({
+    1229 -          id: newId(),
+    1230 -          role: "havi",
+    1231 -          text: summary,
+    1232 -          messageId: data.assistant_message_id ? String(data.assistant_message_id
+          ) : undefined,
+    1233 -          createdAt: new Date().toISOString(),
+    1234 -          senderType: "assistant",
+    1235 -          senderName: "Havi",
+    1236 -        });
+    1237 -        setMessage("");
+    1238 -        setPendingCategoryHint(null);
+    1239 -        fetchHistory({ silent: true });
+    1240 -        rotateChips();
+    1241 -        setConversationState("idle");
+    1242 -        postClientMetrics();
+    1243 -        retryCountRef.current = 0;
+    1244 -      } catch (err) {
+    1245 -        clearLoadingTimers();
+    1246 -        const reason = err instanceof Error ? err.message : "Something unexpected
+           happened.";
+    1247 -        const navigatorOffline = typeof navigator !== "undefined" && !navigator.o
+          nLine;
+    1248 -        const isOffline = navigatorOffline && reason.toLowerCase().includes("fail
+          ed to fetch");
+    1249 -        if (isOffline) {
+    1250 -          setNetworkOffline(true);
+    1251 -          setConversationState("network_offline");
+    1252 -          setHardErrorMessage("It looks like we’re offline. Please check your con
+          nection and retry.");
+    1253 -          postClientMetrics("network_offline");
+    1254 -        } else {
+    1255 -          setHardErrorMessage(reason);
+    1256 -          setConversationState("error_hard");
+    1257 -          postClientMetrics("hard_error");
+    1258 -        }
+    1259 -      }
+    1260 -    },
+    1261 -    [
+    1262 -      appendEntry,
+    1263 -      childTimezone,
+    1264 -      clearLoadingTimers,
+    1265 -      conversationState,
+    1266 -      fetchHistory,
+    1267 -      activeChildId,
+    1268 -      message,
+    1269 -      pendingCategoryHint,
+    1270 -      postClientMetrics,
+    1271 -      questionCategory,
+    1272 -      rotateChips,
+    1273 -      startLoadingTimer,
+    1274 -    ],
+    1275 -  );
+    1276 -
+    1277 -  const handleKeyDown = useCallback(
+    1278 -    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    1279 -      if (isComposerLocked) return;
+    1280 -      if (event.key === "Enter" && !event.shiftKey) {
+    1281 -        event.preventDefault();
+    1282 -        sendMessage();
+    1283 -      }
+    1284 -    },
+    1285 -    [isComposerLocked, sendMessage],
+    1286 -  );
+    1287 -
+    1288 -  const handleActiveChildChange = useCallback((childId: string | null, childName?
+          : string) => {
+    1289 -    setActiveChildId(childId);
+    1290 -    if (childName) {
+    1291 -      setActiveChildName(childName);
+    1292 -    }
+    1293 -  }, []);
+    1294 -
+    1295 -  const handleReopenSession = useCallback(
+    1296 -    async (sessionId: number) => {
+    1297 -      try {
+    1298 -        const res = await fetch(`${API_BASE_URL}/api/v1/sessions/${sessionId}/reo
+          pen`, {
+    1299 -          method: "POST",
+    1300 -        });
+    1301 -        if (!res.ok) throw new Error("Unable to reopen session");
+    1302 -        fetchHistory();
+    1303 -      } catch (err) {
+    1304 -        const reason = err instanceof Error ? err.message : "Unknown error";
+    1305 -        setHistoryError(reason);
+    1306 -      }
+    1307 -    },
+    1308 -    [fetchHistory],
+    1309 -  );
+    1310 -
+    1311 -  const handleCompleteTask = useCallback(
+    1312 -    async (taskId: number, targetStatus: "open" | "done" = "done") => {
+    1313 -      setTasksError(null);
+    1314 -      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: targe
+          tStatus } : t)));
+    1315 -      try {
+    1316 -        const res = await fetch(`${API_BASE_URL}/api/v1/tasks/${taskId}`, {
+    1317 -          method: "PATCH",
+    1318 -          headers: { "Content-Type": "application/json" },
+    1319 -          body: JSON.stringify({ status: targetStatus }),
+    1320 -        });
+    1321 -        if (!res.ok) throw new Error("Unable to update task");
+    1322 -      } catch (err) {
+    1323 -        const reason = err instanceof Error ? err.message : "Unknown error";
+    1324 -        setTasksError(reason);
+    1325 -        loadTasks();
+    1326 -      }
+    1327 -    },
+    1328 -    [loadTasks],
+    1329 -  );
+    1330 -
+    1331 -  const formatDateInput = (value?: string | null) => {
+    1332 -    if (!value) return "";
+    1333 -    const d = new Date(value);
+    1334 -    if (Number.isNaN(d.getTime())) return "";
+    1335 -    return d.toISOString().slice(0, 10);
+    1336 -  };
+    1337 -
+    1338 -  const openTaskDetails = useCallback((task: TaskItem) => {
+    1339 -    setSelectedTask(task);
+    1340 -    setTaskDetailTitle(task.title);
+    1341 -    setTaskDetailDue(formatDateInput(task.due_at));
+    1342 -  }, []);
+    1343 -
+    1344 -  const closeTaskDetails = useCallback(() => {
+    1345 -    setSelectedTask(null);
+    1346 -    setTaskDetailTitle("");
+    1347 -    setTaskDetailDue("");
+    1348 -    setTaskSaving(false);
+    1349 -  }, []);
+    1350 -
+    1351 -  const saveTaskDetails = useCallback(async () => {
+    1352 -    if (!selectedTask) return;
+    1353 -    const updates: Record<string, unknown> = {};
+    1354 -    const trimmed = taskDetailTitle.trim();
+    1355 -    if (trimmed && trimmed !== selectedTask.title) {
+    1356 -      updates.title = trimmed;
+    1357 -    }
+    1358 -    const originalDue = formatDateInput(selectedTask.due_at);
+    1359 -    if (taskDetailDue !== originalDue) {
+    1360 -      updates.due_at = taskDetailDue ? new Date(taskDetailDue).toISOString() : nu
+          ll;
+    1361 -    }
+    1362 -    if (Object.keys(updates).length === 0) {
+    1363 -      closeTaskDetails();
+    1364 -      return;
+    1365 -    }
+    1366 -    setTaskSaving(true);
+    1367 -    setTasksError(null);
+    1368 -    try {
+    1369 -      const res = await fetch(`${API_BASE_URL}/api/v1/tasks/${selectedTask.id}`,
+          {
+    1370 -        method: "PATCH",
+    1371 -        headers: { "Content-Type": "application/json" },
+    1372 -        body: JSON.stringify(updates),
+    1373 -      });
+    1374 -      if (!res.ok) throw new Error("Unable to update task");
+    1375 -      await loadTasks();
+    1376 -      closeTaskDetails();
+    1377 -    } catch (err) {
+    1378 -      const reason = err instanceof Error ? err.message : "Unknown error";
+    1379 -      setTasksError(reason);
+    1380 -      setTaskSaving(false);
+    1381 -    }
+    1382 -  }, [API_BASE_URL, closeTaskDetails, loadTasks, selectedTask, taskDetailDue, tas
+          kDetailTitle]);
+    1383 -
+    1384 -  const handleInferenceAction = useCallback(
+    1385 -    async (inferenceId: number, status: "confirmed" | "rejected") => {
+    1386 -      setInferenceError(null);
+    1387 -      const previous = inferenceCards;
+    1388 -      setInferenceCards((cards) => cards.filter((card) => card.id !== inferenceId
+          ));
+    1389 -      const toastText = status === "confirmed" ? "Saved." : "Dismissed.";
+    1390 -      if (knowledgeToastTimerRef.current) {
+    1391 -        clearTimeout(knowledgeToastTimerRef.current);
+    1392 -      }
+    1393 -      setKnowledgeToast(toastText);
+    1394 -      knowledgeToastTimerRef.current = setTimeout(() => setKnowledgeToast(null),
+          1500);
+    1395 -      try {
+    1396 -        const res = await fetch(
+    1397 -          `${API_BASE_URL}/api/v1/inferences/${inferenceId}/status?status=${statu
+          s}`,
+    1398 -        { method: "POST" },
+    1399 -        );
+    1400 -        if (!res.ok) throw new Error("Failed to update insight");
+    1401 -      } catch (err) {
+    1402 -        const reason = err instanceof Error ? err.message : "Unknown error";
+    1403 -        setInferenceError(reason);
+    1404 -        setInferenceCards(previous);
+    1405 -        setKnowledgeToast(null);
+    1406 -      }
+    1407 -    },
+    1408 -    [inferenceCards],
+    1409 -  );
+    1410 -
+    1411 -  useEffect(() => {
+    1412 -    if (childDob || childDueDate) {
+    1413 -      setProfilePromptCount(0);
+    1414 -    }
+    1415 -  }, [childDob, childDueDate]);
+    1416 -
+    1417 -  const handleChip = useCallback(
+    1418 -    (chip: ChipTemplate) => {
+    1419 -      const personalized = fillTemplate(chip.text);
+    1420 -      const echoUser = () => {
+    1421 -        const localId = newId();
+    1422 -        setAutoScrollEnabled(true);
+    1423 -        appendEntry({
+    1424 -          id: localId,
+    1425 -          role: "user",
+    1426 -          text: personalized,
+    1427 -          createdAt: new Date().toISOString(),
+    1428 -          senderType: "self",
+    1429 -          senderName: caregiverFirstName || "You",
+    1430 -        });
+    1431 -        setMessage("");
+    1432 -        return localId;
+    1433 -      };
+    1434 -
+    1435 -      if (chip.requiresProfile) {
+    1436 -        const missing = computeMissingExpectationFields();
+    1437 -        if (missing.length) {
+    1438 -          echoUser();
+    1439 -          setProfilePromptCount((prev) => prev + 1);
+    1440 -          appendEntry({
+    1441 -            id: newId(),
+    1442 -            role: "havi",
+    1443 -            text:
+    1444 -              "To personalize expectations, I’ll need date of birth, gender, birt
+          h weight, latest weight + date, and due date. Share them here or add everything i
+          n Settings.",
+    1445 -          });
+    1446 -          return;
+    1447 -        }
+    1448 -      }
+    1449 -
+    1450 -      if (chip.requiresRoutine && !routineEligible) {
+    1451 -        echoUser();
+    1452 -        appendEntry({
+    1453 -          id: newId(),
+    1454 -          role: "havi",
+    1455 -          text:
+    1456 -            "Once I spot a couple of similar days, I can draft a routine for you.
+           Keep logging and I’ll take it from there.",
+    1457 -        });
+    1458 -        return;
+    1459 -      }
+    1460 -
+    1461 -      const localEntryId = echoUser();
+    1462 -      const categoryHint = CHIP_CATEGORY_HINTS[chip.id] ?? null;
+    1463 -      if (categoryHint) {
+    1464 -        sendMessage(personalized, categoryHint, {
+    1465 -          skipEcho: true,
+    1466 -          source: "chip",
+    1467 -          localEntryId,
+    1468 -        });
+    1469 -      } else {
+    1470 -        sendMessage(personalized, undefined, {
+    1471 -          skipEcho: true,
+    1472 -          source: "chip",
+    1473 -          localEntryId,
+    1474 -        });
+    1475 -      }
+    1476 -    },
+    1477 -    [
+    1478 -      appendEntry,
+    1479 -      childFirstName,
+    1480 -      computeMissingExpectationFields,
+    1481 -      fillTemplate,
+    1482 -      hasAnyLog,
+    1483 -      routineEligible,
+    1484 -      sendMessage,
+    1485 -      setMessage,
+    1486 -      setAutoScrollEnabled,
+    1487 -    ],
+    1488 -  );
+    1489 -
+    1490 -  const handleOpenTimelineMessage = useCallback((messageId: string) => {
+    1491 -    setActivePanel("havi");
+    1492 -    setFocusedMessageId(messageId);
+    1493 -  }, []);
+    1494 -
+    1495 -  const handleShareConversation = useCallback(async () => {
+    1496 -    try {
+    1497 -      const sessionId = activeSessionIdRef.current ?? sessions[0]?.id;
+    1498 -      if (!sessionId) {
+    1499 -        setShareMessage("No conversation to share yet.");
+    1500 -        return;
+    1501 -      }
+    1502 -      const res = await fetch(`${API_BASE_URL}/api/v1/share/conversation`, {
+    1503 -        method: "POST",
+    1504 -        headers: { "Content-Type": "application/json" },
+    1505 -        body: JSON.stringify({ session_id: sessionId }),
+    1506 -      });
+    1507 -      if (!res.ok) {
+    1508 -        const detail = await res.json().catch(() => ({}));
+    1509 -        throw new Error(detail?.detail ?? "Unable to create share link");
+    1510 -      }
+    1511 -      const data = await res.json();
+    1512 -      const token = data.token ?? data.id ?? data.share_id;
+    1513 -      if (!token) {
+    1514 -        throw new Error("Share token unavailable");
+    1515 -      }
+    1516 -      const url = `${window.location.origin}/share/${token}`;
+    1517 -      await navigator.clipboard.writeText(url);
+    1518 -      setShareMessage("Copied");
+    1519 -      if (shareTimerRef.current) {
+    1520 -        clearTimeout(shareTimerRef.current);
+    1521 -      }
+    1522 -      shareTimerRef.current = setTimeout(() => setShareMessage(null), 1500);
+    1523 -    } catch (err) {
+    1524 -      const reason = err instanceof Error ? err.message : "Unable to share right
+          now.";
+    1525 -      setShareMessage(reason);
+    1526 -      if (shareTimerRef.current) {
+    1527 -        clearTimeout(shareTimerRef.current);
+    1528 -      }
+    1529 -      shareTimerRef.current = setTimeout(() => setShareMessage(null), 2500);
+    1530 -    }
+    1531 -  }, [sessions]);
+    1532 -
+    1533 -  const showSettingsSuccess = useCallback(() => {
+    1534 -    setSettingsSuccess("Saved");
+    1535 -    if (settingsSuccessTimerRef.current) {
+    1536 -      clearTimeout(settingsSuccessTimerRef.current);
+    1537 -    }
+    1538 -    settingsSuccessTimerRef.current = setTimeout(() => setSettingsSuccess(null),
+          4000);
+    1539 -  }, []);
+    1540 -
+    1541 -  const saveSettings = useCallback(async () => {
+    1542 -    setSettingsSaving(true);
+    1543 -    setSettingsError(null);
+    1544 -    setSettingsSuccess(null);
+    1545 -    const nextFieldErrors: Record<string, string> = {};
+    1546 -    const validateDate = (value: string | null | undefined) =>
+    1547 -      !value || value.trim() === "" || extractDateParts(value) !== null;
+    1548 -    if (!validateDate(childDob)) {
+    1549 -      nextFieldErrors.childDob = "Enter a valid date in MM-DD-YYYY format.";
+    1550 -    }
+    1551 -    if (!validateDate(childDueDate)) {
+    1552 -      nextFieldErrors.childDueDate = "Enter a valid date in MM-DD-YYYY format.";
+    1553 -    }
+    1554 -    if (!validateDate(childLatestWeightDate)) {
+    1555 -      nextFieldErrors.childLatestWeightDate = "Enter a valid date in MM-DD-YYYY f
+          ormat.";
+    1556 -    }
+    1557 -    if (Object.keys(nextFieldErrors).length) {
+    1558 -      setFieldErrors(nextFieldErrors);
+    1559 -      setSettingsSaving(false);
+    1560 -      return;
+    1561 -    }
+    1562 -    setFieldErrors({});
+    1563 -    try {
+    1564 -      const res = await fetch(`${API_BASE_URL}/api/v1/settings`, {
+    1565 -        method: "PUT",
+    1566 -        headers: {
+    1567 -          "Content-Type": "application/json",
+    1568 -        },
+    1569 -        body: JSON.stringify({
+    1570 -          caregiver: {
+    1571 -            first_name: caregiverFirstName,
+    1572 -            last_name: caregiverLastName,
+    1573 -            phone: caregiverPhone,
+    1574 -            email: caregiverEmail,
+    1575 -            relationship,
+    1576 -          },
+    1577 -          child: {
+    1578 -            first_name: childFirstName,
+    1579 -            last_name: childLastName,
+    1580 -            birth_date: toApiDate(childDob),
+    1581 -            due_date: toApiDate(childDueDate),
+    1582 -            gender: childGender,
+    1583 -            birth_weight: childBirthWeight ? Number(childBirthWeight) : null,
+    1584 -            birth_weight_unit: childBirthWeightUnit,
+    1585 -            latest_weight: childLatestWeight ? Number(childLatestWeight) : null,
+    1586 -            latest_weight_date: toApiDate(childLatestWeightDate),
+    1587 -            timezone: childTimezone || DEFAULT_TIMEZONE,
+    1588 -          },
+    1589 -        }),
+    1590 -      });
+    1591 -      if (!res.ok) {
+    1592 -        throw new Error("Failed to save settings");
+    1593 -      }
+    1594 -      await res.json();
+    1595 -      showSettingsSuccess();
+    1596 -      setCaregiverSnapshot({
+    1597 -        first_name: caregiverFirstName,
+    1598 -        last_name: caregiverLastName,
+    1599 -        phone: caregiverPhone,
+    1600 -        email: caregiverEmail,
+    1601 -        relationship,
+    1602 -      });
+    1603 -      setChildSnapshot({
+    1604 -        first_name: childFirstName,
+    1605 -        last_name: childLastName,
+    1606 -        birth_date: childDob,
+    1607 -        due_date: childDueDate,
+    1608 -        gender: childGender,
+    1609 -        birth_weight: childBirthWeight,
+    1610 -        birth_weight_unit: childBirthWeightUnit,
+    1611 -        latest_weight: childLatestWeight,
+    1612 -        latest_weight_date: childLatestWeightDate,
+    1613 -        timezone: childTimezone,
+    1614 -      });
+    1615 -    } catch (err) {
+    1616 -      const reason = err instanceof Error ? err.message : "Unknown error";
+    1617 -      setSettingsError(reason);
+    1618 -    } finally {
+    1619 -      setSettingsSaving(false);
+    1620 -    }
+    1621 -  }, [
+    1622 -    caregiverFirstName,
+    1623 -    caregiverLastName,
+    1624 -    caregiverPhone,
+    1625 -    caregiverEmail,
+    1626 -    relationship,
+    1627 -    childFirstName,
+    1628 -    childLastName,
+    1629 -    childDob,
+    1630 -    childDueDate,
+    1631 -    childGender,
+    1632 -    childBirthWeight,
+    1633 -    childBirthWeightUnit,
+    1634 -    childLatestWeight,
+    1635 -    childLatestWeightDate,
+    1636 -    childTimezone,
+    1637 -    getClientTimezone,
+    1638 -    showSettingsSuccess,
+    1639 -  ]);
+    1640 -
+    1641 -  useEffect(() => {
+    1642 -    return () => {
+    1643 -      if (settingsSuccessTimerRef.current) {
+    1644 -        clearTimeout(settingsSuccessTimerRef.current);
+    1645 -      }
+    1646 -    };
+    1647 -  }, []);
+    1648 -
+    1649 -  if (!hydrated) {
+    1650 -    return null;
+    1651 -  }
+    1652 -
+    1653 -  return (
+    1654 -    <main className="mx-auto flex min-h-screen w-full max-w-[390px] flex-col gap-
+          4 bg-background px-4 py-6">
+    1655 -      <div>
+    1656 -        <button
+    1657 -          type="button"
+    1658 -          className="text-left"
+    1659 -          onClick={() => {
+    1660 -            setActivePanel("havi");
+    1661 -            setNavOpen(false);
+    1662 -          }}
+    1663 -          aria-label="Back to Havi chat"
+    1664 -        >
+    1665 -          <h1 className="text-3xl font-bold tracking-[0.35em] text-muted-foregrou
+          nd">HAVI</h1>
+    1666 -        </button>
+    1667 -        <p className="mt-1 text-sm text-muted-foreground">
+    1668 -          Log events, ask what&apos;s expected, or compare recent days—one chat,
+          zero friction.
+    1669 -        </p>
+    1670 -        <div className="mt-3 flex gap-2">
+    1671 -          <Button size="sm" variant="outline" onClick={() => setNavOpen((prev) =>
+           !prev)}>
+    1672 -            <Menu className="mr-2 h-4 w-4" />
+    1673 -            Menu
+    1674 -          </Button>
+    1675 -        </div>
+    1676 -        {navOpen ? (
+    1677 -          <div className="mt-2 w-48 rounded-lg border border-border/40 bg-card/90
+           p-3 text-sm shadow-lg">
+    1678 -            {[
+    1679 -              { id: "havi" as Panel, label: "Havi" },
+    1680 -              { id: "timeline" as Panel, label: "Timeline" },
+    1681 -              { id: "tasks" as Panel, label: "Tasks" },
+    1682 -              { id: "history" as Panel, label: "History" },
+    1683 -              { id: "knowledge" as Panel, label: "Knowledge" },
+    1684 -              { id: "integrations" as Panel, label: "Integrations" },
+    1685 -              { id: "settings" as Panel, label: "Settings" },
+    1686 -            ].map((item) => (
+    1687 -              <button
+    1688 -                key={item.id}
+    1689 -                className={cn(
+    1690 -                  "w-full rounded-md px-2 py-1 text-left hover:bg-muted",
+    1691 -                  activePanel === item.id && "bg-muted/60",
+    1692 -                )}
+    1693 -                onClick={() => {
+    1694 -                  setActivePanel(item.id);
+    1695 -                  setNavOpen(false);
+    1696 -                }}
+    1697 -              >
+    1698 -                {item.label}
+    1699 -              </button>
+    1700 -            ))}
+    1701 -          </div>
+    1702 -        ) : null}
+    1703 -      </div>
+    1704 -
+    1705 -      {networkOffline ? (
+    1706 -        <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
+          3 py-2 text-sm text-amber-100">
+    1707 -          <p>It looks like we’re offline. Please check your connection and tap re
+          try.</p>
+    1708 -          <div className="mt-2 flex gap-2">
+    1709 -            <Button
+    1710 -              size="sm"
+    1711 -              onClick={() => {
+    1712 -                if (typeof navigator === "undefined" || navigator.onLine) {
+    1713 -                  setNetworkOffline(false);
+    1714 -                  setConversationState("idle");
+    1715 -                  setHardErrorMessage(null);
+    1716 -                  if (lastMessageDraft) {
+    1717 -                    retryCountRef.current += 1;
+    1718 -                    sendMessage(lastMessageDraft, pendingCategoryHint ?? question
+          Category, { skipEcho: true });
+    1719 -                  }
+    1720 -                }
+    1721 -              }}
+    1722 -            >
+    1723 -              Retry
+    1724 -            </Button>
+    1725 -          </div>
+    1726 -        </div>
+    1727 -      ) : null}
+    1728 -
+    1729 -      {conversationState === "rate_limited" && rateLimitedMessage ? (
+    1730 -        <div className="rounded-md border border-amber-500/40 bg-amber-900/30 px-
+          3 py-2 text-sm text-amber-50">
+    1731 -          <p>{rateLimitedMessage}</p>
+    1732 -          <div className="mt-2 flex gap-2">
+    1733 -            <Button
+    1734 -              size="sm"
+    1735 -              onClick={() => {
+    1736 -                setRateLimitedMessage(null);
+    1737 -                setConversationState("idle");
+    1738 -                if (lastMessageDraft) {
+    1739 -                  retryCountRef.current += 1;
+    1740 -                  sendMessage(lastMessageDraft, pendingCategoryHint ?? questionCa
+          tegory, { skipEcho: true });
+    1741 -                }
+    1742 -              }}
+    1743 -            >
+    1744 -              Retry
+    1745 -            </Button>
+    1746 -            <Button
+    1747 -              size="sm"
+    1748 -              variant="outline"
+    1749 -              onClick={() => {
+    1750 -                setRateLimitedMessage(null);
+    1751 -                setConversationState("idle");
+    1752 -              }}
+    1753 -            >
+    1754 -              Okay
+    1755 -            </Button>
+    1756 -          </div>
+    1757 -        </div>
+    1758 -      ) : null}
+    1759 -
+    1760 -      {conversationState === "error_hard" && hardErrorMessage ? (
+    1761 -        <div className="rounded-md border border-destructive/50 bg-destructive/20
+           px-3 py-2 text-sm text-destructive-foreground">
+    1762 -          <p>{hardErrorMessage}</p>
+    1763 -          <div className="mt-2 flex gap-2">
+    1764 -            <Button
+    1765 -              size="sm"
+    1766 -              onClick={() => {
+    1767 -                if (!lastMessageDraft) return;
+    1768 -                retryCountRef.current += 1;
+    1769 -                sendMessage(lastMessageDraft, pendingCategoryHint ?? questionCate
+          gory, { skipEcho: true });
+    1770 -                setHardErrorMessage(null);
+    1771 -              }}
+    1772 -            >
+    1773 -              Retry
+    1774 -            </Button>
+    1775 -            <Button
+    1776 -              size="sm"
+    1777 -              variant="outline"
+    1778 -              onClick={() => {
+    1779 -                setMessage(lastMessageDraft);
+    1780 -                setConversationState("idle");
+    1781 -                setHardErrorMessage(null);
+    1782 -              }}
+    1783 -            >
+    1784 -              Edit message
+    1785 -            </Button>
+    1786 -          </div>
+    1787 -        </div>
+    1788 -      ) : null}
+    1789 -
+    1790 -      {activePanel === "timeline" ? (
+    1791 -        <Card className="bg-card/70 backdrop-blur">
+    1792 -          <CardHeader className="pb-3">
+    1793 -            <CardTitle className="text-base">Timeline</CardTitle>
+    1794 -            <CardDescription className="text-muted-foreground">
+    1795 -              Review events for {childFirstName || DEMO_CHILD_NAME}.
+    1796 -            </CardDescription>
+    1797 -          </CardHeader>
+    1798 -          <CardContent>
+    1799 -            <TimelinePanel
+    1800 -              key={activeChildId ?? primaryChildId}
+    1801 -              childName={activeChildName || childFirstName || DEMO_CHILD_NAME}
+    1802 -              timezone={childTimezone || DEFAULT_TIMEZONE}
+    1803 -              onOpenInChat={handleOpenTimelineMessage}
+    1804 -              childOptions={timelineChildOptions}
+    1805 -              selectedChildId={activeChildId}
+    1806 -              onChildChange={handleActiveChildChange}
+    1807 -              refreshTrigger={timelineRefreshKey}
+    1808 -            />
+    1809 -          </CardContent>
+    1810 -        </Card>
+    1811 -      ) : null}
+    1812 -
+    1813 -      {activePanel === "tasks" ? (
+    1814 -        <Card className="bg-card/70 backdrop-blur">
+    1815 -          <CardHeader className="pb-3">
+    1816 -            <CardTitle className="text-base">Tasks</CardTitle>
+    1817 -            <CardDescription className="text-muted-foreground">
+    1818 -              Includes family tasks and items for the selected child.
+    1819 -            </CardDescription>
+    1820 -          </CardHeader>
+    1821 -          <CardContent className="space-y-3">
+    1822 -            <div className="flex items-center gap-2">
+    1823 -              {(["open", "scheduled", "completed"] as const).map((view) => (
+    1824 -                <Button
+    1825 -                  key={view}
+    1826 -                  size="sm"
+    1827 -                  variant={tasksView === view ? "secondary" : "ghost"}
+    1828 -                  onClick={() => setTasksView(view)}
+    1829 -                >
+    1830 -                  {view === "open" ? "Open" : view === "scheduled" ? "Scheduled"
+          : "Completed"}
+    1831 -                </Button>
+    1832 -              ))}
+    1833 -            </div>
+    1834 -            {tasksLoading ? (
+    1835 -              <p className="text-sm text-muted-foreground">Loading tasks…</p>
+    1836 -            ) : tasksError ? (
+    1837 -              <p className="text-sm text-destructive">{tasksError}</p>
+    1838 -            ) : tasks.length === 0 ? (
+    1839 -              <p className="text-sm text-muted-foreground">No open tasks right no
+          w.</p>
+    1840 -            ) : (
+    1841 -              <ul className="space-y-2">
+    1842 -                {tasks.map((task) => (
+    1843 -                  <li
+    1844 -                    key={task.id}
+    1845 -                    className="flex items-start gap-3 rounded-md border border-bo
+          rder/40 bg-background/60 p-3 hover:border-border cursor-pointer"
+    1846 -                    onClick={() => openTaskDetails(task)}
+    1847 -                  >
+    1848 -                    <input
+    1849 -                      type="checkbox"
+    1850 -                      className="mt-1 h-4 w-4 rounded border-border/60"
+    1851 -                      onChange={(e) => {
+    1852 -                        e.stopPropagation();
+    1853 -                        const targetStatus = task.status === "done" ? "open" : "d
+          one";
+    1854 -                        handleCompleteTask(task.id, targetStatus);
+    1855 -                      }}
+    1856 -                      aria-label={`Complete ${task.title}`}
+    1857 -                      checked={task.status === "done"}
+    1858 -                    />
+    1859 -                    <div className="space-y-1">
+    1860 -                      <p className="text-sm font-medium">{task.title}</p>
+    1861 -                      <p className="text-[11px] text-muted-foreground">
+    1862 -                        Added{" "}
+    1863 -                        {new Date(task.created_at).toLocaleString([], { month: "s
+          hort", day: "numeric" })}
+    1864 -                      </p>
+    1865 -                      {task.due_at ? (
+    1866 -                        <p className="text-[11px] text-muted-foreground">
+    1867 -                          Due {new Date(task.due_at).toLocaleDateString([], { mon
+          th: "short", day: "numeric" })}
+    1868 -                        </p>
+    1869 -                      ) : null}
+    1870 -                    </div>
+    1871 -                  </li>
+    1872 -                ))}
+    1873 -              </ul>
+    1874 -            )}
+    1875 -            <Button variant="outline" size="sm" className="mt-1" onClick={() => s
+          etActivePanel("havi")}>
+    1876 -              Back to chat
+    1877 -            </Button>
+    1878 -          </CardContent>
+    1879 -        </Card>
+    1880 -      ) : null}
+    1881 -      {selectedTask ? (
+    1882 -        <div
+    1883 -          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30
+           md:items-stretch md:justify-end"
+    1884 -          onClick={closeTaskDetails}
+    1885 -        >
+    1886 -          <div
+    1887 -            className="w-full max-w-[420px] rounded-t-2xl border border-border/60
+           bg-card p-4 shadow-xl md:h-full md:rounded-none md:rounded-l-2xl"
+    1888 -            onClick={(e) => e.stopPropagation()}
+    1889 -          >
+    1890 -            <div className="mb-3 flex items-start justify-between gap-3">
+    1891 -              <div>
+    1892 -                <h3 className="text-base font-semibold">Task details</h3>
+    1893 -                <p className="text-xs text-muted-foreground">
+    1894 -                  Created {new Date(selectedTask.created_at).toLocaleString([], {
+           month: "short", day: "numeric" })}
+    1895 -                </p>
+    1896 -              </div>
+    1897 -              <Button size="sm" variant="ghost" onClick={closeTaskDetails}>
+    1898 -                Close
+    1899 -              </Button>
+    1900 -            </div>
+    1901 -            <div className="space-y-3">
+    1902 -              <div>
+    1903 -                <p className="text-xs text-muted-foreground">Title</p>
+    1904 -                <input
+    1905 -                  className="mt-1 w-full rounded-md border border-border/60 bg-ba
+          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+    1906 -                  value={taskDetailTitle}
+    1907 -                  onChange={(e) => setTaskDetailTitle(e.target.value)}
+    1908 -                />
+    1909 -              </div>
+    1910 -              <div>
+    1911 -                <p className="text-xs text-muted-foreground">Due date</p>
+    1912 -                <input
+    1913 -                  type="date"
+    1914 -                  className="mt-1 w-full rounded-md border border-border/60 bg-ba
+          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+    1915 -                  value={taskDetailDue}
+    1916 -                  onChange={(e) => setTaskDetailDue(e.target.value)}
+    1917 -                />
+    1918 -                {taskDetailDue ? (
+    1919 -                  <button
+    1920 -                    type="button"
+    1921 -                    className="mt-1 text-xs text-muted-foreground underline"
+    1922 -                    onClick={() => setTaskDetailDue("")}
+    1923 -                  >
+    1924 -                    Clear due date
+    1925 -                  </button>
+    1926 -                ) : null}
+    1927 -              </div>
+    1928 -            </div>
+    1929 -            <div className="mt-4 flex items-center gap-2">
+    1930 -              <Button size="sm" onClick={saveTaskDetails} disabled={taskSaving ||
+           !taskDetailTitle.trim()}>
+    1931 -                Save
+    1932 -              </Button>
+    1933 -              <Button size="sm" variant="outline" onClick={closeTaskDetails} disa
+          bled={taskSaving}>
+    1934 -                Cancel
+    1935 -              </Button>
+    1936 -              <Button
+    1937 -                size="sm"
+    1938 -                variant="secondary"
+    1939 -                onClick={() => {
+    1940 -                  const targetStatus = selectedTask.status === "done" ? "open" :
+          "done";
+    1941 -                  handleCompleteTask(selectedTask.id, targetStatus);
+    1942 -                  closeTaskDetails();
+    1943 -                }}
+    1944 -              >
+    1945 -                {selectedTask.status === "done" ? "Reopen" : "Mark complete"}
+    1946 -              </Button>
+    1947 -            </div>
+    1948 -          </div>
+    1949 -        </div>
+    1950 -      ) : null}
+    1951 -
+    1952 -      {activePanel === "history" ? (
+    1953 -        <Card className="bg-card/70 backdrop-blur">
+    1954 -          <CardHeader className="pb-3">
+    1955 -            <CardTitle className="text-base">Chat history</CardTitle>
+    1956 -            <CardDescription className="text-muted-foreground">
+    1957 -              Recent conversations auto-titled by Havi.
+    1958 -            </CardDescription>
+    1959 -          </CardHeader>
+    1960 -          <CardContent className="space-y-2">
+    1961 -            {historyLoading ? (
+    1962 -              <p className="text-sm text-muted-foreground">Loading…</p>
+    1963 -            ) : historyError ? (
+    1964 -              <p className="text-sm text-destructive">{historyError}</p>
+    1965 -            ) : sessions.length === 0 ? (
+    1966 -              <p className="text-sm text-muted-foreground">No chats yet.</p>
+    1967 -            ) : (
+    1968 -              <ul className="space-y-2 text-sm">
+    1969 -                {sessions.map((session) => (
+    1970 -                  <li
+    1971 -                    key={session.id}
+    1972 -                    className="flex items-center justify-between rounded-md borde
+          r border-border/40 p-2"
+    1973 -                  >
+    1974 -                    <div>
+    1975 -                      <p className="font-medium">{session.title}</p>
+    1976 -                      <p className="text-xs text-muted-foreground">
+    1977 -                        {new Date(session.last_message_at).toLocaleString()}
+    1978 -                      </p>
+    1979 -                    </div>
+    1980 -                    <div className="flex items-center gap-2">
+    1981 -                      <span
+    1982 -                        className={cn(
+    1983 -                          "text-[11px] uppercase tracking-wide",
+    1984 -                          session.is_active ? "text-emerald-300" : "text-muted-fo
+          reground",
+    1985 -                        )}
+    1986 -                      >
+    1987 -                        {session.is_active ? "active" : "archived"}
+    1988 -                      </span>
+    1989 -                      {!session.is_active ? (
+    1990 -                        <Button variant="outline" size="sm" onClick={() => handle
+          ReopenSession(session.id)}>
+    1991 -                          Resume
+    1992 -                        </Button>
+    1993 -                      ) : null}
+    1994 -                    </div>
+    1995 -                  </li>
+    1996 -                ))}
+    1997 -              </ul>
+    1998 -            )}
+    1999 -            <Button variant="outline" size="sm" className="mt-3" onClick={() => s
+          etActivePanel("havi")}>
+    2000 -              Back to chat
+    2001 -            </Button>
+    2002 -          </CardContent>
+    2003 -        </Card>
+    2004 -      ) : null}
+    2005 -
+    2006 -      {activePanel === "knowledge" ? (
+    2007 -        <Card className="bg-card/70 backdrop-blur">
+    2008 -          <CardHeader className="pb-3">
+    2009 -            <CardTitle className="text-base">Havi remembers</CardTitle>
+    2010 -            <CardDescription className="text-muted-foreground">
+    2011 -              Confirm or edit what Havi is learning.
+    2012 -            </CardDescription>
+    2013 -          </CardHeader>
+    2014 -          <CardContent className="space-y-3">
+    2015 -            {inferenceLoading ? (
+    2016 -              <p className="text-sm text-muted-foreground">Loading cards…</p>
+    2017 -            ) : inferenceError ? (
+    2018 -              <div className="text-sm text-destructive">{inferenceError}</div>
+    2019 -            ) : inferenceCards.length === 0 ? (
+    2020 -              <p className="text-sm text-muted-foreground">No pending insights ri
+          ght now.</p>
+    2021 -            ) : (
+    2022 -              <div className="space-y-3">
+    2023 -                {inferenceCards.map((card) => {
+    2024 -                  const meta = inferenceMetaFor(card.inference_type, card.payload
+          );
+    2025 -                  const expanded = expandedInferences.has(card.id);
+    2026 -                  return (
+    2027 -                    <div key={card.id} className="space-y-2 rounded-lg border bor
+          der-border/50 bg-background/70 p-4">
+    2028 -                      <div className="flex items-start justify-between gap-2">
+    2029 -                        <div>
+    2030 -                          <p className="text-sm font-semibold">{meta.title}</p>
+    2031 -                          <p className="text-xs text-muted-foreground">{meta.summ
+          ary}</p>
+    2032 -                        </div>
+    2033 -                        <span className="rounded-full bg-muted px-2 py-1 text-[11
+          px] uppercase tracking-wide text-muted-foreground">
+    2034 -                          Pending
+    2035 -                        </span>
+    2036 -                      </div>
+    2037 -                      <div className="flex gap-2">
+    2038 -                        <Button
+    2039 -                          size="sm"
+    2040 -                          className="flex-1"
+    2041 -                          onClick={() => handleInferenceAction(card.id, "confirme
+          d")}
+    2042 -                        >
+    2043 -                          Confirm
+    2044 -                        </Button>
+    2045 -                        <Button
+    2046 -                          size="sm"
+    2047 -                          variant="outline"
+    2048 -                          className="flex-1"
+    2049 -                          onClick={() => handleInferenceAction(card.id, "rejected
+          ")}
+    2050 -                        >
+    2051 -                          Reject
+    2052 -                        </Button>
+    2053 -                      </div>
+    2054 -                      <button
+    2055 -                        type="button"
+    2056 -                        className="text-xs text-primary underline"
+    2057 -                        onClick={() => {
+    2058 -                          setExpandedInferences((prev) => {
+    2059 -                            const next = new Set(prev);
+    2060 -                            if (next.has(card.id)) {
+    2061 -                              next.delete(card.id);
+    2062 -                            } else {
+    2063 -                              next.add(card.id);
+    2064 -                            }
+    2065 -                            return next;
+    2066 -                          });
+    2067 -                        }}
+    2068 -                      >
+    2069 -                        {expanded ? "Hide details" : "Details"}
+    2070 -                      </button>
+    2071 -                      {expanded ? (
+    2072 -                        <pre className="overflow-x-auto rounded-md bg-muted/30 p-
+          2 text-xs text-muted-foreground">
+    2073 -                          {JSON.stringify(card.payload, null, 2)}
+    2074 -                        </pre>
+    2075 -                      ) : null}
+    2076 -                    </div>
+    2077 -                  );
+    2078 -                })}
+    2079 -              </div>
+    2080 -            )}
+    2081 -            <Button variant="outline" size="sm" onClick={() => setActivePanel("ha
+          vi")}>
+    2082 -              Back to chat
+    2083 -            </Button>
+    2084 -          </CardContent>
+    2085 -        </Card>
+    2086 -      ) : null}
+    2087 -
+    2088 -      {activePanel === "integrations" ? (
+    2089 -        <Card className="bg-card/80 shadow-lg">
+    2090 -          <CardHeader className="pb-3">
+    2091 -            <CardTitle className="text-base">Integrations & Agents</CardTitle>
+    2092 -            <CardDescription className="text-muted-foreground">
+    2093 -              Lightweight previews of what’s coming next.
+    2094 -            </CardDescription>
+    2095 -          </CardHeader>
+    2096 -          <CardContent className="space-y-4">
+    2097 -            <div className="grid grid-cols-1 gap-3">
+    2098 -              {agentCards.map((agent) => (
+    2099 -                <button
+    2100 -                  key={agent.id}
+    2101 -                  className={cn(
+    2102 -                    "flex items-start justify-between rounded-lg border border-bo
+          rder/50 bg-background/70 p-3 text-left",
+    2103 -                    selectedAgentId === agent.id && "ring-1 ring-primary/40"
+    2104 -                  )}
+    2105 -                  onClick={() => setSelectedAgentId(agent.id)}
+    2106 -                >
+    2107 -                  <div className="flex gap-3">
+    2108 -                    <div className="flex h-12 w-12 items-center justify-center ro
+          unded-lg bg-gradient-to-br from-primary/15 to-muted">
+    2109 -                      <span className="text-xl">{agent.icon}</span>
+    2110 -                    </div>
+    2111 -                    <div className="space-y-1 text-left">
+    2112 -                      <div className="flex items-center gap-2">
+    2113 -                        <span className="font-semibold">{agent.name}</span>
+    2114 -                        <span className="rounded-full bg-muted px-2 py-1 text-[11
+          px] uppercase tracking-wide text-muted-foreground">
+    2115 -                          {agent.statusBadge}
+    2116 -                        </span>
+    2117 -                      </div>
+    2118 -                      <p className="text-sm text-muted-foreground">{agent.shortDe
+          scription}</p>
+    2119 -                      <p className="text-xs text-muted-foreground">Used by {agent
+          .usedByYUsers} users</p>
+    2120 -                    </div>
+    2121 -                  </div>
+    2122 -                </button>
+    2123 -              ))}
+    2124 -            </div>
+    2125 -            {selectedAgentId ? (
+    2126 -              <div className="rounded-lg border border-border/60 bg-background/80
+           p-4">
+    2127 -                {agentCards
+    2128 -                  .filter((agent) => agent.id === selectedAgentId)
+    2129 -                  .map((agent) => (
+    2130 -                    <div key={agent.id} className="space-y-2">
+    2131 -                      <div className="flex items-center gap-2">
+    2132 -                        <span className="text-xl">{agent.icon}</span>
+    2133 -                        <div>
+    2134 -                          <p className="text-lg font-semibold">{agent.name}</p>
+    2135 -                          <p className="text-sm text-muted-foreground">{agent.sho
+          rtDescription}</p>
+    2136 -                        </div>
+    2137 -                        <span className="ml-auto rounded-full bg-muted px-2 py-1
+          text-[11px] uppercase tracking-wide text-muted-foreground">
+    2138 -                          {agent.statusBadge}
+    2139 -                        </span>
+    2140 -                      </div>
+    2141 -                      <p className="text-sm leading-relaxed text-muted-foreground
+          ">{agent.longDescription}</p>
+    2142 -                      <div className="flex flex-wrap gap-3 text-xs text-muted-for
+          eground">
+    2143 -                        <span>Created by {agent.createdBy}</span>
+    2144 -                        <span>Created {agent.createdAt}</span>
+    2145 -                        <span>Used {agent.usedXTimes} times</span>
+    2146 -                        <span>Used by {agent.usedByYUsers} users</span>
+    2147 -                      </div>
+    2148 -                      <div className="space-y-1 rounded-md border border-border/6
+          0 bg-muted/20 p-3">
+    2149 -                        <div className="flex items-center justify-between text-xs
+           font-semibold text-muted-foreground">
+    2150 -                          <span>Saved prompt</span>
+    2151 -                          <button
+    2152 -                            type="button"
+    2153 -                            className="text-primary underline"
+    2154 -                            onClick={() => {
+    2155 -                              if (typeof navigator === "undefined" || !navigator.
+          clipboard) return;
+    2156 -                              navigator.clipboard.writeText(agent.savedPrompt).ca
+          tch(() => {});
+    2157 -                            }}
+    2158 -                          >
+    2159 -                            Copy
+    2160 -                          </button>
+    2161 -                        </div>
+    2162 -                        <pre className="whitespace-pre-wrap text-xs text-foregrou
+          nd">{agent.savedPrompt}</pre>
+    2163 -                      </div>
+    2164 -                      <Button
+    2165 -                        variant={agent.statusBadge === "Available" ? "default" :
+          "outline"}
+    2166 -                        disabled={agent.statusBadge !== "Available"}
+    2167 -                        className="w-full"
+    2168 -                        onClick={() => {
+    2169 -                          if (agent.statusBadge === "Available") {
+    2170 -                            handleUseAgentPrompt(agent.savedPrompt);
+    2171 -                          }
+    2172 -                        }}
+    2173 -                      >
+    2174 -                        {agent.statusBadge === "Available" ? "Use Remind Agent" :
+           "Coming soon"}
+    2175 -                      </Button>
+    2176 -                    </div>
+    2177 -                  ))}
+    2178 -            </div>
+    2179 -            ) : (
+    2180 -              <p className="text-sm text-muted-foreground">
+    2181 -                Select an agent to preview how it will help.
+    2182 -              </p>
+    2183 -            )}
+    2184 -            <Button variant="outline" size="sm" onClick={() => setActivePanel("ha
+          vi")}>
+    2185 -              Back to chat
+    2186 -            </Button>
+    2187 -          </CardContent>
+    2188 -        </Card>
+    2189 -      ) : null}
+    2190 -
+    2191 -      {activePanel === "settings" ? (
+    2192 -        <Card className="bg-card/80 shadow-lg">
+    2193 -          <CardHeader>
+    2194 -            <CardTitle className="text-base">Settings</CardTitle>
+    2195 -            <CardDescription className="text-muted-foreground">
+    2196 -              Manage caregiver and child details.
+    2197 -            </CardDescription>
+    2198 -          </CardHeader>
+    2199 -          <CardContent className="space-y-4 text-sm">
+    2200 -            {settingsLoading ? (
+    2201 -              <p className="text-sm text-muted-foreground">Loading settings…</p>
+    2202 -            ) : (
+    2203 -              <>
+    2204 -                {settingsError ? (
+    2205 -                  <div className="rounded-md border border-destructive/40 bg-dest
+          ructive/10 px-3 py-2 text-sm text-destructive">
+    2206 -                    There was a problem saving your settings. Please try again.
+    2207 -                    <div className="text-[11px] text-destructive/80">{settingsErr
+          or}</div>
+    2208 -                  </div>
+    2209 -                ) : null}
+    2210 -                <section className="space-y-3">
+    2211 -                  <div className="flex items-center justify-between">
+    2212 -                    <div>
+    2213 -                      <p className="text-sm font-semibold">Care Team</p>
+    2214 -                      <p className="text-xs text-muted-foreground">Manage who get
+          s updates and access.</p>
+    2215 -                    </div>
+    2216 -                    <div className="flex gap-2">
+    2217 -                      <Button size="sm" variant="outline" onClick={() => setInvit
+          eOpen(true)}>
+    2218 -                        Invite
+    2219 -                      </Button>
+    2220 -                      <Button
+    2221 -                        size="sm"
+    2222 -                        variant="outline"
+    2223 -                        className="hidden md:inline-flex"
+    2224 -                        onClick={() => setShowCaregiverForm((prev) => !prev)}
+    2225 -                      >
+    2226 -                        {showCaregiverForm ? "Close" : "Edit"}
+    2227 -                      </Button>
+    2228 -                    </div>
+    2229 -                  </div>
+    2230 -                  <div className="rounded-md border border-border/50 bg-backgroun
+          d/60 p-3 text-sm">
+    2231 -                    <div className="flex flex-wrap items-center justify-between g
+          ap-2">
+    2232 -                      <div>
+    2233 -                        <p className="font-semibold text-foreground">
+    2234 -                          {caregiverFirstName || caregiverLastName ? `${caregiver
+          FirstName} ${caregiverLastName}`.trim() : "Primary caregiver"}
+    2235 -                        </p>
+    2236 -                        <p className="text-xs text-muted-foreground">
+    2237 -                          {relationship || "Relationship not set"}
+    2238 -                        </p>
+    2239 -                      </div>
+    2240 -                      <div className="flex items-center gap-3 text-xs text-muted-
+          foreground">
+    2241 -                        <span>
+    2242 -                          {caregiverEmail || caregiverPhone ? (
+    2243 -                            <>
+    2244 -                              {caregiverEmail}
+    2245 -                              {caregiverEmail && caregiverPhone ? " • " : ""}
+    2246 -                              {caregiverPhone}
+    2247 -                            </>
+    2248 -                          ) : (
+    2249 -                            "Contact not set"
+    2250 -                          )}
+    2251 -                        </span>
+    2252 -                        <Button
+    2253 -                          variant="ghost"
+    2254 -                          size="sm"
+    2255 -                          className="px-2 text-xs underline md:hidden"
+    2256 -                          onClick={() => setShowCaregiverForm((prev) => !prev)}
+    2257 -                        >
+    2258 -                          {showCaregiverForm ? "Close" : "Edit"}
+    2259 -                        </Button>
+    2260 -                      </div>
+    2261 -                    </div>
+    2262 -                  </div>
+    2263 -                  {showCaregiverForm ? (
+    2264 -                    <div className="space-y-2 rounded-md border border-border/60
+          bg-background/70 p-3">
+    2265 -                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    2266 -                        <EditableField
+    2267 -                          label="First Name"
+    2268 -                          value={caregiverFirstName}
+    2269 -                          onChange={(val) => setCaregiverFirstName(val)}
+    2270 -                        />
+    2271 -                        <EditableField
+    2272 -                          label="Last Name"
+    2273 -                          value={caregiverLastName}
+    2274 -                          onChange={(val) => setCaregiverLastName(val)}
+    2275 -                        />
+    2276 -                        <EditableField
+    2277 -                          label="Phone (optional)"
+    2278 -                          value={caregiverPhone}
+    2279 -                          onChange={(val) => setCaregiverPhone(val)}
+    2280 -                        />
+    2281 -                        <EditableField
+    2282 -                          label="Email (optional)"
+    2283 -                          value={caregiverEmail}
+    2284 -                          onChange={(val) => setCaregiverEmail(val)}
+    2285 -                        />
+    2286 -                        <div>
+    2287 -                          <p className="text-[11px] text-muted-foreground">Relati
+          onship</p>
+    2288 -                          <select
+    2289 -                            className="mt-1 w-full rounded-md border border-borde
+          r/60 bg-background/70 p-2 text-sm"
+    2290 -                            value={relationship}
+    2291 -                            onChange={(event) => setRelationship(event.target.val
+          ue)}
+    2292 -                          >
+    2293 -                            {["Mom", "Dad", "Family", "Caregiver", "Other"].map((
+          option) => (
+    2294 -                              <option key={option}>{option}</option>
+    2295 -                            ))}
+    2296 -                          </select>
+    2297 -                        </div>
+    2298 -                      </div>
+    2299 -                    </div>
+    2300 -                  ) : null}
+    2301 -                </section>
+    2302 -
+    2303 -                <section className="space-y-3">
+    2304 -                  <div className="flex flex-wrap items-center justify-between gap
+          -2">
+    2305 -                    <div>
+    2306 -                      <p className="text-sm font-semibold">Children</p>
+    2307 -                      <p className="text-xs text-muted-foreground">Keep key detai
+          ls up to date.</p>
+    2308 -                    </div>
+    2309 -                    <Button
+    2310 -                      size="sm"
+    2311 -                      variant="outline"
+    2312 -                      className="hidden md:inline-flex"
+    2313 -                      onClick={() => setShowChildForm((prev) => !prev)}
+    2314 -                    >
+    2315 -                      {showChildForm ? "Close" : "Edit"}
+    2316 -                    </Button>
+    2317 -                  </div>
+    2318 -                  <div className="rounded-md border border-border/50 bg-backgroun
+          d/60 p-3 text-sm">
+    2319 -                    <div className="flex flex-wrap items-center justify-between g
+          ap-2">
+    2320 -                      <div>
+    2321 -                        <p className="font-semibold text-foreground">
+    2322 -                          {childFirstName || childLastName ? `${childFirstName} $
+          {childLastName}`.trim() : "Child profile"}
+    2323 -                        </p>
+    2324 -                        <p className="text-xs text-muted-foreground">
+    2325 -                          {childDob
+    2326 -                            ? `DOB: ${childDob}`
+    2327 -                            : childDueDate
+    2328 -                              ? `Due: ${childDueDate}`
+    2329 -                              : "Add birth or due date"}
+    2330 -                        </p>
+    2331 -                      </div>
+    2332 -                      <div className="flex items-center gap-3 text-xs text-muted-
+          foreground">
+    2333 -                        <span>{childTimezone || DEFAULT_TIMEZONE}</span>
+    2334 -                        <Button
+    2335 -                          variant="ghost"
+    2336 -                          size="sm"
+    2337 -                          className="px-2 text-xs underline md:hidden"
+    2338 -                          onClick={() => setShowChildForm((prev) => !prev)}
+    2339 -                        >
+    2340 -                          {showChildForm ? "Close" : "Edit"}
+    2341 -                        </Button>
+    2342 -                      </div>
+    2343 -                    </div>
+    2344 -                  </div>
+    2345 -                  {showChildForm ? (
+    2346 -                    <div className="space-y-2 rounded-md border border-border/60
+          bg-background/70 p-3">
+    2347 -                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    2348 -                        <EditableField
+    2349 -                          label="First Name"
+    2350 -                          value={childFirstName}
+    2351 -                          onChange={(val) => setChildFirstName(val)}
+    2352 -                        />
+    2353 -                        <EditableField
+    2354 -                          label="Last Name (optional)"
+    2355 -                          value={childLastName}
+    2356 -                          onChange={(val) => setChildLastName(val)}
+    2357 -                        />
+    2358 -                      </div>
+    2359 -                      <div className="flex flex-wrap gap-2">
+    2360 -                        <Button
+    2361 -                          size="sm"
+    2362 -                          variant={birthStatus === "born" ? "default" : "outline"
+          }
+    2363 -                          onClick={() => setBirthStatus("born")}
+    2364 -                        >
+    2365 -                          Born
+    2366 -                        </Button>
+    2367 -                        <Button
+    2368 -                          size="sm"
+    2369 -                          variant={birthStatus === "expected" ? "default" : "outl
+          ine"}
+    2370 -                          onClick={() => {
+    2371 -                            setBirthStatus("expected");
+    2372 -                            setChildDob("");
+    2373 -                          }}
+    2374 -                        >
+    2375 -                          Expected
+    2376 -                        </Button>
+    2377 -                      </div>
+    2378 -                      {birthStatus === "born" ? (
+    2379 -                        <div>
+    2380 -                          <EditableField
+    2381 -                            label="Date of Birth"
+    2382 -                            value={childDob}
+    2383 -                            onChange={(val) => setChildDob(val)}
+    2384 -                            placeholder="MM-DD-YYYY"
+    2385 -                          />
+    2386 -                          {fieldErrors.childDob ? (
+    2387 -                            <p className="text-xs text-destructive">{fieldErrors.
+          childDob}</p>
+    2388 -                          ) : null}
+    2389 -                        </div>
+    2390 -                      ) : (
+    2391 -                        <div>
+    2392 -                          <EditableField
+    2393 -                            label="Due Date"
+    2394 -                            value={childDueDate}
+    2395 -                            onChange={(val) => setChildDueDate(val)}
+    2396 -                            placeholder="MM-DD-YYYY"
+    2397 -                          />
+    2398 -                          {fieldErrors.childDueDate ? (
+    2399 -                            <p className="text-xs text-destructive">{fieldErrors.
+          childDueDate}</p>
+    2400 -                          ) : null}
+    2401 -                        </div>
+    2402 -                      )}
+    2403 -                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    2404 -                        <div>
+    2405 -                          <p className="text-[11px] text-muted-foreground">Gender
+           (optional)</p>
+    2406 -                      <select
+    2407 -                        className="mt-1 w-full rounded-md border border-border/40
+           bg-background/60 p-2 text-sm"
+    2408 -                        value={childGender}
+    2409 -                        onChange={(event) => setChildGender(event.target.value)}
+    2410 -                      >
+    2411 -                            <option value="">Select</option>
+    2412 -                            <option value="boy">Boy</option>
+    2413 -                            <option value="girl">Girl</option>
+    2414 -                            <option value="nonbinary">Non-binary</option>
+    2415 -                            <option value="prefer_not_say">Prefer not to say</opt
+          ion>
+    2416 -                          </select>
+    2417 -                        </div>
+    2418 -                        <EditableField
+    2419 -                          label="Birth Weight (optional)"
+    2420 -                          value={childBirthWeight}
+    2421 -                          onChange={(val) => setChildBirthWeight(val)}
+    2422 -                          placeholder="e.g., 7.5"
+    2423 -                        />
+    2424 -                        <div>
+    2425 -                          <p className="text-[11px] text-muted-foreground">Birth
+          Weight Unit</p>
+    2426 -                          <select
+    2427 -                            className="mt-1 w-full rounded-md border border-borde
+          r/40 bg-background/60 p-2 text-sm"
+    2428 -                            value={childBirthWeightUnit}
+    2429 -                            onChange={(event) => setChildBirthWeightUnit(event.ta
+          rget.value)}
+    2430 -                          >
+    2431 -                            {["oz", "lb", "kg"].map((unit) => (
+    2432 -                              <option key={unit} value={unit}>
+    2433 -                                {unit}
+    2434 -                              </option>
+    2435 -                            ))}
+    2436 -                          </select>
+    2437 -                        </div>
+    2438 -                        <EditableField
+    2439 -                          label="Latest Weight (optional)"
+    2440 -                          value={childLatestWeight}
+    2441 -                          onChange={(val) => setChildLatestWeight(val)}
+    2442 -                          placeholder="e.g., 11.2"
+    2443 -                        />
+    2444 -                        <EditableField
+    2445 -                          label="Latest Weight Date (optional)"
+    2446 -                          value={childLatestWeightDate}
+    2447 -                          onChange={(val) => setChildLatestWeightDate(val)}
+    2448 -                          placeholder="MM-DD-YYYY"
+    2449 -                        />
+    2450 -                        {fieldErrors.childLatestWeightDate ? (
+    2451 -                          <p className="text-xs text-destructive">{fieldErrors.ch
+          ildLatestWeightDate}</p>
+    2452 -                        ) : null}
+    2453 -                        <div>
+    2454 -                          <p className="text-[11px] text-muted-foreground">Timezo
+          ne</p>
+    2455 -                          <select
+    2456 -                            className="w-full rounded-md border border-border/40
+          bg-background/60 px-2 py-2 text-sm"
+    2457 -                            value={childTimezone || "America/Los_Angeles"}
+    2458 -                            onChange={(e) => setChildTimezone(e.target.value)}
+    2459 -                          >
+    2460 -                            <option value="America/Los_Angeles">Pacific (PT)</opt
+          ion>
+    2461 -                            <option value="America/Denver">Mountain (MT)</option>
+    2462 -                            <option value="America/Chicago">Central (CT)</option>
+    2463 -                            <option value="America/New_York">Eastern (ET)</option
+          >
+    2464 -                          </select>
+    2465 -                        </div>
+    2466 -                      </div>
+    2467 -                      <div>
+    2468 -                        <p className="text-[11px] text-muted-foreground">Current
+          age</p>
+    2469 -                        <p className="rounded-md border border-border/40 bg-backg
+          round/60 px-2 py-1 text-sm">
+    2470 -                          {formatAdjustedAge(childDob, childDueDate)}
+    2471 -                        </p>
+    2472 -                      </div>
+    2473 -                    </div>
+    2474 -                  ) : null}
+    2475 -                </section>
+    2476 -
+    2477 -                <div className="flex flex-col gap-2">
+    2478 -                  <Button
+    2479 -                    className="w-full"
+    2480 -                    onClick={saveSettings}
+    2481 -                    disabled={settingsSaving}
+    2482 -                  >
+    2483 -                    {settingsSaving ? (
+    2484 -                      <span className="flex items-center justify-center gap-2">
+    2485 -                        <InlineSpinner />
+    2486 -                        Saving…
+    2487 -                      </span>
+    2488 -                    ) : (
+    2489 -                      "Save changes"
+    2490 -                    )}
+    2491 -                  </Button>
+    2492 -                  <Button variant="outline" className="w-full" onClick={() => set
+          ActivePanel("havi")}
+    2493 -                  >
+    2494 -                    Back to chat
+    2495 -                  </Button>
+    2496 -                </div>
+    2497 -              </>
+    2498 -            )}
+    2499 -            {hasUnsaved ? (
+    2500 -              <div className="sticky bottom-0 mt-4 flex items-center justify-betw
+          een gap-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2">
+    2501 -                <span className="text-sm font-medium">Unsaved changes</span>
+    2502 -                <div className="flex gap-2">
+    2503 -                  <Button
+    2504 -                    variant="outline"
+    2505 -                    size="sm"
+    2506 -                    onClick={() => {
+    2507 -                      setCaregiverFirstName(caregiverSnapshot.first_name);
+    2508 -                      setCaregiverLastName(caregiverSnapshot.last_name);
+    2509 -                      setCaregiverPhone(caregiverSnapshot.phone);
+    2510 -                      setCaregiverEmail(caregiverSnapshot.email);
+    2511 -                      setRelationship(caregiverSnapshot.relationship);
+    2512 -                      setChildFirstName(childSnapshot.first_name);
+    2513 -                      setChildLastName(childSnapshot.last_name);
+    2514 -                      setChildDob(childSnapshot.birth_date);
+    2515 -                      setChildDueDate(childSnapshot.due_date);
+    2516 -                      setChildGender(childSnapshot.gender);
+    2517 -                      setChildBirthWeight(childSnapshot.birth_weight);
+    2518 -                      setChildBirthWeightUnit(childSnapshot.birth_weight_unit);
+    2519 -                      setChildLatestWeight(childSnapshot.latest_weight);
+    2520 -                      setChildLatestWeightDate(childSnapshot.latest_weight_date);
+    2521 -                      setChildTimezone(childSnapshot.timezone);
+    2522 -                      setBirthStatus(childSnapshot.birth_date ? "born" : "expecte
+          d");
+    2523 -                    }}
+    2524 -                  >
+    2525 -                    Cancel
+    2526 -                  </Button>
+    2527 -                  <Button size="sm" onClick={saveSettings} disabled={settingsSavi
+          ng}>
+    2528 -                    Save changes
+    2529 -                  </Button>
+    2530 -                </div>
+    2531 -              </div>
+    2532 -            ) : null}
+    2533 -          </CardContent>
+    2534 -        </Card>
+    2535 -      ) : null}
+    2536 -
+    2537 -      {activePanel === "havi" ? (
+    2538 -        <>
+    2539 -          <Card className="flex-1 bg-card/70 backdrop-blur">
+    2540 -            <CardHeader className="flex items-start justify-between pb-2">
+    2541 -              <div>
+    2542 -                <CardTitle className="text-base">Conversation</CardTitle>
+    2543 -                <CardDescription className="text-muted-foreground">
+    2544 -                  Havi blends logging and coaching into one stream.
+    2545 -                </CardDescription>
+    2546 -              </div>
+    2547 -              <div className="relative">
+    2548 -                <Button
+    2549 -                  size="icon"
+    2550 -                  variant="outline"
+    2551 -                  disabled={!shareEnabled}
+    2552 -                  title={shareEnabled ? "Copy a shareable link." : "Start a chat
+          to enable sharing."}
+    2553 -                  onClick={() => void handleShareConversation()}
+    2554 -                  aria-label="Share conversation"
+    2555 -                >
+    2556 -                  <Share2 className="h-4 w-4" />
+    2557 -                </Button>
+    2558 -                {shareMessage ? (
+    2559 -                  <span className="absolute left-1/2 top-full z-10 -translate-x-1
+          /2 mt-1 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
+    2560 -                    Copied
+    2561 -                  </span>
+    2562 -                ) : null}
+    2563 -              </div>
+    2564 -            </CardHeader>
+    2565 -            <CardContent>
+    2566 -              <ScrollArea
+    2567 -                ref={handleScrollViewportRef}
+    2568 -                className="h-[360px] rounded-md border border-border/40 bg-backgr
+          ound/30 p-3 space-y-3"
+    2569 -              >
+    2570 -                {chatEntries.map((entry, index) => {
+    2571 -                  const currentSender = entry.senderType ?? (entry.role === "havi
+          " ? "assistant" : "self");
+    2572 -                  const prevSender =
+    2573 -                    index > 0
+    2574 -                      ? chatEntries[index - 1].senderType ??
+    2575 -                        (chatEntries[index - 1].role === "havi" ? "assistant" : "
+          self")
+    2576 -                      : null;
+    2577 -                  const gap = index === 0 ? 0 : prevSender === currentSender ? 6
+          : 12;
+    2578 -                  return (
+    2579 -                    <div key={entry.id} style={{ marginTop: gap }} className="w-f
+          ull">
+    2580 -                      <MessageBubble
+    2581 -                        entry={entry}
+    2582 -                        isPinned={pinnedTimestampId === entry.id}
+    2583 -                        onToggleTimestamp={(id) =>
+    2584 -                          setPinnedTimestampId((prev) => (prev === id ? null : id
+          ))
+    2585 -                        }
+    2586 -                        onCopy={(text, id) => {
+    2587 -                          if (!text) return;
+    2588 -                          if (typeof navigator === "undefined" || !navigator.clip
+          board) {
+    2589 -                            return;
+    2590 -                          }
+    2591 -                          navigator.clipboard
+    2592 -                            .writeText(text)
+    2593 -                            .then(() => {
+    2594 -                              setCopiedMessageId(id);
+    2595 -                              setTimeout(() => setCopiedMessageId(null), 1500);
+    2596 -                            })
+    2597 -                            .catch(() => setCopiedMessageId(null));
+    2598 -                        }}
+    2599 -                        copiedMessageId={copiedMessageId}
+    2600 -                        highlightedMessageId={highlightedMessageId}
+    2601 -                      />
+    2602 -                    </div>
+    2603 -                  );
+    2604 -                })}
+    2605 -                {["thinking_short", "thinking_rich"].includes(conversationState)
+          ? (
+    2606 -                  <div className="flex items-center gap-2 text-xs text-muted-fore
+          ground">
+    2607 -                    <InlineSpinner />
+    2608 -                    <span>{loadingMessage}</span>
+    2609 -                  </div>
+    2610 -                ) : null}
+    2611 -              </ScrollArea>
+    2612 -            </CardContent>
+    2613 -          </Card>
+    2614 -
+    2615 -          <div className="space-y-3">
+    2616 -            <div className="flex flex-wrap gap-2">
+    2617 -              {/* TODO: Compare-day chips removed until proper implementation ret
+          urns results reliably. */}
+    2618 -              {chipTemplates.map((chip) => (
+    2619 -                <Button
+    2620 -                  key={chip.id}
+    2621 -                  variant="outline"
+    2622 -                  size="sm"
+    2623 -                  onClick={() => handleChip(chip)}
+    2624 -                >
+    2625 -                  {renderChipLabel(chip)}
+    2626 -                </Button>
+    2627 -              ))}
+    2628 -            </div>
+    2629 -            <div className="flex flex-col gap-2">
+    2630 -              <div className="flex items-center gap-2 rounded-2xl border border-b
+          order/60 bg-card/70 px-2 py-2">
+    2631 -                <div className="flex-1">
+    2632 -                  {voiceState === "recording" ? (
+    2633 -                    <div className="flex items-center gap-2 rounded-xl bg-backgro
+          und/60 px-3 py-2 text-sm text-muted-foreground">
+    2634 -                      <span className="inline-flex h-2 w-2 animate-pulse rounded-
+          full bg-red-500" />
+    2635 -                      <span className="font-medium text-foreground">Recording…</s
+          pan>
+    2636 -                      <span className="text-xs text-muted-foreground">{formatVoic
+          eTime(voiceSeconds)}</span>
+    2637 -                    </div>
+    2638 -                  ) : voiceState === "transcribing" ? (
+    2639 -                    <div className="flex items-center gap-2 rounded-xl bg-backgro
+          und/60 px-3 py-2 text-sm text-muted-foreground">
+    2640 -                      <InlineSpinner />
+    2641 -                      <span>Transcribing…</span>
+    2642 -                    </div>
+    2643 -                  ) : (
+    2644 -                    <AutoResizeTextarea
+    2645 -                      id="activity-input"
+    2646 -                      placeholder="Ask and track anything…"
+    2647 -                      value={message}
+    2648 -                      onChange={(event) => setMessage(event.target.value)}
+    2649 -                      onKeyDown={handleKeyDown}
+    2650 -                      disabled={isComposerLocked || voiceState !== "idle"}
+    2651 -                      className="flex-1 bg-transparent"
+    2652 -                      inputRef={composerRef}
+    2653 -                    />
+    2654 -                  )}
+    2655 -                </div>
+    2656 -                <Button
+    2657 -                  type="button"
+    2658 -                  aria-label={voiceState === "recording" ? "Stop recording" : "Re
+          cord voice"}
+    2659 -                  variant="outline"
+    2660 -                  size="icon"
+    2661 -                  onClick={() => (voiceState === "recording" ? stopVoice() : star
+          tVoice())}
+    2662 -                  disabled={isComposerLocked || voiceState === "transcribing"}
+    2663 -                  className={cn(
+    2664 -                    "h-10 w-10 rounded-xl border border-border/60",
+    2665 -                    voiceState === "recording" ? "bg-red-500/10 text-red-500" : "
+          bg-background"
+    2666 -                  )}
+    2667 -                >
+    2668 -                  {voiceState === "recording" ? <Square className="h-4 w-4" /> :
+          <Mic className="h-4 w-4" />}
+    2669 -                </Button>
+    2670 -                <Button
+    2671 -                  type="button"
+    2672 -                  aria-label="Send message"
+    2673 -                  onClick={() => sendMessage()}
+    2674 -                  disabled={!message.trim() || isComposerLocked || voiceState !==
+           "idle"}
+    2675 -                  className="flex h-10 w-10 items-center justify-center rounded-x
+          l"
+    2676 -                >
+    2677 -                  <ArrowUpRight className="h-4 w-4" />
+    2678 -                </Button>
+    2679 -              </div>
+    2680 -              {voiceError ? <p className="text-xs text-destructive">{voiceError}<
+          /p> : null}
+    2681 -            </div>
+    2682 -          </div>
+    2683 -        </>
+    2684 -      ) : null}
+    2685 -
+    2686 -            {settingsSuccess ? (
+    2687 -              <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex
+           justify-center px-4">
+    2688 -                <div className="pointer-events-auto rounded-md border border-emer
+          ald-500/40 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-50 shadow-lg">
+    2689 -                  {settingsSuccess}
+    2690 -                </div>
+    2691 -              </div>
+    2692 -            ) : null}
+    2693 -      {knowledgeToast ? (
+    2694 -        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justi
+          fy-center px-4">
+    2695 -          <div className="pointer-events-auto rounded-md border border-primary/40
+           bg-primary/15 px-4 py-2 text-sm text-primary shadow-lg">
+    2696 -            {knowledgeToast}
+    2697 -          </div>
+    2698 -        </div>
+    2699 -      ) : null}
+    2700 -      {inviteOpen ? (
+    2701 -        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bl
+          ack/50 px-4">
+    2702 -          <div className="w-full max-w-sm space-y-3 rounded-lg border border-bord
+          er/60 bg-card p-4 shadow-xl">
+    2703 -            <div className="flex items-start justify-between">
+    2704 -              <div>
+    2705 -                <p className="text-base font-semibold">Invite a caregiver</p>
+    2706 -                <p className="text-sm text-muted-foreground">
+    2707 -                  Send a quick invite to join this care team.
+    2708 -                </p>
+    2709 -              </div>
+    2710 -              <button
+    2711 -                type="button"
+    2712 -                className="text-sm text-muted-foreground"
+    2713 -                onClick={() => setInviteOpen(false)}
+    2714 -                aria-label="Close invite dialog"
+    2715 -              >
+    2716 -                ✕
+    2717 -              </button>
+    2718 -            </div>
+    2719 -            <div className="space-y-2">
+    2720 -              <div>
+    2721 -                <p className="text-[11px] text-muted-foreground">Email</p>
+    2722 -                <input
+    2723 -                  className="mt-1 w-full rounded-md border border-border/50 bg-ba
+          ckground/70 px-2 py-1 text-sm"
+    2724 -                  value={inviteEmail}
+    2725 -                  onChange={(e) => setInviteEmail(e.target.value)}
+    2726 -                  type="email"
+    2727 -                  placeholder="caregiver@example.com"
+    2728 -                />
+    2729 -              </div>
+    2730 -              <div>
+    2731 -                <p className="text-[11px] text-muted-foreground">Role</p>
+    2732 -                <select
+    2733 -                  className="mt-1 w-full rounded-md border border-border/50 bg-ba
+          ckground/70 p-2 text-sm"
+    2734 -                  value={inviteRole}
+    2735 -                  onChange={(e) => setInviteRole(e.target.value)}
+    2736 -                >
+    2737 -                  {["Parent", "Grandparent", "Nanny", "Relative", "Other"].map((r
+          ole) => (
+    2738 -                    <option key={role}>{role}</option>
+    2739 -                  ))}
+    2740 -                </select>
+    2741 -              </div>
+    2742 -            </div>
+    2743 -            <div className="flex justify-end gap-2">
+    2744 -              <Button variant="outline" size="sm" onClick={() => setInviteOpen(fa
+          lse)}>
+    2745 -                Cancel
+    2746 -              </Button>
+    2747 -              <Button
+    2748 -                size="sm"
+    2749 -                onClick={() => {
+    2750 -                  console.log("Invite caregiver", { inviteEmail, inviteRole });
+    2751 -                  setInviteOpen(false);
+    2752 -                  setInviteEmail("");
+    2753 -                  setInviteRole("Parent");
+    2754 -                }}
+    2755 -              >
+    2756 -                Send invite
+    2757 -              </Button>
+    2758 -            </div>
+    2759 -          </div>
+    2760 -        </div>
+    2761 -      ) : null}
+    2762 -    </main>
+    2763 -  );
+    2764 -}
+    2765 -
+    2766 -function describeActions(actions: Action[]): string {
+    2767 -  if (!actions.length) {
+    2768 -    return "Captured. I’ll keep an eye out for more detail.";
+    2769 -  }
+    2770 -  const summaries = actions.slice(0, 3).map((action) => {
+    2771 -    const when = new Date(action.timestamp).toLocaleTimeString([], {
+    2772 -      hour: "numeric",
+    2773 -      minute: "2-digit",
+    2774 -    });
+    2775 -    switch (action.action_type) {
+    2776 -      case "activity": {
+    2777 -        const oz = action.metadata.amount_value
+    2778 -          ? `${action.metadata.amount_value} ${action.metadata.amount_unit ?? "un
+          its"}`
+    2779 -          : "activity";
+    2780 -        return action.note ? `${action.note}` : `${oz} at ${when}`;
+    2781 -      }
+    2782 -      case "sleep": {
+    2783 -        const mins = action.metadata.duration_minutes;
+    2784 -        if (mins && mins > 0) {
+    2785 -          return `Sleep ${Math.round(mins)} min ending ${when}`;
+    2786 -        }
+    2787 -        if (action.note) {
+    2788 -          return action.note;
+    2789 -        }
+    2790 -        return `Sleep event around ${when}`;
+    2791 -      }
+    2792 -      case "dirty_diaper_poop":
+    2793 -      case "dirty_diaper_pee":
+    2794 -      case "dirty_diaper_pee_and_poop":
+    2795 -        return `Diaper (${action.action_type.replace("dirty_diaper_", "").replace
+          (/_/g, " ")})`;
+    2796 -      case "bath":
+    2797 -        return `Bath around ${when}`;
+    2798 -      default:
+    2799 -        return `${action.action_type} at ${when}`;
+    2800 -    }
+    2801 -  });
+    2802 -  const tail = actions.length > 3 ? ` +${actions.length - 3} more` : "";
+    2803 -  return `Captured ${actions.length} event(s): ${summaries.join(", ")}${tail}.`;
+    2804 -}
+    2805 -
+    2806 -function pad(value: number): string {
+    2807 -  return String(value).padStart(2, "0");
+    2808 -}
+    2809 -
+    2810 -function formatVoiceTime(totalSeconds: number): string {
+    2811 -  const mins = Math.floor(totalSeconds / 60);
+    2812 -  const secs = totalSeconds % 60;
+    2813 -  return `${pad(mins)}:${pad(secs)}`;
+    2814 -}
+    2815 -
+    2816 -function extractDateParts(value?: string | null): { year: number; month: number;
+          day: number } | null {
+    2817 -  const str = value?.trim();
+    2818 -  if (!str) return null;
+    2819 -  const mmddyyyy = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    2820 -  if (mmddyyyy) {
+    2821 -    const [, mm, dd, yyyy] = mmddyyyy;
+    2822 -    return { year: Number(yyyy), month: Number(mm), day: Number(dd) };
+    2823 -  }
+    2824 -  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    2825 -  if (iso) {
+    2826 -    const [, yyyy, mm, dd] = iso;
+    2827 -    return { year: Number(yyyy), month: Number(mm), day: Number(dd) };
+    2828 -  }
+    2829 -  return null;
+    2830 -}
+    2831 -
+    2832 -function formatDisplayDate(value?: string | null): string {
+    2833 -  const parts = extractDateParts(value);
+    2834 -  if (!parts) return value ?? "";
+    2835 -  return `${pad(parts.month)}-${pad(parts.day)}-${parts.year}`;
+    2836 -}
+    2837 -
+    2838 -function parseDateToDate(value?: string | null): Date | null {
+    2839 -  const parts = extractDateParts(value);
+    2840 -  if (!parts) return null;
+    2841 -  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    2842 -  return Number.isNaN(date.getTime()) ? null : date;
+    2843 -}
+    2844 -
+    2845 -function toApiDate(value: string): string | null {
+    2846 -  const parts = extractDateParts(value);
+    2847 -  if (!parts) return null;
+    2848 -  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+    2849 -}
+    2850 -
+    2851 -function formatTimestamp(value: string): string {
+    2852 -  const date = new Date(value);
+    2853 -  if (Number.isNaN(date.getTime())) return "";
+    2854 -  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    2855 -}
+    2856 -
+    2857 -function EditableField({
+    2858 -  label,
+    2859 -  value,
+    2860 -  onChange,
+    2861 -  placeholder,
+    2862 -}: {
+    2863 -  label: string;
+    2864 -  value: string;
+    2865 -  onChange: (val: string) => void;
+    2866 -  placeholder?: string;
+    2867 -}) {
+    2868 -  return (
+    2869 -    <div>
+    2870 -      <p className="text-[11px] text-muted-foreground">{label}</p>
+    2871 -      <input
+    2872 -        className="mt-1 w-full rounded-md border border-border/60 bg-background/7
+          0 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+    2873 -        value={value}
+    2874 -        placeholder={placeholder}
+    2875 -        onChange={(event) => onChange(event.target.value)}
+    2876 -      />
+    2877 -    </div>
+    2878 -  );
+    2879 -}
+    2880 -
+    2881 -function MessageBubble({
+    2882 -  entry,
+    2883 -  onToggleTimestamp,
+    2884 -  isPinned,
+    2885 -  onCopy,
+    2886 -  copiedMessageId,
+    2887 -  highlightedMessageId,
+    2888 -}: {
+    2889 -  entry: ChatEntry;
+    2890 -  onToggleTimestamp: (id: string) => void;
+    2891 -  isPinned: boolean;
+    2892 -  onCopy: (text: string, id: string) => void;
+    2893 -  copiedMessageId: string | null;
+    2894 -  highlightedMessageId: string | null;
+    2895 -}) {
+    2896 -  const createdAt = entry.createdAt ?? new Date().toISOString();
+    2897 -  const senderType = entry.senderType ?? (entry.role === "havi" ? "assistant" : "
+          self");
+    2898 -  const isSelf = senderType === "self";
+    2899 -  const isAssistant = senderType === "assistant";
+    2900 -  const isCaregiver = senderType === "caregiver";
+    2901 -  const showTimestamp = isPinned || Date.now() - new Date(createdAt).getTime() >=
+           1000 * 60 * 60;
+    2902 -  const bubbleMaxWidth = { maxWidth: "min(520px, 82%)" };
+    2903 -  const isHighlighted = entry.messageId && entry.messageId === highlightedMessage
+          Id;
+    2904 -
+    2905 -  const markdownComponents: Components = {
+    2906 -    p: ({ node: _node, className, ...props }) => (
+    2907 -      <p className={cn("mb-3 leading-relaxed last:mb-0", className)} {...props} /
+          >
+    2908 -    ),
+    2909 -    h1: ({ node: _node, className, ...props }) => (
+    2910 -      <h1 className={cn("mb-2 mt-1 text-base font-semibold", className)} {...prop
+          s} />
+    2911 -    ),
+    2912 -    h2: ({ node: _node, className, ...props }) => (
+    2913 -      <h2 className={cn("mb-2 mt-1 text-sm font-semibold", className)} {...props}
+           />
+    2914 -    ),
+    2915 -    h3: ({ node: _node, className, ...props }) => (
+    2916 -      <h3 className={cn("mb-2 mt-1 text-[13px] font-semibold", className)} {...pr
+          ops} />
+    2917 -    ),
+    2918 -    ul: ({ node: _node, className, ...props }) => (
+    2919 -      <ul className={cn("mb-3 ml-5 list-disc space-y-1 last:mb-0", className)} {.
+          ..props} />
+    2920 -    ),
+    2921 -    ol: ({ node: _node, className, ...props }) => (
+    2922 -      <ol className={cn("mb-3 ml-5 list-decimal space-y-1 last:mb-0", className)}
+           {...props} />
+    2923 -    ),
+    2924 -    li: ({ node: _node, className, ...props }) => (
+    2925 -      <li className={cn("leading-relaxed", className)} {...props} />
+    2926 -    ),
+    2927 -    a: ({ node: _node, className, ...props }) => (
+    2928 -      <a className={cn("text-primary underline underline-offset-2", className)} {
+          ...props} />
+    2929 -    ),
+    2930 -    table: ({ node: _node, className, ...props }) => (
+    2931 -      <div className="mb-3 overflow-x-auto">
+    2932 -        <table className={cn("min-w-full border-collapse text-sm", className)} {.
+          ..props} />
+    2933 -      </div>
+    2934 -    ),
+    2935 -    thead: ({ node: _node, className, ...props }) => (
+    2936 -      <thead className={cn("border-b border-border/80", className)} {...props} />
+    2937 -    ),
+    2938 -    th: ({ node: _node, className, ...props }) => (
+    2939 -      <th className={cn("px-2 py-1 text-left font-semibold", className)} {...prop
+          s} />
+    2940 -    ),
+    2941 -    td: ({ node: _node, className, ...props }) => (
+    2942 -      <td className={cn("border-b border-border/60 px-2 py-1 align-top", classNam
+          e)} {...props} />
+    2943 -    ),
+    2944 -    code: ({ inline, className, children, ...props }) => {
+    2945 -      if (inline) {
+    2946 -        return (
+    2947 -          <code className={cn("rounded bg-muted/60 px-1 py-[2px] text-[12px]", cl
+          assName)} {...props}>
+    2948 -            {children}
+    2949 -          </code>
+    2950 -        );
+    2951 -      }
+    2952 -      return (
+    2953 -        <code className={cn("text-[12px] leading-relaxed", className)} {...props}
+          >
+    2954 -          {children}
+    2955 -        </code>
+    2956 -      );
+    2957 -    },
+    2958 -    pre: ({ node: _node, className, ...props }) => (
+    2959 -      <pre className={cn("mb-3 overflow-x-auto rounded bg-muted/40 p-3 text-[12px
+          ]", className)} {...props} />
+    2960 -    ),
+    2961 -  };
+    2962 -
+    2963 -  const bubbleClasses = cn(
+    2964 -    "relative rounded-lg px-3 py-2 ring-offset-2 group",
+    2965 -    isSelf
+    2966 -      ? "bg-primary/15 text-primary"
+    2967 -      : isAssistant
+    2968 -        ? "bg-muted/30 text-muted-foreground"
+    2969 -        : "bg-background/80 text-foreground border border-border/40",
+    2970 -    isHighlighted && "ring-2 ring-primary/40",
+    2971 -  );
+    2972 -
+    2973 -  const gutter = (
+    2974 -    <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
+    2975 -      {isAssistant ? (
+    2976 -        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
+          full bg-muted/80 text-xs font-semibold text-foreground">
+    2977 -          H
+    2978 -        </span>
+    2979 -      ) : isCaregiver ? (
+    2980 -        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
+          full bg-primary/10 text-[11px] font-semibold text-primary">
+    2981 -          {getInitials(entry.senderName ?? "Caregiver")}
+    2982 -        </span>
+    2983 -      ) : null}
+    2984 -    </div>
+    2985 -  );
+    2986 -
+    2987 -  if (isSelf) {
+    2988 -    return (
+    2989 -      <div className="flex w-full justify-end">
+    2990 -        <div
+    2991 -          data-message-id={entry.messageId ?? undefined}
+    2992 -          className={bubbleClasses}
+    2993 -          style={bubbleMaxWidth}
+    2994 -        >
+    2995 -          <p className={cn("whitespace-pre-wrap pr-10", CHAT_BODY_TEXT)}>{entry.t
+          ext}</p>
+    2996 -          {showTimestamp ? (
+    2997 -            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tr
+          acking-wide text-muted-foreground">
+    2998 -              <button type="button" className="rounded px-1" onClick={() => onTog
+          gleTimestamp(entry.id)}>
+    2999 -                {isPinned ? "Hide time" : formatTimestamp(createdAt)}
+    3000 -              </button>
+    3001 -            </div>
+    3002 -          ) : null}
+    3003 -        </div>
+    3004 -      </div>
+    3005 -    );
+    3006 -  }
+    3007 -
+    3008 -  return (
+    3009 -    <div className="flex w-full items-start gap-2">
+    3010 -      {gutter}
+    3011 -      <div className="flex flex-col" style={bubbleMaxWidth}>
+    3012 -        <div
+    3013 -          data-message-id={entry.messageId ?? undefined}
+    3014 -          className={bubbleClasses}
+    3015 -          style={{ width: "fit-content", maxWidth: "100%" }}
+    3016 -        >
+    3017 -          {isAssistant ? (
+    3018 -            <ReactMarkdown
+    3019 -              remarkPlugins={[remarkGfm]}
+    3020 -              components={markdownComponents}
+    3021 -              className={cn("pr-10", CHAT_BODY_TEXT)}
+    3022 -            >
+    3023 -              {entry.text}
+    3024 -            </ReactMarkdown>
+    3025 -          ) : (
+    3026 -            <p className={cn("whitespace-pre-wrap pr-10", CHAT_BODY_TEXT)}>{entry
+          .text}</p>
+    3027 -          )}
+    3028 -          {showTimestamp ? (
+    3029 -            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tr
+          acking-wide text-muted-foreground">
+    3030 -              <button type="button" className="rounded px-1" onClick={() => onTog
+          gleTimestamp(entry.id)}>
+    3031 -                {isPinned ? "Hide time" : formatTimestamp(createdAt)}
+    3032 -              </button>
+    3033 -              {entry.senderName ? (
+    3034 -                <span className="inline-flex items-center gap-1 rounded bg-backgr
+          ound/60 px-2 py-1 text-[10px] uppercase">
+    3035 -                  {getInitials(entry.senderName)}
+    3036 -                </span>
+    3037 -              ) : null}
+    3038 -            </div>
+    3039 -          ) : null}
+    3040 -        </div>
+    3041 -        {isAssistant ? (
+    3042 -          <div
+    3043 -            className={cn(
+    3044 -              "min-h-[28px] pt-2",
+    3045 -              "flex items-center gap-2",
+    3046 -              "supports-[hover:hover]:opacity-0 supports-[hover:hover]:pointer-ev
+          ents-none",
+    3047 -              "group-hover:supports-[hover:hover]:opacity-100 group-hover:support
+          s-[hover:hover]:pointer-events-auto",
+    3048 -              "transition-opacity duration-150",
+    3049 -            )}
+    3050 -          >
+    3051 -            <button
+    3052 -              type="button"
+    3053 -              className="inline-flex items-center gap-1 rounded-md bg-background/
+          80 px-2 py-1 text-[11px] text-muted-foreground shadow-sm ring-1 ring-border/60 tr
+          ansition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 fo
+          cus-visible:ring-primary/60"
+    3054 -              onClick={() => onCopy(entry.text, entry.id)}
+    3055 -              aria-label="Copy message"
+    3056 -            >
+    3057 -              <Copy className="h-3 w-3" />
+    3058 -              <span>Copy</span>
+    3059 -            </button>
+    3060 -            {copiedMessageId === entry.id ? (
+    3061 -              <span className="text-[11px] text-primary">Copied</span>
+    3062 -            ) : null}
+    3063 -          </div>
+    3064 -        ) : null}
+    3065 -      </div>
+    3066 -    </div>
+    3067 -  );
+    3068 -}
+    3069 -
+    3070 -function getInitials(name: string): string {
+    3071 -  return name
+    3072 -    .split(" ")
+    3073 -    .filter(Boolean)
+    3074 -    .slice(0, 2)
+    3075 -    .map((part) => part[0]?.toUpperCase())
+    3076 -    .join("");
+    3077 -}
+    3078 -
+    3079 -function formatAdjustedAge(dob: string, dueDate: string): string {
+    3080 -  const birth = parseDateToDate(dob);
+    3081 -  const due = parseDateToDate(dueDate);
+    3082 -  if (!birth || !due) {
+    3083 -    return "—";
+    3084 -  }
+    3085 -  const now = new Date();
+    3086 -  const diffMs = now.getTime() - birth.getTime();
+    3087 -  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    3088 -  const years = Math.floor(diffDays / 365);
+    3089 -  const days = diffDays % 365;
+    3090 -  const adjustedDiffDays = Math.floor((now.getTime() - due.getTime()) / (1000 * 6
+          0 * 60 * 24));
+    3091 -  return `${years}y ${days}d (adjusted ${Math.max(adjustedDiffDays, 0)}d)`;
+    3092 -}
+    3093 -
+    3094 -function computeWeekFromDob(dateStr: string): number | null {
+    3095 -  const date = parseDateToDate(dateStr);
+    3096 -  if (!date) return null;
+    3097 -  const now = new Date();
+    3098 -  const diff = now.getTime() - date.getTime();
+    3099 -  if (diff < 0) return null;
+    3100 -  return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24 * 7)));
+    3101 -}
+
+• I've accidentally deleted a critical file and can't safely restore it without your
+  guidance. Please advise how you'd like to proceed with recovering it.
