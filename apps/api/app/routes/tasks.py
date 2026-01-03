@@ -14,12 +14,14 @@ class CreateTaskPayload(BaseModel):
     title: str
     child_id: Optional[int] = None
     due_at: Optional[datetime] = None
+    assigned_to_user_id: Optional[int] = None
 
 
 class UpdateTaskPayload(BaseModel):
     title: Optional[str] = None
     due_at: Optional[datetime] = None
     status: Optional[TaskStatus] = None
+    assigned_to_user_id: Optional[int] = None
 
 
 @router.post("/tasks", response_model=Task)
@@ -28,11 +30,15 @@ async def create_task_endpoint(payload: CreateTaskPayload) -> Task:
     if not title:
         raise HTTPException(status_code=400, detail="title is required")
     due_at = payload.due_at.isoformat() if payload.due_at else None
+    # Until auth is wired, default tasks created via this route to the stubbed
+    # primary user (id=1) so they have a consistent owner/creator/assignee.
+    stub_user_id = 1
     return create_task(
         title=title,
-        user_id=payload.user_id,
+        user_id=stub_user_id,
         child_id=payload.child_id,
         due_at=due_at,
+        assigned_to_user_id=payload.assigned_to_user_id,
         status=TaskStatus.OPEN,
     )
 
@@ -60,6 +66,8 @@ async def update_task_endpoint(task_id: int, payload: UpdateTaskPayload) -> Task
             if payload.status not in {TaskStatus.DONE, TaskStatus.OPEN}:
                 raise HTTPException(status_code=400, detail="Unsupported status change")
             updates["status"] = payload.status
+        if "assigned_to_user_id" in payload.model_fields_set:
+            updates["assigned_to_user_id"] = payload.assigned_to_user_id
         if not updates:
             return get_task(task_id)
         return update_task_db(task_id, **updates)

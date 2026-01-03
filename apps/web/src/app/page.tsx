@@ -69,8 +69,99 @@ type TaskItem = {
   created_at: string;
   user_id?: number | null;
   child_id?: number | null;
+  created_by_user_id?: number | null;
   assigned_to_user_id?: number | null;
   assigned_to_name?: string | null;
+};
+
+const filterTasksByAssignee = (
+  tasks: TaskItem[],
+  filter: "all" | "me" | "others",
+  currentUserId: number | null,
+): TaskItem[] => {
+  if (!currentUserId || filter === "all") {
+    return tasks;
+  }
+  if (filter === "me") {
+    return tasks.filter(
+      (task) => task.assigned_to_user_id === currentUserId,
+    );
+  }
+  return tasks.filter(
+    (task) =>
+      task.assigned_to_user_id != null &&
+      task.assigned_to_user_id !== currentUserId,
+  );
+};
+
+const buildTaskMeta = (
+  task: TaskItem,
+  currentUserId: number | null,
+  currentUserName: string,
+): string => {
+  const parts: string[] = [];
+  try {
+    const created = new Date(task.created_at);
+    if (!Number.isNaN(created.getTime())) {
+      parts.push(
+        `Added ${created.toLocaleDateString([], {
+          month: "short",
+          day: "numeric",
+        })}`,
+      );
+    }
+  } catch {
+    // ignore parse errors
+  }
+  if (currentUserId && currentUserName && task.created_by_user_id === currentUserId) {
+    parts.push(`Created by ${currentUserName} (Me)`);
+  }
+  return parts.join(" • ");
+};
+
+const getTasksTabEmptyMessage = (
+  view: "all" | "open" | "scheduled" | "unscheduled" | "completed",
+): string => {
+  if (view === "all") {
+    return "You’re all caught up. Add a task to get started.";
+  }
+  if (view === "open") {
+    return "You’re all caught up. Add a task when something comes up.";
+  }
+  if (view === "scheduled") {
+    return "All clear on scheduled tasks. Add a due date to plan ahead.";
+  }
+  if (view === "unscheduled") {
+    return "All set here. Add a due date when you’re ready.";
+  }
+  return "Completed tasks will show up here once you check one off.";
+};
+
+const getAssigneeEmptyMessage = (filter: "all" | "me" | "others"): string => {
+  if (filter === "me") {
+    return "You’re all caught up. Assign something to yourself if needed.";
+  }
+  if (filter === "others") {
+    return "All clear. Assign something to someone else when you need to delegate.";
+  }
+  return getTasksTabEmptyMessage("all");
+};
+
+const sortTasksByDueAndCreated = (tasks: TaskItem[]): TaskItem[] => {
+  return [...tasks].sort((a, b) => {
+    const aDue = a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY;
+    const bDue = b.due_at ? new Date(b.due_at).getTime() : Number.POSITIVE_INFINITY;
+    if (aDue !== bDue) {
+      return aDue - bDue;
+    }
+    const aCreated = new Date(a.created_at).getTime();
+    const bCreated = new Date(b.created_at).getTime();
+    if (Number.isNaN(aCreated) || Number.isNaN(bCreated)) {
+      return 0;
+    }
+    // Newest first when due_at is equal
+    return bCreated - aCreated;
+  });
 };
 
 type ApiResponse = {
@@ -393,15 +484,16 @@ export default function Home() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
-  const [tasksView, setTasksView] = useState<"open" | "scheduled" | "completed">(
-    "open",
-  );
+  const [tasksView, setTasksView] = useState<
+    "all" | "open" | "scheduled" | "unscheduled" | "completed"
+  >("open");
   const [tasksAssigneeFilter, setTasksAssigneeFilter] = useState<
     "all" | "me" | "others"
   >("all");
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [taskDetailTitle, setTaskDetailTitle] = useState("");
-  const [taskDetailDue, setTaskDetailDue] = useState<string>("");
+  const [taskDetailDueDate, setTaskDetailDueDate] = useState<string>("");
+  const [taskDetailDueTime, setTaskDetailDueTime] = useState<string>("");
   const [taskSaving, setTaskSaving] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
@@ -414,6 +506,40 @@ export default function Home() {
   const [childLastName, setChildLastName] = useState("Davis");
   const [currentUserId, setCurrentUserId] = useState<number | null>(1);
   const [currentUserName, setCurrentUserName] = useState<string>("Alex Davis");
+  const statusFilteredTasks = useMemo(() => {
+    const base = tasks;
+    if (tasksView === "all") {
+      return sortTasksByDueAndCreated(base);
+    }
+    if (tasksView === "completed") {
+      return sortTasksByDueAndCreated(
+        base.filter((task) => task.status === "done"),
+      );
+    }
+    if (tasksView === "scheduled") {
+      return sortTasksByDueAndCreated(
+        base.filter(
+          (task) => task.status !== "done" && task.due_at != null,
+        ),
+      );
+    }
+    if (tasksView === "unscheduled") {
+      return sortTasksByDueAndCreated(
+        base.filter(
+          (task) => task.status !== "done" && task.due_at == null,
+        ),
+      );
+    }
+    // "open"
+    return sortTasksByDueAndCreated(
+      base.filter((task) => task.status !== "done"),
+    );
+  }, [tasks, tasksView]);
+  const filteredTasks = useMemo(
+    () =>
+      filterTasksByAssignee(statusFilteredTasks, tasksAssigneeFilter, currentUserId),
+    [statusFilteredTasks, tasksAssigneeFilter, currentUserId],
+  );
   const [childDob, setChildDob] = useState("05-01-2024");
   const [childDueDate, setChildDueDate] = useState("05-07-2024");
   const [childGender, setChildGender] = useState("");
@@ -1017,16 +1143,25 @@ export default function Home() {
     setTasksLoading(true);
     setTasksError(null);
     try {
-      const params = new URLSearchParams({
-        view: tasksView,
-      });
-      if (activeChildId && !Number.isNaN(Number(activeChildId))) {
-        params.append("child_id", activeChildId);
+      const views: Array<"open" | "scheduled" | "completed"> = [
+        "open",
+        "scheduled",
+        "completed",
+      ];
+      const byId = new Map<number, TaskItem>();
+      for (const view of views) {
+        const params = new URLSearchParams({ view });
+        if (activeChildId && !Number.isNaN(Number(activeChildId))) {
+          params.append("child_id", activeChildId);
+        }
+        const res = await fetch(`${API_BASE_URL}/api/v1/tasks?${params}`);
+        if (!res.ok) throw new Error("Unable to load tasks");
+        const data: TaskItem[] = await res.json();
+        for (const task of data) {
+          byId.set(task.id, task);
+        }
       }
-      const res = await fetch(`${API_BASE_URL}/api/v1/tasks?${params}`);
-      if (!res.ok) throw new Error("Unable to load tasks");
-      const data: TaskItem[] = await res.json();
-      setTasks(data);
+      setTasks(Array.from(byId.values()));
     } catch (err) {
       const reason = err instanceof Error ? err.message : "Unknown error";
       setTasksError(reason);
@@ -1034,7 +1169,7 @@ export default function Home() {
     } finally {
       setTasksLoading(false);
     }
-  }, [activeChildId, tasksView]);
+  }, [activeChildId]);
 
   useEffect(() => {
     if (activePanel === "tasks") {
@@ -1518,16 +1653,25 @@ export default function Home() {
     return d.toISOString().slice(0, 10);
   };
 
+  const formatTimeInput = (value?: string | null) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().slice(11, 16);
+  };
+
   const openTaskDetails = useCallback((task: TaskItem) => {
     setSelectedTask(task);
     setTaskDetailTitle(task.title);
-    setTaskDetailDue(formatDateInput(task.due_at));
+    setTaskDetailDueDate(formatDateInput(task.due_at));
+    setTaskDetailDueTime(formatTimeInput(task.due_at));
   }, []);
 
   const closeTaskDetails = useCallback(() => {
     setSelectedTask(null);
     setTaskDetailTitle("");
-    setTaskDetailDue("");
+    setTaskDetailDueDate("");
+    setTaskDetailDueTime("");
     setTaskSaving(false);
   }, []);
 
@@ -1538,11 +1682,18 @@ export default function Home() {
     if (trimmed && trimmed !== selectedTask.title) {
       updates.title = trimmed;
     }
-    const originalDue = formatDateInput(selectedTask.due_at);
-    if (taskDetailDue !== originalDue) {
-      updates.due_at = taskDetailDue
-        ? new Date(taskDetailDue).toISOString()
-        : null;
+    const originalDueDate = formatDateInput(selectedTask.due_at);
+    const originalDueTime = formatTimeInput(selectedTask.due_at);
+    const nextDate = taskDetailDueDate;
+    const nextTime = taskDetailDueTime;
+    if (nextDate !== originalDueDate || nextTime !== originalDueTime) {
+      if (!nextDate) {
+        updates.due_at = null;
+      } else {
+        const timePart = nextTime || "00:00";
+        const isoString = new Date(`${nextDate}T${timePart}:00`).toISOString();
+        updates.due_at = isoString;
+      }
     }
     if (Object.keys(updates).length === 0) {
       closeTaskDetails();
@@ -1565,14 +1716,7 @@ export default function Home() {
       setTasksError(reason);
       setTaskSaving(false);
     }
-  }, [
-    API_BASE_URL,
-    closeTaskDetails,
-    loadTasks,
-    selectedTask,
-    taskDetailDue,
-    taskDetailTitle,
-  ]);
+  }, [API_BASE_URL, closeTaskDetails, loadTasks, selectedTask, taskDetailDueDate, taskDetailDueTime, taskDetailTitle]);
 
   const handleInferenceAction = useCallback(
     async (inferenceId: number, status: "confirmed" | "rejected") => {
@@ -2043,29 +2187,54 @@ export default function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-2">
-              {(["open", "scheduled", "completed"] as const).map((view) => (
-                <Button
-                  key={view}
-                  size="sm"
-                  variant={tasksView === view ? "secondary" : "ghost"}
-                  onClick={() => setTasksView(view)}
-                >
-                  {view === "open" ? "Open" : view === "scheduled" ? "Scheduled"
-          : "Completed"}
-                </Button>
-              ))}
+            <div className="relative">
+              <div
+                className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pr-6"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
+                {(
+                  ["all", "open", "scheduled", "unscheduled", "completed"] as const
+                ).map((view) => (
+                  <Button
+                    key={view}
+                    size="sm"
+                    variant={tasksView === view ? "secondary" : "ghost"}
+                    className="shrink-0"
+                    onClick={() => setTasksView(view)}
+                  >
+                    {view === "all"
+                      ? "All Tasks"
+                      : view === "open"
+                        ? "Open"
+                        : view === "scheduled"
+                          ? "Scheduled"
+                          : view === "unscheduled"
+                            ? "Unscheduled"
+                            : "Completed"}
+                  </Button>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card/90 to-transparent" />
             </div>
             {tasksLoading ? (
               <p className="text-sm text-muted-foreground">Loading tasks…</p>
             ) : tasksError ? (
               <p className="text-sm text-destructive">{tasksError}</p>
             ) : tasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No open tasks right no
-          w.</p>
+              <p className="text-sm text-muted-foreground">
+                {getTasksTabEmptyMessage(tasksView)}
+              </p>
+            ) : filteredTasks.length === 0 ? (
+              <ul className="space-y-2">
+                <li className="text-sm text-muted-foreground">
+                  {tasksAssigneeFilter !== "all"
+                    ? getAssigneeEmptyMessage(tasksAssigneeFilter)
+                    : getTasksTabEmptyMessage(tasksView)}
+                </li>
+              </ul>
             ) : (
               <ul className="space-y-2">
-                {tasks.map((task) => (
+                {filteredTasks.map((task) => (
                   <li
                     key={task.id}
                     className="flex items-start gap-3 rounded-md border border-border/40 bg-background/60 p-3 hover:border-border cursor-pointer"
@@ -2085,20 +2254,23 @@ export default function Home() {
                     />
                     <div className="space-y-1">
                       <p className="text-sm font-medium">{task.title}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Added{" "}
-                        {new Date(task.created_at).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
+                      {(() => {
+                        const meta = buildTaskMeta(
+                          task,
+                          currentUserId,
+                          currentUserName,
+                        );
+                        if (!meta) return null;
+                        return (
+                          <p className="text-[11px] text-muted-foreground">
+                            {meta}
+                          </p>
+                        );
+                      })()}
                       {task.due_at ? (
                         <p className="text-[11px] text-muted-foreground">
                           Due{" "}
-                          {new Date(task.due_at).toLocaleDateString([], {
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {formatDueDateLabel(task.due_at)}
                         </p>
                       ) : null}
                     </div>
@@ -2151,21 +2323,39 @@ export default function Home() {
                 />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Due date</p>
-                <input
-                  type="date"
-                  className="mt-1 w-full rounded-md border border-border/60 bg-ba
+                <p className="text-xs text-muted-foreground">Due</p>
+                <div className="mt-1 space-y-2">
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">Date</p>
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded-md border border-border/60 bg-ba
           ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                  value={taskDetailDue}
-                  onChange={(e) => setTaskDetailDue(e.target.value)}
-                />
-                {taskDetailDue ? (
+                      value={taskDetailDueDate}
+                      onChange={(e) => setTaskDetailDueDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">Time</p>
+                    <input
+                      type="time"
+                      className="mt-1 w-full rounded-md border border-border/60 bg-ba
+          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      value={taskDetailDueTime}
+                      onChange={(e) => setTaskDetailDueTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {taskDetailDueDate || taskDetailDueTime ? (
                   <button
                     type="button"
                     className="mt-1 text-xs text-muted-foreground underline"
-                    onClick={() => setTaskDetailDue("")}
+                    onClick={() => {
+                      setTaskDetailDueDate("");
+                      setTaskDetailDueTime("");
+                    }}
                   >
-                    Clear due date
+                    Clear due
                   </button>
                 ) : null}
               </div>
@@ -3266,6 +3456,14 @@ function formatTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+// due_at is stored as an ISO timestamp; render it in the user's local time
+// so the calendar day matches expectations (avoids off-by-one-day surprises).
+function formatDueDateLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function EditableField({

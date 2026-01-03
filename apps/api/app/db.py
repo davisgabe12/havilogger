@@ -16,6 +16,8 @@ from .schemas import KnowledgeItem, KnowledgeItemStatus, KnowledgeItemType, Task
 _DB_PATH = CONFIG.resolved_database_path
 _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+_ASSIGNED_TO_UNSET = object()
+
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
     cursor = conn.execute(f"PRAGMA table_info({table})")
@@ -289,6 +291,24 @@ def initialize_db() -> None:
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (child_id) REFERENCES children(id)
             );
+            """
+        )
+
+        _ensure_column(conn, "tasks", "created_by_user_id", "INTEGER")
+        _ensure_column(conn, "tasks", "assigned_to_user_id", "INTEGER")
+
+        conn.execute(
+            """
+            UPDATE tasks
+            SET created_by_user_id = user_id
+            WHERE user_id IS NOT NULL AND created_by_user_id IS NULL
+            """
+        )
+        conn.execute(
+            """
+            UPDATE tasks
+            SET assigned_to_user_id = user_id
+            WHERE user_id IS NOT NULL AND assigned_to_user_id IS NULL
             """
         )
 
@@ -905,6 +925,8 @@ def _row_to_task(row) -> Task:
         status=TaskStatus(row["status"]),
         due_at=datetime.fromisoformat(row["due_at"]) if row["due_at"] else None,
         created_at=datetime.fromisoformat(row["created_at"]),
+        created_by_user_id=row["created_by_user_id"],
+        assigned_to_user_id=row["assigned_to_user_id"],
     )
 
 
@@ -914,14 +936,26 @@ def create_task(
     user_id: Optional[int] = None,
     child_id: Optional[int] = None,
     due_at: Optional[str] = None,
+    assigned_to_user_id: Optional[int] = None,
     status: TaskStatus = TaskStatus.OPEN,
 ) -> Task:
     now = datetime.utcnow().isoformat()
+    creator_id = user_id
+    assignee_id = assigned_to_user_id if assigned_to_user_id is not None else creator_id
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO tasks (user_id, child_id, title, status, due_at, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (
+                user_id,
+                child_id,
+                title,
+                status,
+                due_at,
+                created_at,
+                created_by_user_id,
+                assigned_to_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -930,6 +964,8 @@ def create_task(
                 status.value,
                 due_at,
                 now,
+                creator_id,
+                assignee_id,
             ),
         )
         conn.commit()
@@ -992,6 +1028,7 @@ def update_task(
     title: Optional[str] = None,
     due_at: Optional[str] = None,
     status: Optional[TaskStatus] = None,
+    assigned_to_user_id: object = _ASSIGNED_TO_UNSET,
 ) -> Task:
     fields: List[str] = []
     params: List[object] = []
@@ -1004,6 +1041,9 @@ def update_task(
     if status is not None:
         fields.append("status = ?")
         params.append(status.value)
+    if assigned_to_user_id is not _ASSIGNED_TO_UNSET:
+        fields.append("assigned_to_user_id = ?")
+        params.append(assigned_to_user_id)
     if not fields:
         return get_task(task_id)
     params.append(task_id)

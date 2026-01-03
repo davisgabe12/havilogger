@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from collections import Counter
@@ -86,6 +87,18 @@ from .schemas import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _format_compose_error(reason: Optional[str] = None) -> str:
+    raw = (reason or "").strip()
+    show_details = os.getenv("HAVI_SHOW_ERROR_DETAILS", "1") != "0"
+    if not show_details:
+        return "Error composing response [E_COMPOSE]: internal error"
+    if not raw:
+        raw = "internal composition error"
+    if len(raw) > 200:
+        raw = raw[:197] + "..."
+    return f"Error composing response [E_COMPOSE]: {raw}"
 RELATIVE_TIME_HINTS = [
     "today",
     "tonight",
@@ -377,10 +390,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
 
     if intent_result.intent == "task_request":
         task_title = extract_task_title(payload.message)
+        due_at = extract_task_due_at(payload.message, resolved_timezone)
+        owner_id = profile_id if profile_id is not None else 1
         created_task = create_task(
             title=task_title,
-            user_id=profile_id,
+            user_id=owner_id,
             child_id=child_id,
+            due_at=due_at,
         )
         user_message_obj = append_message(
             CreateMessagePayload(
@@ -563,9 +579,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
     }
     # For logging, keep the message minimal and skip post-processing that can add knowledge prompts.
     if intent_result.intent != "logging":
-        assistant_message = apply_temperament_adjustments(assistant_message, guidance_context)
-        assistant_message = apply_activity_suggestions(assistant_message, guidance_context)
-        assistant_message = apply_milestone_context(assistant_message, guidance_context)
+        try:
+            assistant_message = apply_temperament_adjustments(assistant_message, guidance_context)
+            assistant_message = apply_activity_suggestions(assistant_message, guidance_context)
+            assistant_message = apply_milestone_context(assistant_message, guidance_context)
+        except Exception as exc:
+            logger.exception("Error in guidance post-processing", exc_info=exc)
+            assistant_message = _format_compose_error(str(exc))
 
     assistant_message_obj = append_message(
         CreateMessagePayload(
@@ -792,6 +812,35 @@ def resolve_timezone(payload_timezone: Optional[str], child_data: dict) -> tuple
     return tz, prompt
 
 
+def _strip_task_datetime_phrases(text: str) -> str:
+    """Remove simple date/time phrases and nearby glue words from a task title."""
+    if not text:
+        return ""
+
+    result = text
+
+    # Remove common "time + date" or "date + time" phrases with glue words.
+    removal_patterns = [
+        rf"\s*\b(?:for|at)\s+{_TASK_TIME_REGEX}\s*(?:on\s+{_TASK_DATE_REGEX})?",
+        rf"\s*\bon\s+{_TASK_DATE_REGEX}\s*(?:at\s+{_TASK_TIME_REGEX})?",
+        rf"\s*{_TASK_DATE_REGEX}\s+{_TASK_TIME_REGEX}",
+        rf"\s*{_TASK_TIME_REGEX}\s+on\s+{_TASK_DATE_REGEX}",
+    ]
+    for pattern in removal_patterns:
+        result = re.sub(pattern, "", result, flags=re.IGNORECASE)
+
+    # Trim any trailing standalone date or time fragments.
+    result = re.sub(rf"\s*{_TASK_DATE_REGEX}\s*$", "", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\s*{_TASK_TIME_REGEX}\s*$", "", result, flags=re.IGNORECASE)
+
+    # Remove trailing glue words like "for", "at", "on" if they are left dangling.
+    result = re.sub(r"\s*\b(?:for|at|on)\b\s*$", "", result, flags=re.IGNORECASE)
+
+    # Normalize whitespace and strip punctuation.
+    result = re.sub(r"\s+", " ", result).strip(" .,:;-")
+    return result
+
+
 def extract_task_title(message: str) -> str:
     text = (message or "").strip()
     patterns = [
@@ -811,8 +860,70 @@ def extract_task_title(message: str) -> str:
         if match:
             candidate = match.group(1).strip(" .")
             if candidate:
-                return candidate
-    return text.strip(" .") or "Task"
+                cleaned = _strip_task_datetime_phrases(candidate)
+                return cleaned or candidate
+    base = text.strip(" .")
+    cleaned = _strip_task_datetime_phrases(base)
+    return cleaned or base or "Task"
+
+
+_TASK_DATE_REGEX = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
+_TASK_TIME_REGEX = r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b"
+_TASK_DATE_PATTERN = re.compile(_TASK_DATE_REGEX)
+_TASK_TIME_PATTERN = re.compile(_TASK_TIME_REGEX, re.IGNORECASE)
+
+
+def extract_task_due_at(message: str, timezone_value: Optional[str]) -> Optional[str]:
+    """Best-effort parse of a due date/time from a task message.
+
+    This is intentionally narrow: it looks for patterns like "6pm on 1/2/25"
+    and interprets them in the caregiver's local timezone before storing an
+    ISO timestamp in UTC (matching how the UI writes due_at).
+    """
+    if not message:
+        return None
+
+    date_match = _TASK_DATE_PATTERN.search(message)
+    if not date_match:
+        return None
+    month_str, day_str, year_str = date_match.groups()
+    try:
+        month = int(month_str)
+        day = int(day_str)
+        year = int(year_str)
+    except ValueError:
+        return None
+    if year < 100:
+        year += 2000
+
+    time_match = _TASK_TIME_PATTERN.search(message)
+    hour = 0
+    minute = 0
+    if time_match:
+        hour_str, minute_str, meridiem = time_match.groups()
+        try:
+            hour = int(hour_str)
+            minute = int(minute_str or "0")
+        except ValueError:
+            hour, minute = 0, 0
+        meridiem = (meridiem or "").lower()
+        if meridiem == "pm" and hour != 12:
+            hour += 12
+        if meridiem == "am" and hour == 12:
+            hour = 0
+
+    tz_name = timezone_value or "America/Los_Angeles"
+    try:
+        tzinfo = ZoneInfo(tz_name)
+    except Exception:
+        tzinfo = timezone.utc
+
+    try:
+        local_dt = datetime(year, month, day, hour, minute, tzinfo=tzinfo)
+    except ValueError:
+        return None
+    utc_dt = local_dt.astimezone(timezone.utc)
+    return utc_dt.isoformat()
 
 
 def detect_catch_up_entry(message: str) -> bool:
@@ -942,6 +1053,9 @@ def normalize_parental_typos(message: str) -> tuple[str, List[tuple[str, str]]]:
         r"\bformuala\b": "formula",
         r"\bforuma\b": "formula",
         r"\bformla\b": "formula",
+        r"\bhiting\b": "hitting",
+        r"\bhittng\b": "hitting",
+        r"\bhittting\b": "hitting",
     }
     for pattern, replacement in simple_replacements.items():
         apply_pattern(re.compile(pattern, re.IGNORECASE), lambda _match, repl=replacement: repl)
@@ -1403,72 +1517,99 @@ def build_assistant_message(
     child_data: dict,
     context: Dict[str, Any],
 ) -> tuple[str, List[str]]:
-    context_actions = context.get("recent_actions") or actions or recent_action_models(4)
-    summary = summarize_actions(actions, child_data, context)
-    if context.get("intent") == "logging":
-        # For pure logging, keep responses tight: confirmation plus any event-specific follow-up already
-        # embedded in the summary. Skip knowledge prompts or profile nudges.
-        descriptions = [
-            describe_action(action, child_data.get("timezone"))
-            for action in actions
-        ] if actions else []
-        if descriptions:
-            base = f"Logged: {', '.join(descriptions)}."
-        else:
-            base = "Logged your update."
-        follow_up = ""
-        if context.get("feed_follow_up"):
-            follow_up = f" {context['feed_follow_up']}"
-        parts = [
-            (base or "").strip(),
-            (follow_up or "").strip(),
-            (context.get("autocorrect_note") or "").strip(),
-        ]
-        return " ".join(part for part in parts if part).strip(), []
-    stage_line = stage_guidance(
-        original_message,
-        child_data,
-        context_actions,
-        context.get("question_category", "generic"),
-    )
-    guidance = symptom_guidance(original_message, context.get("symptom_tags", []))
-    knowledge_line = knowledge_active_line(context.get("knowledge") or [])
-    pending_prompts = context.get("pending_prompts") or knowledge_pending_prompts(context.get("pending_knowledge") or [])
-    pieces: list[str] = []
     ui_nudges: list[str] = []
-    if knowledge_line:
-        pieces.append(knowledge_line)
-    if pending_prompts:
-        forbidden = ["remember", "saving", "should i remember", "should i save", "dob", "gender", "due date"]
-        for prompt in pending_prompts:
-            cleaned = prompt.strip()
-            lower = cleaned.lower()
-            if not cleaned:
-                continue
-            if any(word in lower for word in forbidden):
-                continue
-            if "?" in cleaned:
-                continue
-            ui_nudges.append(cleaned)
-            if len(ui_nudges) >= 2:
-                break
-    if context.get("catch_up_exit_note"):
-        pieces.append(context["catch_up_exit_note"])
-    pieces.append(summary)
-    if context.get("timezone_prompt"):
-        pieces.append(context["timezone_prompt"])
-    if context.get("routine_accept_message"):
-        pieces.append(context["routine_accept_message"])
-    if context.get("routine_prompt"):
-        pieces.append(context["routine_prompt"])
-    if stage_line:
-        pieces.append(stage_line)
-    if guidance:
-        pieces.append(guidance)
-    if context.get("autocorrect_note"):
-        pieces.append(context["autocorrect_note"])
-    reply = " ".join(part for part in pieces if part).strip()
-    return (reply or "Here whenever you want to share more."), ui_nudges
+    context_actions = context.get("recent_actions") or actions or recent_action_models(4)
+    try:
+        summary = summarize_actions(actions, child_data, context)
+        intent = (context.get("intent") or "").strip()
+        # Logging path: keep responses tight and never surface fallbacks here.
+        if intent == "logging":
+            descriptions = [
+                describe_action(action, child_data.get("timezone"))
+                for action in actions
+            ] if actions else []
+            if descriptions:
+                base = f"Logged: {', '.join(descriptions)}."
+            else:
+                base = "Logged your update."
+            follow_up = ""
+            if context.get("feed_follow_up"):
+                follow_up = f" {context['feed_follow_up']}"
+            parts = [
+                (base or "").strip(),
+                (follow_up or "").strip(),
+                (context.get("autocorrect_note") or "").strip(),
+            ]
+            reply = " ".join(part for part in parts if part).strip()
+            if not reply:
+                return _format_compose_error("empty logging reply"), ui_nudges or []
+            return reply, []
+
+        # Non-logging: advice / guidance / general replies.
+        stage_line = stage_guidance(
+            original_message,
+            child_data,
+            context_actions,
+            context.get("question_category", "generic"),
+        )
+        guidance = symptom_guidance(original_message, context.get("symptom_tags", []))
+        knowledge_line = knowledge_active_line(context.get("knowledge") or [])
+        pending_prompts = context.get("pending_prompts") or knowledge_pending_prompts(
+            context.get("pending_knowledge") or []
+        )
+        pieces: list[str] = []
+        if knowledge_line:
+            pieces.append(knowledge_line)
+        if pending_prompts:
+            forbidden = ["remember", "saving", "should i remember", "should i save", "dob", "gender", "due date"]
+            for prompt in pending_prompts:
+                cleaned = prompt.strip()
+                lower = cleaned.lower()
+                if not cleaned:
+                    continue
+                if any(word in lower for word in forbidden):
+                    continue
+                if "?" in cleaned:
+                    continue
+                ui_nudges.append(cleaned)
+                if len(ui_nudges) >= 2:
+                    break
+        if context.get("catch_up_exit_note"):
+            pieces.append(context["catch_up_exit_note"])
+        pieces.append(summary)
+        if context.get("timezone_prompt"):
+            pieces.append(context["timezone_prompt"])
+        if context.get("routine_accept_message"):
+            pieces.append(context["routine_accept_message"])
+        if context.get("routine_prompt"):
+            pieces.append(context["routine_prompt"])
+        if stage_line:
+            pieces.append(stage_line)
+        if guidance:
+            pieces.append(guidance)
+        if context.get("autocorrect_note"):
+            pieces.append(context["autocorrect_note"])
+        reply = " ".join(part for part in pieces if part).strip()
+        has_actions = bool(actions)
+        expected_intents = {
+            "milestone_expectations",
+            "activity_request",
+            "health_sleep_question",
+            "general_parenting_advice",
+        }
+        requires_content = has_actions or (intent in expected_intents)
+        had_any_piece = any(bool(part) for part in pieces)
+        if not reply:
+            if requires_content and had_any_piece:
+                return _format_compose_error("empty composed reply"), ui_nudges or []
+            fallback_message = (
+                "I’m not sure I caught that—tell me what happened and what you want "
+                "(log it or get guidance), and I’ll take it from there."
+            )
+            return fallback_message, ui_nudges or []
+        return reply, ui_nudges
+    except Exception as exc:
+        return _format_compose_error(str(exc)), ui_nudges or []
 
 
 def summarize_actions(actions: List[Action], child_data: dict, context: Dict[str, Any]) -> str:
@@ -1595,7 +1736,9 @@ def symptom_guidance(message: str, tags: List[str]) -> str:
     if "respiratory" in tags:
         responses.append("If noisy breathing comes with chest retractions, color changes, or longer pauses, reach out to your pediatrician or urgent care.")
     if not responses and "?" in message:
-        responses.append("I’m here for follow-up questions—just say the word.")
+        responses.append(
+            "If you share what feels most different or what you’re hoping for help with, I can turn it into clear next steps."
+        )
     return " ".join(responses)
 
 
@@ -1849,9 +1992,13 @@ def stage_guidance(
     aggression_pattern = r"\b(hit(ting|s)?|smack(ed|ing|s)?|slap(ped|ping|s)?|swat(ted|ting|s)?|punch(ed|ing|es)?|kick(ed|ing|s)?)\b"
     if re.search(aggression_pattern, lower):
         return (
-            "Hitting can be a normal cause-and-effect test. Stay calm, block the swing, label \"gentle hands,\" "
-            "and redirect to a toy or sensory input. Loop in your pediatrician if it’s frequent with injuries "
-            "or comes with loss of eye contact or other skills."
+            "Hitting can be a common cause-and-effect test. "
+            "1) Stay calm and block the swing so no one gets hurt. "
+            "2) Label “gentle hands” and guide a soft touch so your child knows what to do instead. "
+            "3) Redirect to a pillow, stuffed animal, or other safe target to get the energy out. "
+            "4) Later, praise gentle touches and call out the behavior you want more of. "
+            "Red flags—call your pediatrician if hits leave marks or bruises, happen very frequently and feel out of control, "
+            "or come with loss of eye contact or other skills."
         )
     expectation_terms = [
         "week",

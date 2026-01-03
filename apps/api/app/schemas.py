@@ -146,3 +146,5 @@ class Task(BaseModel):
     status: TaskStatus
     due_at: Optional[datetime] = None
     created_at: datetime
+    created_by_user_id: Optional[int] = None
+    assigned_to_user_id: Optional[int] = None
