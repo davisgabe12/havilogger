@@ -1,0 +1,141 @@
+# Havi Architecture Overview
+
+This document gives a concise, code‑anchored picture of how Havi is structured. It is meant as a map, not a tutorial.
+
+- **Backend API** – `apps/api`
+  - `app/main.py`
+    - FastAPI app instantiation and route registration.
+    - Primary entrypoints:
+      - `POST /api/v1/activities` → `capture_activity` – core chat/logging endpoint.
+      - `GET /api/v1/settings`, `PUT /api/v1/settings` → settings/profile sync, including `_sync_child_knowledge`.
+      - `GET /api/v1/insights/compare`, `GET /api/v1/insights/expected` → insight endpoints (wrap `insight_engine.compare_metrics` / `expected_ranges`).
+      - `POST/GET /api/v1/inferences*` → inference CRUD (`create_inference`, `list_inferences`, `update_inference_status`).
+      - `POST /api/v1/sessions`, `GET /api/v1/sessions`, `POST /api/v1/sessions/{id}/close|reopen` → conversation session lifecycle.
+      - `POST /api/v1/messages`, `GET /api/v1/sessions/{id}/messages` → message CRUD.
+      - `POST /api/v1/metrics/loading` → `record_loading_metric`.
+      - Root `GET /health`, `GET /` – health and simple readiness.
+    - Orchestrates:
+      - Intent routing (`router.classify_intent`).
+      - Conversation sessions (`conversations.*`).
+      - OpenAI calls (`openai_client.generate_actions`).
+      - Knowledge/inference detection (`inferences.detect_knowledge_inferences`).
+      - Timeline persistence (`db.insert_timeline_event` via `_persist_timeline_events_for_actions`).
+      - Stage guidance and summaries (`stage_guidance`, `summarize_actions`, `describe_action`).
+  - `app/router.py`
+    - Keyword/regex‑based intent classifier.
+    - Feeds `capture_activity` with intents like `logging`, `saving`, `task_request`, `activity_request`, `health_sleep_question`.
+  - `app/schemas.py`
+    - Pydantic models for:
+      - `Action`, `ActionMetadata`, `CoreActionType` – canonical logging schema.
+      - `ChatRequest`, `ChatResponse` – chat API contracts.
+      - `Task`, `TaskStatus` – task domain objects.
+      - `KnowledgeItem`, `KnowledgeItemStatus`, `KnowledgeItemType` – knowledge graph records.
+  - `app/db.py`
+    - SQLite schema bootstrap (`initialize_db`) and data access helpers.
+    - Key tables and helpers:
+      - Users/children: `ensure_default_profiles`, `fetch_primary_profiles`, `update_user_profile`, `update_child_profile`.
+      - Activity logs: `persist_log`, `fetch_recent_actions`.
+      - Timeline: `insert_timeline_event`, `list_timeline_events`.
+      - Tasks: `create_task`, `list_tasks`, `update_task`, `update_task_status`, `get_task`.
+      - Conversations: `list_conversation_messages`, `session_has_messages`.
+      - Inferences & knowledge: `create_knowledge_item`, `find_knowledge_item`, `list_knowledge_items`, `update_knowledge_item_payload`, `update_knowledge_item_status`, `update_knowledge_item_type`.
+      - Routine & loading metrics: `get_routine_metrics`, `upsert_routine_metrics`, `get_connection`.
+  - `app/openai_client.py`
+    - Wraps the OpenAI SDK and prompt/schema definition.
+    - Core function: `generate_actions(message: str, knowledge_context: Optional[dict]) -> List[Action]`.
+    - Uses:
+      - `SYSTEM_PROMPT` and `_json_schema()` to constrain model output.
+      - `_call_chat_completions` as the primary implementation (Responses API path is stubbed).
+      - `_coerce_action` to turn raw JSON into strongly typed `Action` objects.
+  - `app/inferences.py`
+    - Domain for derived “knowledge”:
+      - `create_inference`, `get_inference`, `list_inferences`, `update_inference_status`.
+      - Heuristic detector: `detect_knowledge_inferences(message, actions, child_id, user_id, profile_id)`.
+      - De‑duping via `_dedupe_key` to avoid repeated prompts.
+    - Integrates with `db` to mirror inferences into `knowledge_items`.
+  - `app/knowledge_utils.py` and `app/context_builders.py`
+    - `build_child_context(profile_id, child_id)` – builds structured temperament/activities/milestone context for:
+      - OpenAI calls (`generate_actions`).
+      - Post‑processing guidance adjustments (`apply_activity_suggestions`, `apply_milestone_context`).
+    - `knowledge_review_groups`, `knowledge_review_summary`, `build_review_item` – shape `KnowledgeItem`s into review cards for `/api/v1/knowledge/review`.
+  - `app/insight_engine.py`
+    - Summarizes recent actions (`summaries_from_actions`) and compares windows (`compare_metrics`).
+    - Provides `expected_ranges(stage, observed)` and `compare_and_expected`.
+  - `app/conversations.py`
+    - Conversation session + message model and helpers:
+      - `create_or_get_active_session`, `list_sessions`, `close_session`, `reopen_session`.
+      - `append_message`, `list_messages`, `get_last_assistant_message`.
+      - Catch‑up mode state: `set_catch_up_mode`, `touch_catch_up_mode`, `catch_up_mode_should_end`.
+  - `app/routes/`
+    - `routes/tasks.py`
+      - `POST /api/v1/tasks` → `create_task_endpoint` – structured task creation.
+      - `GET /api/v1/tasks` → `list_tasks_endpoint` – filters by `view` (`open|scheduled|completed`) and `child_id`.
+      - `PATCH /api/v1/tasks/{task_id}` → `update_task_endpoint` – updates title, due date/time, status, assignee.
+    - `routes/events.py`
+      - `GET /events` → `list_events` – timeline range query, requires `child_id` in non‑dev mode.
+    - `routes/knowledge.py`
+      - `GET /api/v1/knowledge/review` – returns grouped knowledge review items.
+      - `POST /api/v1/knowledge/{item_id}/confirm|reject|edit` – update knowledge item + inference statuses.
+  - `app/share.py`
+    - `POST /api/v1/share/conversation` → `create_share` – creates a time‑boxed share link.
+    - `GET /api/v1/share/{token}` → `fetch_share` – returns session title + messages for public viewing.
+  - `app/metrics.py`
+    - `record_loading_metric` used by `/api/v1/metrics/loading`.
+  - Config and dev helpers:
+    - `app/config.py` with `AppConfig` and `CONFIG` (OpenAI key/model, DB path) loaded from `apps/api/config.json`.
+    - `app/dev_config.py` with `ALLOW_ORPHAN_EVENTS` used by `/events`.
+
+- **Frontend Web** – `apps/web`
+  - `src/app/page.tsx`
+    - Main mobile‑first UI; panels:
+      - **Havi chat** – voice/text composer and chat timeline.
+        - Sends messages via `fetch(\`\${API_BASE_URL}/api/v1/activities\`, {...})`.
+        - Tracks client‑side latency metrics and posts them to `/api/v1/metrics/loading`.
+      - **Timeline** – wraps `TimelinePanel`, passing:
+        - `childName`, `timezone`, `childOptions`, `selectedChildId`, `refreshTrigger`.
+        - `onOpenInChat` → scrolls chat view to a given `originMessageId`.
+      - **Tasks** – fetches from `/api/v1/tasks` (multiple `view` params) and PATCHes `/api/v1/tasks/{id}` for edits/completions.
+      - **History** – calls `/api/v1/sessions` and `/api/v1/sessions/{id}/reopen`.
+      - **Knowledge (“Havi remembers”)** – calls `/api/v1/inferences` and posts to `/api/v1/inferences/{id}/status`.
+      - **Settings** – calls `/api/v1/settings` and `PUT /api/v1/settings` to persist caregiver/child profile, then updates local snapshots.
+      - **Integrations** – front‑end only; preview cards for future integrations (no API calls).
+    - Uses `ReactMarkdown` + `remark-gfm` to render assistant messages.
+  - `src/app/knowledge/page.tsx`
+    - Knowledge review UI:
+      - `GET /api/v1/knowledge/review`.
+      - `POST /api/v1/knowledge/{id}/confirm|reject|edit`.
+    - Renders grouped `KnowledgeList` sections.
+  - `src/app/share/[token]/page.tsx`
+    - Public, read‑only share view:
+      - Fetches ``${API_BASE_URL}/api/v1/share/${token}``.
+      - Renders message bubbles for caregiver vs assistant messages.
+  - `src/components/timeline/timeline-panel.tsx`
+    - `useTimelineEvents` hook:
+      - Calls ``${API_BASE_URL}/events?child_id=…&start=…&end=…``.
+    - Filters, groups, and formats `TimelineEvent`s, exposing “Open in chat →” via `onOpenInChat`.
+  - `src/components/knowledge/*`
+    - `KnowledgeList` and `KnowledgeItemCard` render `KnowledgeReviewItem` objects (type in `src/types/knowledge.ts`) from `/api/v1/knowledge/review`.
+  - `src/components/ui/*`
+    - Reusable buttons, cards, textareas, scroll areas (shadcn‑style).
+  - `src/lib/utils.ts`
+    - `cn` helper (Tailwind class merging).
+  - Frontend scripts:
+    - `npm run dev` – dev server (used by `restart.sh`).
+    - `npm run build` – production build.
+    - `npm run start` – run built app.
+    - `npm run lint` – eslint.
+    - `npm test` – Jest test suite.
+
+- **Process & tooling**
+  - Root scripts:
+    - `restart.sh`
+      - Stops any existing uvicorn/Next dev processes and restarts:
+        - Backend: `uvicorn app.main:app --host "$HOST" --port 8000` within `apps/api` using `.venv`.
+        - Frontend: `npm run dev` within `apps/web`.
+    - `stop.sh`
+      - Stops backend (`uvicorn app.main:app`) and frontend (`next dev`) processes and removes PID files.
+  - Python dependencies:
+    - `apps/api/requirements.txt` – install with `pip install -r apps/api/requirements.txt`.
+  - Local database:
+    - SQLite file at `apps/api/data/havilogger.db` initialized by `initialize_db()` when `app.main` is imported.
+
