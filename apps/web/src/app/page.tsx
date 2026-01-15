@@ -2041,7 +2041,7 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[390px] flex-col gap-4 bg-background px-4 py-6">
+    <main className="havi-app-shell">
       <div className="relative">
         <button
           type="button"
@@ -2205,7 +2205,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "timeline" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Timeline</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -2228,7 +2228,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "tasks" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Tasks</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -2365,8 +2365,7 @@ export default function Home() {
               <div>
                 <p className="text-xs text-muted-foreground">Title</p>
                 <input
-                  className="mt-1 w-full rounded-md border border-border/60 bg-ba
-          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  className="mt-1 havi-input"
                   value={taskDetailTitle}
                   onChange={(e) => setTaskDetailTitle(e.target.value)}
                 />
@@ -2378,8 +2377,7 @@ export default function Home() {
                     <p className="text-[11px] text-muted-foreground">Date</p>
                     <input
                       type="date"
-                      className="mt-1 w-full rounded-md border border-border/60 bg-ba
-          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      className="mt-1 havi-input"
                       value={taskDetailDueDate}
                       onChange={(e) => setTaskDetailDueDate(e.target.value)}
                     />
@@ -2388,8 +2386,7 @@ export default function Home() {
                     <p className="text-[11px] text-muted-foreground">Time</p>
                     <input
                       type="time"
-                      className="mt-1 w-full rounded-md border border-border/60 bg-ba
-          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      className="mt-1 havi-input"
                       value={taskDetailDueTime}
                       onChange={(e) => setTaskDetailDueTime(e.target.value)}
                     />
@@ -2440,7 +2437,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "history" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Chat history</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -2506,7 +2503,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "knowledge" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">HAVI remembers</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -2730,7 +2727,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "settings" ? (
-        <Card className="bg-card/80 shadow-lg">
+        <Card className="havi-card-shell">
           <CardHeader>
             <CardTitle className="text-base">Settings</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -3137,7 +3134,7 @@ export default function Home() {
 
       {activePanel === "havi" ? (
         <>
-          <Card className="flex-1 bg-card/70 backdrop-blur">
+          <Card className="flex-1 havi-card-shell">
             <CardHeader className="flex items-center justify-between gap-2 pb-2">
               <div className="min-w-0">
                 {chatTitle ? (
@@ -3339,7 +3336,7 @@ export default function Home() {
                   {knowledgeToast}
                 </div>
               </div>
-            ) : null}
+      ) : null}
       {inviteOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-sm space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
@@ -3363,7 +3360,7 @@ export default function Home() {
               <div>
                 <p className="text-[11px] text-muted-foreground">Email</p>
                 <input
-                  className="mt-1 w-full rounded-md border border-border/50 bg-background/70 px-2 py-1 text-sm"
+                  className="mt-1 havi-input"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   type="email"
@@ -3373,7 +3370,7 @@ export default function Home() {
               <div>
                 <p className="text-[11px] text-muted-foreground">Role</p>
                 <select
-                  className="mt-1 w-full rounded-md border border-border/50 bg-background/70 p-2 text-sm"
+                  className="mt-1 w-full havi-select"
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
                 >
@@ -3531,7 +3528,7 @@ function EditableField({
     <div>
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <input
-        className="mt-1 w-full rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+        className="mt-1 havi-input"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}

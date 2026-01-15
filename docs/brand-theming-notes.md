@@ -89,7 +89,7 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
   - Swatches for `background`, `card`, `muted`, `border`, `primary`, `secondary`, `destructive`, `ring`.
   - Real components using existing classes:
     - `Button` (primary / secondary / ghost, with live hover/active).
-    - Input + focus ring (`border-input`, `ring-ring`).
+    - Input + focus ring via `.havi-input` (maps to `border-input`, `ring-ring`).
     - Card with primary + muted text.
     - Tooltip-style block using `bg-popover`, `text-popover-foreground`.
     - Chips using `bg-muted`, `bg-secondary`.
@@ -108,6 +108,46 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
   - Timeline child selector (`timeline-panel.tsx`).
   - Settings dropdowns (relationship, weight units, timezone) in `app/page.tsx`.
   - Width (`w-full` vs auto) and font size (`text-xs` vs `text-sm`) can be applied per context on top of `havi-select`.
+
+## Input Field Rules
+
+- Canonical text input + textarea style:
+  - Class: `havi-input` (defined in `apps/web/src/app/globals.css`).
+  - Applies to:
+    - Chat composer textarea (`Textarea` component in `components/ui/textarea.tsx`).
+    - Settings form fields (`EditableField` in `app/page.tsx`).
+    - Task detail modal inputs (title, date, time) in `app/page.tsx`.
+    - Invite caregiver modal email field in `app/page.tsx`.
+    - Brand artifact input on `/brand`.
+- Visual behavior:
+  - Full-width, rounded, calm surface (`bg-card`) with semantic border (`border-input`).
+  - Placeholder text uses `text-muted-foreground`.
+  - Focus state uses `ring-ring` and `border-ring`; no default browser outline.
+- Usage rules:
+  - Do: compose spacing (`mt-1`, grid gaps) outside the input via parent layout.
+  - Do: use `havi-input` for all primary text inputs and textareas unless a component has a very specific visual spec.
+  - Don’t: hand-apply per-field padding, borders, or focus colors for standard forms.
+
+## Primary App Container Rules
+
+- Canonical app shell:
+  - Class: `havi-app-shell` (defined in `apps/web/src/app/globals.css`).
+  - Applied to `<main>` in `apps/web/src/app/page.tsx`.
+  - Layout:
+    - Centered column, `max-w-[390px]`, `min-h-screen`, `w-full`.
+    - Horizontal + vertical padding (`px-4 py-6`) with consistent gap between sections.
+- Primary content cards:
+  - Class: `havi-card-shell`.
+  - Applied to `Card` components for:
+    - Chat panel (`activePanel === "havi"`).
+    - Timeline, Tasks, History, Knowledge, Settings panels in `app/page.tsx`.
+  - Visuals:
+    - Uses `bg-card/70` with subtle backdrop blur for calm containment.
+    - No per-panel background overrides; hierarchy comes from card vs background, not page-specific hacks.
+- Usage rules:
+  - Do: place primary app routes inside `havi-app-shell` and primary panels inside `havi-card-shell`.
+  - Do: keep container width and padding consistent so navigation between Chat / History / Settings does not resize the frame.
+  - Don’t: introduce page-specific max-widths or padding for these core panels unless explicitly called out in specs.
 
 ## Test / Lint Status (After Changes)
 

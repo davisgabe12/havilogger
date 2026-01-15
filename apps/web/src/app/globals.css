@@ -67,4 +67,16 @@
   .havi-select:focus-visible {
     @apply outline-none ring-2 ring-ring;
   }
+
+  .havi-input {
+    @apply w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .havi-app-shell {
+    @apply mx-auto flex min-h-screen w-full max-w-[390px] flex-col gap-4 px-4 py-6;
+  }
+
+  .havi-card-shell {
+    @apply bg-card/70 backdrop-blur;
+  }
 }
