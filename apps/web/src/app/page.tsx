@@ -3442,7 +3442,9 @@ export default function Home() {
           </div>
         </div>
       ) : null}
-    </main>
+          </div>
+        </main>
+      </div>
   );
 }
 
