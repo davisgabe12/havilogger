@@ -23,3 +23,4 @@ apps/api/config.json
 .DS_Store
 logs/
 tmp/
+apps/api/data/havilogger.db
