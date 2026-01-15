@@ -2051,34 +2051,20 @@ export default function Home() {
   }
 
   return (
-    <main className="havi-app-shell">
-      <div className="relative">
-        <button
-          type="button"
-          className="text-left"
-          onClick={() => {
-            setActivePanel("havi");
-            setNavOpen(false);
-          }}
-          aria-label="Back to HAVI chat"
-        >
-          <h1 className="text-3xl font-bold text-muted-foreground">
-            <HaviWordmark />
-          </h1>
-        </button>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Log events, ask what&apos;s expected, or compare recent days—one chat,
-          zero friction.
-        </p>
-        {/* Desktop nav: persistent rail */}
-        <nav className="mt-4 hidden gap-2 rounded-lg border border-border/40 bg-card/80 p-1 text-sm md:flex">
+    <div className="flex min-h-screen flex-col md:flex-row">
+      <aside className="hidden md:flex md:h-screen md:w-60 md:flex-col md:sticky md:top-0 border-r border-border/60 bg-card/95 p-3">
+        <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Menu
+        </div>
+        <nav className="flex flex-col gap-1 text-sm">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
               type="button"
               className={cn(
-                "flex-1 rounded-md px-2 py-1 text-left text-muted-foreground hover:bg-muted/40",
-                activePanel === item.id && "bg-muted/70 text-foreground",
+                "w-full rounded-md px-3 py-2 text-left text-foreground/80 hover:bg-muted/40",
+                activePanel === item.id &&
+                  "bg-primary/15 text-foreground border border-border/60",
               )}
               onClick={() => {
                 setActivePanel(item.id);
@@ -2089,145 +2075,171 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        {/* Mobile nav: hamburger + overlay sheet */}
-        <div className="mt-4 flex gap-2 md:hidden">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setNavOpen((prev) => !prev)}
-          >
-            <Menu className="mr-2 h-4 w-4" />
-            Menu
-          </Button>
-        </div>
-        {navOpen ? (
-          <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg md:hidden">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                className={cn(
-                  "w-full rounded-md px-2 py-1 text-left hover:bg-muted",
-                  activePanel === item.id && "bg-muted/60",
-                )}
-                onClick={() => {
-                  setActivePanel(item.id);
-                  setNavOpen(false);
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      {navOpen ? (
-        <button
-          type="button"
-          aria-label="Close navigation overlay"
-          className="fixed inset-0 z-10 cursor-default bg-black/40 md:hidden"
-          onClick={() => setNavOpen(false)}
-        />
-      ) : null}
-
-      {networkOffline ? (
-        <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
-          3 py-2 text-sm text-amber-100">
-          <p>It looks like we’re offline. Please check your connection and tap re
-          try.</p>
-          <div className="mt-2 flex gap-2">
-            <Button
-              size="sm"
+      </aside>
+      <main className="flex-1 min-w-0 px-4 md:px-6 lg:px-8">
+        <div className="havi-app-shell">
+          <div className="relative">
+            <button
+              type="button"
+              className="text-left"
               onClick={() => {
-                if (typeof navigator === "undefined" || navigator.onLine) {
-                  setNetworkOffline(false);
-                  setConversationState("idle");
-                  setHardErrorMessage(null);
-                  if (lastMessageDraft) {
+                setActivePanel("havi");
+                setNavOpen(false);
+              }}
+              aria-label="Back to HAVI chat"
+            >
+              <h1 className="text-3xl font-bold text-muted-foreground">
+                <HaviWordmark />
+              </h1>
+            </button>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Log events, ask what&apos;s expected, or compare recent days—one
+              chat, zero friction.
+            </p>
+            {/* Mobile nav: hamburger + overlay sheet */}
+            <div className="mt-4 flex gap-2 md:hidden">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setNavOpen((prev) => !prev)}
+              >
+                <Menu className="mr-2 h-4 w-4" />
+                Menu
+              </Button>
+            </div>
+            {navOpen ? (
+              <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg md:hidden">
+                {NAV_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    className={cn(
+                      "w-full rounded-md px-2 py-1 text-left hover:bg-muted",
+                      activePanel === item.id && "bg-muted/60",
+                    )}
+                    onClick={() => {
+                      setActivePanel(item.id);
+                      setNavOpen(false);
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {navOpen ? (
+            <button
+              type="button"
+              aria-label="Close navigation overlay"
+              className="fixed inset-0 z-10 cursor-default bg-black/40 md:hidden"
+              onClick={() => setNavOpen(false)}
+            />
+          ) : null}
+
+          {networkOffline ? (
+            <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
+          3 py-2 text-sm text-amber-100">
+              <p>
+                It looks like we’re offline. Please check your connection and
+                tap retry.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (
+                      typeof navigator === "undefined" ||
+                      navigator.onLine
+                    ) {
+                      setNetworkOffline(false);
+                      setConversationState("idle");
+                      setHardErrorMessage(null);
+                      if (lastMessageDraft) {
+                        retryCountRef.current += 1;
+                        sendMessage(
+                          lastMessageDraft,
+                          pendingCategoryHint ?? questionCategory,
+                          { skipEcho: true },
+                        );
+                      }
+                    }
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {conversationState === "rate_limited" && rateLimitedMessage ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-sm text-amber-50">
+              <p>{rateLimitedMessage}</p>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setRateLimitedMessage(null);
+                    setConversationState("idle");
+                    if (lastMessageDraft) {
+                      retryCountRef.current += 1;
+                      sendMessage(
+                        lastMessageDraft,
+                        pendingCategoryHint ?? questionCategory,
+                        { skipEcho: true },
+                      );
+                    }
+                  }}
+                >
+                  Retry
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setRateLimitedMessage(null);
+                    setConversationState("idle");
+                  }}
+                >
+                  Okay
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {conversationState === "error_hard" && hardErrorMessage ? (
+            <div className="rounded-md border border-destructive/50 bg-destructive/20 px-3 py-2 text-sm text-destructive-foreground">
+              <p>{hardErrorMessage}</p>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!lastMessageDraft) return;
                     retryCountRef.current += 1;
                     sendMessage(
                       lastMessageDraft,
                       pendingCategoryHint ?? questionCategory,
                       { skipEcho: true },
                     );
-                  }
-                }
-              }}
-            >
-              Retry
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {conversationState === "rate_limited" && rateLimitedMessage ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-sm text-amber-50">
-          <p>{rateLimitedMessage}</p>
-          <div className="mt-2 flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                setRateLimitedMessage(null);
-                setConversationState("idle");
-                if (lastMessageDraft) {
-                  retryCountRef.current += 1;
-                  sendMessage(
-                    lastMessageDraft,
-                    pendingCategoryHint ?? questionCategory,
-                    { skipEcho: true },
-                  );
-                }
-              }}
-            >
-              Retry
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setRateLimitedMessage(null);
-                setConversationState("idle");
-              }}
-            >
-              Okay
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {conversationState === "error_hard" && hardErrorMessage ? (
-        <div className="rounded-md border border-destructive/50 bg-destructive/20 px-3 py-2 text-sm text-destructive-foreground">
-          <p>{hardErrorMessage}</p>
-          <div className="mt-2 flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!lastMessageDraft) return;
-                retryCountRef.current += 1;
-                sendMessage(
-                  lastMessageDraft,
-                  pendingCategoryHint ?? questionCategory,
-                  { skipEcho: true },
-                );
-                setHardErrorMessage(null);
-              }}
-            >
-              Retry
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setMessage(lastMessageDraft);
-                setConversationState("idle");
-                setHardErrorMessage(null);
-              }}
-            >
-              Edit message
-            </Button>
-          </div>
-        </div>
-      ) : null}
+                    setHardErrorMessage(null);
+                  }}
+                >
+                  Retry
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMessage(lastMessageDraft);
+                    setConversationState("idle");
+                    setHardErrorMessage(null);
+                  }}
+                >
+                  Edit message
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
       {activePanel === "timeline" ? (
         <Card className="havi-card-shell">
