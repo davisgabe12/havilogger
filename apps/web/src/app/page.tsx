@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { cn } from "@/lib/utils";
 
 const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
@@ -293,31 +294,31 @@ const LOADING_MESSAGES: Record<
   { short: string; rich: string[] }
 > = {
   generic: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I’m taking a moment to review what you just shared.",
-      "Let me pull a clear, calm answer together for you.",
+      "Reviewing what you just shared.",
+      "Pulling a clear, calm answer together for you.",
     ],
   },
   sleep: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I’m reviewing recent naps, wake windows, and bedtime notes.",
-      "I’m lining up what’s typical for babies this age and sleep patterns like yours.",
+      "Reviewing recent naps, wake windows, and bedtime notes.",
+      "Lining up what’s typical for babies this age and sleep patterns like yours.",
     ],
   },
   routine: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I’m checking recent feeds, diapers, and patterns to see what stands out.",
-      "I’m reviewing your baby’s recent days to spot any trends.",
+      "Checking recent feeds, diapers, and patterns to see what stands out.",
+      "Reviewing recent days to spot any trends.",
     ],
   },
   health: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I'm comparing what you shared with common patterns for babies this age.",
-      "I'm organizing what might be normal, what to watch, and when to call your doctor.",
+      "Comparing what you shared with common patterns for babies this age.",
+      "Organizing what might be normal, what to watch, and when to call your doctor.",
     ],
   },
 };
@@ -333,6 +334,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const DEMO_CHILD_NAME = process.env.NEXT_PUBLIC_CHILD_NAME ?? "baby";
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
+const FIRST_CHAT_SEEN_KEY = "havi_first_chat_seen";
 
 const newId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -506,6 +508,7 @@ export default function Home() {
   const [childLastName, setChildLastName] = useState("Davis");
   const [currentUserId, setCurrentUserId] = useState<number | null>(1);
   const [currentUserName, setCurrentUserName] = useState<string>("Alex Davis");
+  const [chatTitle, setChatTitle] = useState<string | null>(null);
   const statusFilteredTasks = useMemo(() => {
     const base = tasks;
     if (tasksView === "all") {
@@ -580,7 +583,7 @@ export default function Home() {
         shortDescription: "Set lightweight reminders that stay visible.",
         longDescription:
           "Capture quick reminders and keep them handy across chat and daily routines.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-01",
         usedXTimes: 128,
         usedByYUsers: 64,
@@ -595,7 +598,7 @@ export default function Home() {
         shortDescription: "Draft calm, repeatable routines.",
         longDescription:
           "Suggest wake windows and nap routines tuned to recent days and gentle rhythms.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-10",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -610,7 +613,7 @@ export default function Home() {
         shortDescription: "Gentle scripts and guidance.",
         longDescription:
           "Offer calm, age-appropriate responses for tricky moments and tantrums.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-15",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -625,7 +628,7 @@ export default function Home() {
         shortDescription: "Prep lists and travel routines.",
         longDescription:
           "Assemble packing lists and travel-day plans matched to your child’s needs.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-20",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -640,7 +643,7 @@ export default function Home() {
         shortDescription: "Bite-sized play ideas.",
         longDescription:
           "Surface quick activities based on energy, space, and what you have on hand.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-25",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -655,7 +658,7 @@ export default function Home() {
         shortDescription: "Distraction and calm-down ideas.",
         longDescription:
           "Suggest soothing distractions for transitions or fussy moments.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-28",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -748,21 +751,33 @@ export default function Home() {
     setActiveChildName(childFirstName || DEMO_CHILD_NAME);
   }, [childFirstName]);
   useEffect(() => {
-    setChatEntries((prev) =>
-      prev.length
-        ? prev
-        : [
-            {
-              id: newId(),
-              role: "havi",
-              text: `Hi! I can log ${DEMO_CHILD_NAME}'s day, tell you what's expe
-          cted, or compare to yesterday.`,
-              createdAt: new Date().toISOString(),
-              senderType: "assistant",
-              senderName: "Havi",
-            },
-          ],
-    );
+    if (typeof window === "undefined") {
+      return;
+    }
+    setChatEntries((prev) => {
+      if (prev.length > 0) {
+        return prev;
+      }
+      const seen = window.localStorage.getItem(FIRST_CHAT_SEEN_KEY);
+      if (seen === "1") {
+        return prev;
+      }
+      const now = new Date().toISOString();
+      window.localStorage.setItem(FIRST_CHAT_SEEN_KEY, "1");
+      return [
+        {
+          id: newId(),
+          role: "havi",
+          text:
+            "Hi — I’m HAVI.\n" +
+            "Ask a question, log a moment, or track anything about your family’s day.\n" +
+            "I’ll help you understand what’s normal and remember what matters.",
+          createdAt: now,
+          senderType: "assistant",
+          senderName: "HAVI",
+        },
+      ];
+    });
   }, []);
 
   const fillTemplate = useCallback(
@@ -1539,8 +1554,17 @@ export default function Home() {
           ) : undefined,
           createdAt: new Date().toISOString(),
           senderType: "assistant",
-          senderName: "Havi",
+          senderName: "HAVI",
         });
+        if (!chatTitle && textToSend) {
+          const normalized = textToSend.replace(/\s+/g, " ").trim();
+          const maxLen = 60;
+          const title =
+            normalized.length > maxLen
+              ? `${normalized.slice(0, maxLen).trimEnd()}…`
+              : normalized;
+          setChatTitle(title);
+        }
         setMessage("");
         setPendingCategoryHint(null);
         fetchHistory({ silent: true });
@@ -2010,10 +2034,11 @@ export default function Home() {
             setActivePanel("havi");
             setNavOpen(false);
           }}
-          aria-label="Back to Havi chat"
+          aria-label="Back to HAVI chat"
         >
-          <h1 className="text-3xl font-bold tracking-[0.35em] text-muted-foregrou
-          nd">HAVI</h1>
+          <h1 className="text-3xl font-bold text-muted-foreground">
+            <HaviWordmark />
+          </h1>
         </button>
         <p className="mt-1 text-sm text-muted-foreground">
           Log events, ask what&apos;s expected, or compare recent days—one chat,
@@ -2030,7 +2055,7 @@ export default function Home() {
           <div className="mt-2 w-48 rounded-lg border border-border/40 bg-card/90
            p-3 text-sm shadow-lg">
             {[
-              { id: "havi" as Panel, label: "Havi" },
+              { id: "havi" as Panel, label: "HAVI" },
               { id: "timeline" as Panel, label: "Timeline" },
               { id: "tasks" as Panel, label: "Tasks" },
               { id: "history" as Panel, label: "History" },
@@ -2395,7 +2420,7 @@ export default function Home() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Chat history</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Recent conversations auto-titled by Havi.
+              Recent conversations auto-titled by HAVI.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -2459,9 +2484,9 @@ export default function Home() {
       {activePanel === "knowledge" ? (
         <Card className="bg-card/70 backdrop-blur">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Havi remembers</CardTitle>
+            <CardTitle className="text-base">HAVI remembers</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Confirm or edit what Havi is learning.
+              Confirm or edit what HAVI is learning.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -3091,10 +3116,9 @@ export default function Home() {
           <Card className="flex-1 bg-card/70 backdrop-blur">
             <CardHeader className="flex items-start justify-between pb-2">
               <div>
-                <CardTitle className="text-base">Conversation</CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Havi blends logging and coaching into one stream.
-                </CardDescription>
+                {chatTitle ? (
+                  <CardTitle className="text-base">{chatTitle}</CardTitle>
+                ) : null}
               </div>
               <div className="relative">
                 <Button
@@ -3220,7 +3244,7 @@ export default function Home() {
                   ) : (
                     <AutoResizeTextarea
                       id="activity-input"
-                      placeholder="Ask and track anything…"
+                      placeholder="Ask a question, log a moment, or track anything…"
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
                       onKeyDown={handleKeyDown}
@@ -3637,9 +3661,8 @@ function MessageBubble({
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
       {isAssistant ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
-          full bg-muted/80 text-xs font-semibold text-foreground">
-          H
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted/80 text-[11px] font-semibold text-foreground">
+          HAVI
         </span>
       ) : isCaregiver ? (
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-
@@ -3684,7 +3707,6 @@ function MessageBubble({
         <div
           data-message-id={entry.messageId ?? undefined}
           className={bubbleClasses}
-          style={{ width: "fit-content", maxWidth: "100%" }}
         >
           {isAssistant ? (
             <ReactMarkdown
@@ -3731,9 +3753,9 @@ function MessageBubble({
               className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-[11px] text-muted-foreground shadow-sm ring-1 ring-border/60 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               onClick={() => onCopy(entry.text, entry.id)}
               aria-label="Copy message"
+              title="Copy"
             >
               <Copy className="h-3 w-3" />
-              <span>Copy</span>
             </button>
             {copiedMessageId === entry.id ? (
               <span className="text-[11px] text-primary">Copied</span>
