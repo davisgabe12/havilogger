@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import KnowledgeList from "@/components/knowledge/KnowledgeList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { KnowledgeReviewItem } from "@/types/knowledge";
 
 const KNOWLEDGE_GROUPS = ["Care Plan", "Child Profile", "Preferences", "Activities", "Milestones"];
@@ -69,11 +70,16 @@ export default function KnowledgePage() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
+      <header>
+        <h1 className="text-3xl font-bold text-muted-foreground">
+          <HaviWordmark />
+        </h1>
+      </header>
       <Card className="bg-card/70 backdrop-blur">
         <CardHeader>
-          <CardTitle className="text-lg">Knowledge review</CardTitle>
+          <CardTitle className="text-lg font-semibold">Knowledge review</CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
-            Confirm or edit what Havi has learned so far.
+            Confirm or edit what HAVI has learned so far.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -89,11 +95,11 @@ export default function KnowledgePage() {
             </div>
           ) : null}
           {loading && !items.length ? (
-            <p className="text-sm text-muted-foreground">Loading what I remember…</p>
+            <p className="text-sm text-muted-foreground">Loading what HAVI remembers…</p>
           ) : null}
           {!loading && items.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No knowledge saved yet. As you chat, I’ll collect helpful details here.
+              No knowledge saved yet. As you chat, HAVI will collect helpful details here.
             </p>
           ) : null}
           {Object.entries(groups)

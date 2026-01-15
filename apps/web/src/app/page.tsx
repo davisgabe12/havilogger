@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Copy, Menu, Mic, Share2, Square } from "lucide-react";
+import { ArrowUpRight, Copy, Menu, Mic, Share, Square } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { cn } from "@/lib/utils";
 
 const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
@@ -293,31 +294,31 @@ const LOADING_MESSAGES: Record<
   { short: string; rich: string[] }
 > = {
   generic: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I’m taking a moment to review what you just shared.",
-      "Let me pull a clear, calm answer together for you.",
+      "Reviewing what you just shared.",
+      "Pulling a clear, calm answer together for you.",
     ],
   },
   sleep: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I’m reviewing recent naps, wake windows, and bedtime notes.",
-      "I’m lining up what’s typical for babies this age and sleep patterns like yours.",
+      "Reviewing recent naps, wake windows, and bedtime notes.",
+      "Lining up what’s typical for babies this age and sleep patterns like yours.",
     ],
   },
   routine: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I’m checking recent feeds, diapers, and patterns to see what stands out.",
-      "I’m reviewing your baby’s recent days to spot any trends.",
+      "Checking recent feeds, diapers, and patterns to see what stands out.",
+      "Reviewing recent days to spot any trends.",
     ],
   },
   health: {
-    short: "Havi is on it…",
+    short: "HAVI is on it…",
     rich: [
-      "I'm comparing what you shared with common patterns for babies this age.",
-      "I'm organizing what might be normal, what to watch, and when to call your doctor.",
+      "Comparing what you shared with common patterns for babies this age.",
+      "Organizing what might be normal, what to watch, and when to call your doctor.",
     ],
   },
 };
@@ -333,6 +334,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const DEMO_CHILD_NAME = process.env.NEXT_PUBLIC_CHILD_NAME ?? "baby";
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
+const FIRST_CHAT_SEEN_KEY = "havi_first_chat_seen";
 
 const newId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -350,8 +352,12 @@ const AutoResizeTextarea = ({
   const ref = inputRef ?? fallbackRef;
   const resize = () => {
     if (!ref.current) return;
+    const maxHeight = 160; // px, cap growth to keep composer stable
     ref.current.style.height = "0px";
-    ref.current.style.height = `${ref.current.scrollHeight}px`;
+    const nextHeight = Math.min(ref.current.scrollHeight, maxHeight);
+    ref.current.style.height = `${nextHeight}px`;
+    ref.current.style.overflowY =
+      ref.current.scrollHeight > maxHeight ? "auto" : "hidden";
   };
 
   useEffect(() => {
@@ -363,7 +369,7 @@ const AutoResizeTextarea = ({
       ref={ref}
       {...props}
       className={cn(
-        "min-h-[52px] resize-none bg-card placeholder:text-muted-foreground placeholder:opacity-80",
+        "min-h-[52px] max-h-40 resize-none bg-card placeholder:text-muted-foreground placeholder:opacity-80",
         CHAT_BODY_TEXT,
         className,
       )}
@@ -506,6 +512,7 @@ export default function Home() {
   const [childLastName, setChildLastName] = useState("Davis");
   const [currentUserId, setCurrentUserId] = useState<number | null>(1);
   const [currentUserName, setCurrentUserName] = useState<string>("Alex Davis");
+  const [chatTitle, setChatTitle] = useState<string | null>(null);
   const statusFilteredTasks = useMemo(() => {
     const base = tasks;
     if (tasksView === "all") {
@@ -580,7 +587,7 @@ export default function Home() {
         shortDescription: "Set lightweight reminders that stay visible.",
         longDescription:
           "Capture quick reminders and keep them handy across chat and daily routines.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-01",
         usedXTimes: 128,
         usedByYUsers: 64,
@@ -595,7 +602,7 @@ export default function Home() {
         shortDescription: "Draft calm, repeatable routines.",
         longDescription:
           "Suggest wake windows and nap routines tuned to recent days and gentle rhythms.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-10",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -610,7 +617,7 @@ export default function Home() {
         shortDescription: "Gentle scripts and guidance.",
         longDescription:
           "Offer calm, age-appropriate responses for tricky moments and tantrums.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-15",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -625,7 +632,7 @@ export default function Home() {
         shortDescription: "Prep lists and travel routines.",
         longDescription:
           "Assemble packing lists and travel-day plans matched to your child’s needs.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-20",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -640,7 +647,7 @@ export default function Home() {
         shortDescription: "Bite-sized play ideas.",
         longDescription:
           "Surface quick activities based on energy, space, and what you have on hand.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-25",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -655,7 +662,7 @@ export default function Home() {
         shortDescription: "Distraction and calm-down ideas.",
         longDescription:
           "Suggest soothing distractions for transitions or fussy moments.",
-        createdBy: "Havi",
+        createdBy: "HAVI",
         createdAt: "2024-08-28",
         usedXTimes: 0,
         usedByYUsers: 0,
@@ -748,22 +755,47 @@ export default function Home() {
     setActiveChildName(childFirstName || DEMO_CHILD_NAME);
   }, [childFirstName]);
   useEffect(() => {
-    setChatEntries((prev) =>
-      prev.length
-        ? prev
-        : [
-            {
-              id: newId(),
-              role: "havi",
-              text: `Hi! I can log ${DEMO_CHILD_NAME}'s day, tell you what's expe
-          cted, or compare to yesterday.`,
-              createdAt: new Date().toISOString(),
-              senderType: "assistant",
-              senderName: "Havi",
-            },
-          ],
-    );
+    if (typeof window === "undefined") {
+      return;
+    }
+    setChatEntries((prev) => {
+      if (prev.length > 0) {
+        return prev;
+      }
+      const seen = window.localStorage.getItem(FIRST_CHAT_SEEN_KEY);
+      if (seen === "1") {
+        return prev;
+      }
+      const now = new Date().toISOString();
+      window.localStorage.setItem(FIRST_CHAT_SEEN_KEY, "1");
+      return [
+        {
+          id: newId(),
+          role: "havi",
+          text:
+            "Hi — I’m HAVI.\n" +
+            "Ask a question, log a moment, or track anything about your family’s day.\n" +
+            "I’ll help you understand what’s normal and remember what matters.",
+          createdAt: now,
+          senderType: "assistant",
+          senderName: "HAVI",
+        },
+      ];
+    });
   }, []);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNavOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [navOpen]);
 
   const fillTemplate = useCallback(
     (template: string) => {
@@ -1539,8 +1571,17 @@ export default function Home() {
           ) : undefined,
           createdAt: new Date().toISOString(),
           senderType: "assistant",
-          senderName: "Havi",
+          senderName: "HAVI",
         });
+        if (!chatTitle && textToSend) {
+          const normalized = textToSend.replace(/\s+/g, " ").trim();
+          const maxLen = 60;
+          const title =
+            normalized.length > maxLen
+              ? `${normalized.slice(0, maxLen).trimEnd()}…`
+              : normalized;
+          setChatTitle(title);
+        }
         setMessage("");
         setPendingCategoryHint(null);
         fetchHistory({ silent: true });
@@ -2000,9 +2041,8 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[390px] flex-col gap-
-          4 bg-background px-4 py-6">
-      <div>
+    <main className="havi-app-shell">
+      <div className="relative">
         <button
           type="button"
           className="text-left"
@@ -2010,16 +2050,17 @@ export default function Home() {
             setActivePanel("havi");
             setNavOpen(false);
           }}
-          aria-label="Back to Havi chat"
+          aria-label="Back to HAVI chat"
         >
-          <h1 className="text-3xl font-bold tracking-[0.35em] text-muted-foregrou
-          nd">HAVI</h1>
+          <h1 className="text-3xl font-bold text-muted-foreground">
+            <HaviWordmark />
+          </h1>
         </button>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           Log events, ask what&apos;s expected, or compare recent days—one chat,
           zero friction.
         </p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-4 flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setNavOpen((prev) =>
            !prev)}>
             <Menu className="mr-2 h-4 w-4" />
@@ -2027,10 +2068,9 @@ export default function Home() {
           </Button>
         </div>
         {navOpen ? (
-          <div className="mt-2 w-48 rounded-lg border border-border/40 bg-card/90
-           p-3 text-sm shadow-lg">
+          <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg">
             {[
-              { id: "havi" as Panel, label: "Havi" },
+              { id: "havi" as Panel, label: "HAVI" },
               { id: "timeline" as Panel, label: "Timeline" },
               { id: "tasks" as Panel, label: "Tasks" },
               { id: "history" as Panel, label: "History" },
@@ -2055,6 +2095,15 @@ export default function Home() {
           </div>
         ) : null}
       </div>
+
+      {navOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation overlay"
+          className="fixed inset-0 z-10 cursor-default bg-black/40"
+          onClick={() => setNavOpen(false)}
+        />
+      ) : null}
 
       {networkOffline ? (
         <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
@@ -2156,9 +2205,9 @@ export default function Home() {
       ) : null}
 
       {activePanel === "timeline" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Timeline</CardTitle>
+            <CardTitle className="text-base font-semibold">Timeline</CardTitle>
             <CardDescription className="text-muted-foreground">
               Review events for {childFirstName || DEMO_CHILD_NAME}.
             </CardDescription>
@@ -2179,9 +2228,9 @@ export default function Home() {
       ) : null}
 
       {activePanel === "tasks" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Tasks</CardTitle>
+            <CardTitle className="text-base font-semibold">Tasks</CardTitle>
             <CardDescription className="text-muted-foreground">
               Includes family tasks and items for the selected child.
             </CardDescription>
@@ -2316,8 +2365,7 @@ export default function Home() {
               <div>
                 <p className="text-xs text-muted-foreground">Title</p>
                 <input
-                  className="mt-1 w-full rounded-md border border-border/60 bg-ba
-          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  className="mt-1 havi-input"
                   value={taskDetailTitle}
                   onChange={(e) => setTaskDetailTitle(e.target.value)}
                 />
@@ -2329,8 +2377,7 @@ export default function Home() {
                     <p className="text-[11px] text-muted-foreground">Date</p>
                     <input
                       type="date"
-                      className="mt-1 w-full rounded-md border border-border/60 bg-ba
-          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      className="mt-1 havi-input"
                       value={taskDetailDueDate}
                       onChange={(e) => setTaskDetailDueDate(e.target.value)}
                     />
@@ -2339,8 +2386,7 @@ export default function Home() {
                     <p className="text-[11px] text-muted-foreground">Time</p>
                     <input
                       type="time"
-                      className="mt-1 w-full rounded-md border border-border/60 bg-ba
-          ckground/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      className="mt-1 havi-input"
                       value={taskDetailDueTime}
                       onChange={(e) => setTaskDetailDueTime(e.target.value)}
                     />
@@ -2391,11 +2437,11 @@ export default function Home() {
       ) : null}
 
       {activePanel === "history" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Chat history</CardTitle>
+            <CardTitle className="text-base font-semibold">Chat history</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Recent conversations auto-titled by Havi.
+              Recent conversations auto-titled by HAVI.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -2413,8 +2459,8 @@ export default function Home() {
                     className="flex items-center justify-between rounded-md borde
           r border-border/40 p-2"
                   >
-                    <div>
-                      <p className="font-medium">{session.title}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{session.title}</p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(session.last_message_at).toLocaleString()}
                       </p>
@@ -2457,11 +2503,11 @@ export default function Home() {
       ) : null}
 
       {activePanel === "knowledge" ? (
-        <Card className="bg-card/70 backdrop-blur">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Havi remembers</CardTitle>
+            <CardTitle className="text-base font-semibold">HAVI remembers</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Confirm or edit what Havi is learning.
+              Confirm or edit what HAVI is learning.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -2681,7 +2727,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "settings" ? (
-        <Card className="bg-card/80 shadow-lg">
+        <Card className="havi-card-shell">
           <CardHeader>
             <CardTitle className="text-base">Settings</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -2790,7 +2836,7 @@ export default function Home() {
                             Relationship
                           </p>
                           <select
-                            className="mt-1 w-full rounded-md border border-border/60 bg-background/70 p-2 text-sm"
+                            className="mt-1 w-full havi-select"
                             value={relationship}
                             onChange={(event) =>
                               setRelationship(event.target.value)
@@ -2929,7 +2975,7 @@ export default function Home() {
                             Gender (optional)
                           </p>
                           <select
-                            className="mt-1 w-full rounded-md border border-border/40 bg-background/60 p-2 text-sm"
+                            className="mt-1 w-full havi-select"
                             value={childGender}
                             onChange={(event) =>
                               setChildGender(event.target.value)
@@ -2990,7 +3036,7 @@ export default function Home() {
                             Timezone
                           </p>
                           <select
-                            className="w-full rounded-md border border-border/40 bg-background/60 px-2 py-2 text-sm"
+                            className="w-full havi-select"
                             value={childTimezone || "America/Los_Angeles"}
                             onChange={(e) => setChildTimezone(e.target.value)}
                           >
@@ -3088,13 +3134,14 @@ export default function Home() {
 
       {activePanel === "havi" ? (
         <>
-          <Card className="flex-1 bg-card/70 backdrop-blur">
-            <CardHeader className="flex items-start justify-between pb-2">
-              <div>
-                <CardTitle className="text-base">Conversation</CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Havi blends logging and coaching into one stream.
-                </CardDescription>
+          <Card className="flex-1 havi-card-shell">
+            <CardHeader className="flex items-center justify-between gap-2 pb-2">
+              <div className="min-w-0">
+                {chatTitle ? (
+                  <CardTitle className="text-sm font-semibold truncate">
+                    {chatTitle}
+                  </CardTitle>
+                ) : null}
               </div>
               <div className="relative">
                 <Button
@@ -3109,7 +3156,7 @@ export default function Home() {
                   onClick={() => void handleShareConversation()}
                   aria-label="Share conversation"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <Share className="h-4 w-4" />
                 </Button>
                 {shareMessage ? (
                   <span className="absolute left-1/2 top-full z-10 -translate-x-1/2 mt-1 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
@@ -3185,7 +3232,7 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <div className="space-y-3">
+          <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
               {/* TODO: Compare-day chips removed until proper implementation returns results reliably. */}
               {chipTemplates.map((chip) => (
@@ -3200,8 +3247,8 @@ export default function Home() {
               ))}
             </div>
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
-                <div className="flex-1">
+              <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
+                <div className="flex-1 min-w-0">
                   {voiceState === "recording" ? (
                     <div className="flex items-center gap-2 rounded-xl bg-background/60 px-3 py-2 text-sm text-muted-foreground">
                       <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-red-500" />
@@ -3220,7 +3267,7 @@ export default function Home() {
                   ) : (
                     <AutoResizeTextarea
                       id="activity-input"
-                      placeholder="Ask and track anything…"
+                      placeholder="Ask a question, log a moment, or track anything…"
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
                       onKeyDown={handleKeyDown}
@@ -3289,7 +3336,7 @@ export default function Home() {
                   {knowledgeToast}
                 </div>
               </div>
-            ) : null}
+      ) : null}
       {inviteOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-sm space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
@@ -3313,7 +3360,7 @@ export default function Home() {
               <div>
                 <p className="text-[11px] text-muted-foreground">Email</p>
                 <input
-                  className="mt-1 w-full rounded-md border border-border/50 bg-background/70 px-2 py-1 text-sm"
+                  className="mt-1 havi-input"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   type="email"
@@ -3323,7 +3370,7 @@ export default function Home() {
               <div>
                 <p className="text-[11px] text-muted-foreground">Role</p>
                 <select
-                  className="mt-1 w-full rounded-md border border-border/50 bg-background/70 p-2 text-sm"
+                  className="mt-1 w-full havi-select"
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
                 >
@@ -3481,7 +3528,7 @@ function EditableField({
     <div>
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <input
-        className="mt-1 w-full rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+        className="mt-1 havi-input"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -3627,9 +3674,9 @@ function MessageBubble({
   const bubbleClasses = cn(
     "relative rounded-lg px-3 py-2 ring-offset-2 group",
     isSelf
-      ? "bg-primary/15 text-primary"
+      ? "bg-primary text-primary-foreground"
       : isAssistant
-        ? "bg-muted/30 text-muted-foreground"
+        ? "bg-muted/40 text-muted-foreground"
         : "bg-background/80 text-foreground border border-border/40",
     isHighlighted && "ring-2 ring-primary/40",
   );
@@ -3637,9 +3684,8 @@ function MessageBubble({
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
       {isAssistant ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
-          full bg-muted/80 text-xs font-semibold text-foreground">
-          H
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted/80 text-[11px] font-semibold text-foreground">
+          HAVI
         </span>
       ) : isCaregiver ? (
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-
@@ -3684,7 +3730,6 @@ function MessageBubble({
         <div
           data-message-id={entry.messageId ?? undefined}
           className={bubbleClasses}
-          style={{ width: "fit-content", maxWidth: "100%" }}
         >
           {isAssistant ? (
             <ReactMarkdown
@@ -3728,15 +3773,15 @@ function MessageBubble({
           >
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-[11px] text-muted-foreground shadow-sm ring-1 ring-border/60 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
               onClick={() => onCopy(entry.text, entry.id)}
               aria-label="Copy message"
+              title="Copy"
             >
               <Copy className="h-3 w-3" />
-              <span>Copy</span>
             </button>
             {copiedMessageId === entry.id ? (
-              <span className="text-[11px] text-primary">Copied</span>
+              <span className="text-[11px] text-muted-foreground">Copied</span>
             ) : null}
           </div>
         ) : null}

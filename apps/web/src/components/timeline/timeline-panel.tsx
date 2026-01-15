@@ -422,7 +422,7 @@ export function TimelinePanel({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Child</span>
             <select
-              className="rounded border border-border/40 bg-background px-2 py-1 text-xs"
+              className="havi-select text-xs"
               value={effectiveChildId ?? ""}
               onChange={(event) => {
                 const nextId = event.target.value || null;

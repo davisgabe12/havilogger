@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HaviLogger",
+  title: "HAVI Logger",
   description: "Mobile-first baby activity logger powered by GPT",
 };
 

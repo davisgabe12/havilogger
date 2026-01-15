@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Share2 } from "lucide-react";
+import { HaviWordmark } from "@/components/brand/HaviWordmark";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -60,7 +60,9 @@ export default function SharedConversationPage() {
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-[0.35em] text-muted-foreground">HAVI</h1>
+          <h1 className="text-3xl font-bold text-muted-foreground">
+            <HaviWordmark />
+          </h1>
           <p className="text-sm text-muted-foreground">Shared conversation</p>
         </div>
         <Button variant="outline" size="sm">
@@ -69,7 +71,7 @@ export default function SharedConversationPage() {
       </div>
       <Card className="bg-card/70 backdrop-blur">
         <CardHeader>
-          <CardTitle className="text-lg">{title}</CardTitle>
+          <CardTitle className="text-lg font-semibold">{title}</CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
             Anyone with this link can view this conversation.
           </CardDescription>
@@ -102,7 +104,7 @@ export default function SharedConversationPage() {
                   {entry.text}
                 </div>
                 <p className="text-[11px] text-muted-foreground/80">
-                  {entry.sender_name ?? (entry.role === "assistant" ? "Havi" : "Caregiver")}
+                  {entry.sender_name ?? (entry.role === "assistant" ? "HAVI" : "Caregiver")}
                   {entry.created_at ? ` · ${new Date(entry.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}
                 </p>
               </div>

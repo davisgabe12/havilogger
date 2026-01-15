@@ -1,0 +1,65 @@
+:root {
+  /* Core */
+  --havi-bg: #0C2B26;
+  --havi-fg: #F4F2ED;
+  --havi-moss: #9EA993;
+
+  /* Surfaces */
+--havi-bg: #0C2B26;
+--havi-surface-1: #133833;
+--havi-surface-2: #1A4540;
+--havi-surface-3: #225650;
+
+  /* Text */
+--havi-text: rgba(244,242,237,0.94);
+--havi-text-muted: rgba(244,242,237,0.68);
+
+  /* Borders */
+--havi-border: rgba(244,242,237,0.14);
+--havi-border-strong: rgba(244,242,237,0.24);
+
+  /* Actions */
+  --havi-primary-bg: var(--havi-fg);
+  --havi-primary-fg: var(--havi-bg);
+  --havi-primary-hover: rgba(244,242,237,0.92);
+  --havi-primary-active: rgba(244,242,237,0.84);
+
+  --havi-secondary-bg: rgba(158,169,147,0.18);
+  --havi-secondary-hover: rgba(158,169,147,0.26);
+  --havi-secondary-active: rgba(158,169,147,0.34);
+
+  --havi-ghost-hover: rgba(244,242,237,0.06);
+  --havi-ghost-active: rgba(244,242,237,0.10);
+
+  /* Focus */
+  --havi-ring: rgba(158,169,147,0.55);
+
+  /* Tooltip */
+  --havi-tooltip-bg: #1A4741;
+  --havi-tooltip-fg: #F4F2ED;
+  --havi-tooltip-border: rgba(244,242,237,0.14);
+
+  /* Radius */
+  --havi-radius-sm: 10px;
+  --havi-radius-md: 12px;
+  --havi-radius-lg: 16px;
+
+  /* Font */
+  --havi-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Status */
+  --havi-status-success: #9EA993;
+  --havi-status-warning: #D1B35A;
+  --havi-status-destructive: #E0644F;
+
+  /* Destructive semantics */
+  --havi-destructive-bg: var(--havi-status-destructive);
+  --havi-destructive-fg: var(--havi-bg);
+
+  /* Charts */
+  --havi-chart-1: var(--havi-moss);
+  --havi-chart-2: var(--havi-status-warning);
+  --havi-chart-3: var(--havi-status-destructive);
+  --havi-chart-4: var(--havi-surface-2);
+  --havi-chart-5: var(--havi-surface-3);
+}
