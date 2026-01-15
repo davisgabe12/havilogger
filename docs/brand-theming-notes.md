@@ -95,6 +95,20 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
     - Chips using `bg-muted`, `bg-secondary`.
   - Type samples for H1/H2/body/small/caption.
 
+## Select / Dropdown Rules
+
+- Native selects should use the shared HAVI select style:
+  - Class: `havi-select`
+  - Maps to:
+    - Surface: `bg-popover`, `text-popover-foreground`.
+    - Border: `border-border/60`.
+    - Hover: `bg-muted`.
+    - Focus: `ring-2 ring-ring`, `outline-none`.
+- Usage:
+  - Timeline child selector (`timeline-panel.tsx`).
+  - Settings dropdowns (relationship, weight units, timezone) in `app/page.tsx`.
+  - Width (`w-full` vs auto) and font size (`text-xs` vs `text-sm`) can be applied per context on top of `havi-select`.
+
 ## Test / Lint Status (After Changes)
 
 - Tests: `cd apps/web && npm test`
@@ -104,4 +118,3 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
     - `apps/web/scripts/dev-safe.js` uses CommonJS `require()` (3 errors).
     - Several `react-hooks/exhaustive-deps` and `no-unused-vars` warnings in `apps/web/src/app/page.tsx` and `apps/web/src/components/timeline/timeline-panel.tsx`.
   - No new lint categories introduced by the brand/theming work.
-

@@ -55,4 +55,16 @@
   input[type="checkbox"] {
     accent-color: var(--havi-moss);
   }
+
+  .havi-select {
+    @apply rounded-md border border-border/60 bg-popover px-2 py-1 text-sm text-popover-foreground;
+  }
+
+  .havi-select:hover {
+    @apply bg-muted;
+  }
+
+  .havi-select:focus-visible {
+    @apply outline-none ring-2 ring-ring;
+  }
 }
