@@ -60,7 +60,7 @@ export default function BrandPage() {
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-wide">Input + focus ring</p>
             <input
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="havi-input"
               placeholder="Type to see focus ring…"
             />
           </div>
