@@ -46,4 +46,20 @@
 
   /* Font */
   --havi-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Status */
+  --havi-status-success: #9EA993;
+  --havi-status-warning: #D1B35A;
+  --havi-status-destructive: #E0644F;
+
+  /* Destructive semantics */
+  --havi-destructive-bg: var(--havi-status-destructive);
+  --havi-destructive-fg: var(--havi-bg);
+
+  /* Charts */
+  --havi-chart-1: var(--havi-moss);
+  --havi-chart-2: var(--havi-status-warning);
+  --havi-chart-3: var(--havi-status-destructive);
+  --havi-chart-4: var(--havi-surface-2);
+  --havi-chart-5: var(--havi-surface-3);
 }
