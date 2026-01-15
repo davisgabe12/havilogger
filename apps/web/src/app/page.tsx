@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Copy, Menu, Mic, Share2, Square } from "lucide-react";
+import { ArrowUpRight, Copy, Menu, Mic, Share, Square } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -352,8 +352,12 @@ const AutoResizeTextarea = ({
   const ref = inputRef ?? fallbackRef;
   const resize = () => {
     if (!ref.current) return;
+    const maxHeight = 160; // px, cap growth to keep composer stable
     ref.current.style.height = "0px";
-    ref.current.style.height = `${ref.current.scrollHeight}px`;
+    const nextHeight = Math.min(ref.current.scrollHeight, maxHeight);
+    ref.current.style.height = `${nextHeight}px`;
+    ref.current.style.overflowY =
+      ref.current.scrollHeight > maxHeight ? "auto" : "hidden";
   };
 
   useEffect(() => {
@@ -365,7 +369,7 @@ const AutoResizeTextarea = ({
       ref={ref}
       {...props}
       className={cn(
-        "min-h-[52px] resize-none bg-card placeholder:text-muted-foreground placeholder:opacity-80",
+        "min-h-[52px] max-h-40 resize-none bg-card placeholder:text-muted-foreground placeholder:opacity-80",
         CHAT_BODY_TEXT,
         className,
       )}
@@ -779,6 +783,19 @@ export default function Home() {
       ];
     });
   }, []);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNavOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [navOpen]);
 
   const fillTemplate = useCallback(
     (template: string) => {
@@ -2025,7 +2042,7 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[390px] flex-col gap-4 bg-background px-4 py-6">
-      <div>
+      <div className="relative">
         <button
           type="button"
           className="text-left"
@@ -2051,8 +2068,7 @@ export default function Home() {
           </Button>
         </div>
         {navOpen ? (
-          <div className="mt-2 w-48 rounded-lg border border-border/40 bg-card/90
-           p-3 text-sm shadow-lg">
+          <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg">
             {[
               { id: "havi" as Panel, label: "HAVI" },
               { id: "timeline" as Panel, label: "Timeline" },
@@ -2079,6 +2095,15 @@ export default function Home() {
           </div>
         ) : null}
       </div>
+
+      {navOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation overlay"
+          className="fixed inset-0 z-10 cursor-default bg-black/40"
+          onClick={() => setNavOpen(false)}
+        />
+      ) : null}
 
       {networkOffline ? (
         <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
@@ -2814,7 +2839,7 @@ export default function Home() {
                             Relationship
                           </p>
                           <select
-                            className="mt-1 w-full rounded-md border border-border/60 bg-background/70 p-2 text-sm"
+                            className="mt-1 w-full havi-select"
                             value={relationship}
                             onChange={(event) =>
                               setRelationship(event.target.value)
@@ -2953,7 +2978,7 @@ export default function Home() {
                             Gender (optional)
                           </p>
                           <select
-                            className="mt-1 w-full rounded-md border border-border/40 bg-background/60 p-2 text-sm"
+                            className="mt-1 w-full havi-select"
                             value={childGender}
                             onChange={(event) =>
                               setChildGender(event.target.value)
@@ -3014,7 +3039,7 @@ export default function Home() {
                             Timezone
                           </p>
                           <select
-                            className="w-full rounded-md border border-border/40 bg-background/60 px-2 py-2 text-sm"
+                            className="w-full havi-select"
                             value={childTimezone || "America/Los_Angeles"}
                             onChange={(e) => setChildTimezone(e.target.value)}
                           >
@@ -3134,7 +3159,7 @@ export default function Home() {
                   onClick={() => void handleShareConversation()}
                   aria-label="Share conversation"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <Share className="h-4 w-4" />
                 </Button>
                 {shareMessage ? (
                   <span className="absolute left-1/2 top-full z-10 -translate-x-1/2 mt-1 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
@@ -3210,7 +3235,7 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <div className="space-y-3">
+          <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
               {/* TODO: Compare-day chips removed until proper implementation returns results reliably. */}
               {chipTemplates.map((chip) => (
@@ -3225,8 +3250,8 @@ export default function Home() {
               ))}
             </div>
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
-                <div className="flex-1">
+              <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
+                <div className="flex-1 min-w-0">
                   {voiceState === "recording" ? (
                     <div className="flex items-center gap-2 rounded-xl bg-background/60 px-3 py-2 text-sm text-muted-foreground">
                       <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-red-500" />
