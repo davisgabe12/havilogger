@@ -214,6 +214,7 @@ type SpeechRecognitionGlobal = {
 };
 
 type Panel =
+  | "home"
   | "havi"
   | "timeline"
   | "tasks"
@@ -223,6 +224,7 @@ type Panel =
   | "settings";
 
 const NAV_ITEMS: { id: Panel; label: string }[] = [
+  { id: "home", label: "Home" },
   { id: "havi", label: "HAVI" },
   { id: "timeline", label: "Timeline" },
   { id: "tasks", label: "Tasks" },
@@ -2240,6 +2242,20 @@ export default function Home() {
               </div>
             </div>
           ) : null}
+
+      {activePanel === "home" ? (
+        <Card className="havi-card-shell">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Home</CardTitle>
+            <CardDescription className="text-muted-foreground">
+              A quick snapshot to start your day.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Hi, Home!</p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {activePanel === "timeline" ? (
         <Card className="havi-card-shell">

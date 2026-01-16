@@ -44,6 +44,17 @@ describe("App layout – desktop padding and nav", () => {
     expect(mainClass).toContain("md:px-6");
     expect(mainClass).toContain("lg:px-8");
   });
+
+  it("renders Home first in the sidebar menu", () => {
+    const { container } = render(<Home />);
+
+    const nav = container.querySelector("aside nav");
+    expect(nav).not.toBeNull();
+
+    const buttons = nav ? Array.from(nav.querySelectorAll("button")) : [];
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons[0]?.textContent).toBe("Home");
+  });
 });
 
 describe("App layout – mobile overlay behaviour", () => {
