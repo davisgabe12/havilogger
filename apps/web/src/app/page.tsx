@@ -222,6 +222,16 @@ type Panel =
   | "integrations"
   | "settings";
 
+const NAV_ITEMS: { id: Panel; label: string }[] = [
+  { id: "havi", label: "HAVI" },
+  { id: "timeline", label: "Timeline" },
+  { id: "tasks", label: "Tasks" },
+  { id: "history", label: "History" },
+  { id: "knowledge", label: "Knowledge" },
+  { id: "integrations", label: "Integrations" },
+  { id: "settings", label: "Settings" },
+];
+
 type ChipTemplate = {
   id: string;
   label: string;
@@ -2060,24 +2070,39 @@ export default function Home() {
           Log events, ask what&apos;s expected, or compare recent days—one chat,
           zero friction.
         </p>
-        <div className="mt-4 flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setNavOpen((prev) =>
-           !prev)}>
+        {/* Desktop nav: persistent rail */}
+        <nav className="mt-4 hidden gap-2 rounded-lg border border-border/40 bg-card/80 p-1 text-sm md:flex">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={cn(
+                "flex-1 rounded-md px-2 py-1 text-left text-muted-foreground hover:bg-muted/40",
+                activePanel === item.id && "bg-muted/70 text-foreground",
+              )}
+              onClick={() => {
+                setActivePanel(item.id);
+                setNavOpen(false);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        {/* Mobile nav: hamburger + overlay sheet */}
+        <div className="mt-4 flex gap-2 md:hidden">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setNavOpen((prev) => !prev)}
+          >
             <Menu className="mr-2 h-4 w-4" />
             Menu
           </Button>
         </div>
         {navOpen ? (
-          <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg">
-            {[
-              { id: "havi" as Panel, label: "HAVI" },
-              { id: "timeline" as Panel, label: "Timeline" },
-              { id: "tasks" as Panel, label: "Tasks" },
-              { id: "history" as Panel, label: "History" },
-              { id: "knowledge" as Panel, label: "Knowledge" },
-              { id: "integrations" as Panel, label: "Integrations" },
-              { id: "settings" as Panel, label: "Settings" },
-            ].map((item) => (
+          <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg md:hidden">
+            {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 className={cn(
@@ -2100,7 +2125,7 @@ export default function Home() {
         <button
           type="button"
           aria-label="Close navigation overlay"
-          className="fixed inset-0 z-10 cursor-default bg-black/40"
+          className="fixed inset-0 z-10 cursor-default bg-black/40 md:hidden"
           onClick={() => setNavOpen(false)}
         />
       ) : null}
