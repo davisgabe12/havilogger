@@ -149,6 +149,61 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
   - Do: keep container width and padding consistent so navigation between Chat / History / Settings does not resize the frame.
   - Don’t: introduce page-specific max-widths or padding for these core panels unless explicitly called out in specs.
 
+## Layout + Navigation Rules (Phase 1 Stabilization)
+
+### Canonical app frame
+- The ONLY canonical content container is `.havi-app-shell` (max width + padding).
+- All panels (Chat/Timeline/Tasks/History/Knowledge/Integrations/Settings) must render inside `.havi-app-shell`.
+- Do not add per-panel max-width or horizontal padding; keep spacing inside the shared shell.
+
+### Responsive shell
+- Desktop (`md+`): 2-column layout
+  - Left: persistent sidebar (fixed ≈240px) with vertical nav list.
+  - Right: main content with `.havi-app-shell` inside.
+- Mobile (`<md`): no sidebar; use header + hamburger + overlay sheet.
+
+### Mobile overlay hard rules
+- Overlay + backdrop MUST be fully unmounted when `navOpen === false`.
+- Overlay closes on:
+  - selection
+  - outside click (backdrop)
+  - ESC
+- When closed, there must be no invisible element intercepting taps.
+
+### Desktop nav hard rules
+- No horizontal/top nav on desktop.
+- Brand (HAVI wordmark/logo) is the primary top-left anchor in the sidebar.
+- Any “Menu” label should be removed or visually demoted.
+
+### Padding rules (non-negotiable)
+
+**Desktop (`md+`)**
+- Outer layout:
+  - Use `flex min-h-screen flex-col md:flex-row`.
+  - Sidebar: `hidden md:flex md:w-60 md:flex-col md:sticky md:top-0 md:h-screen border-r bg-card/95 p-3`.
+  - Main column outer padding: `px-4 md:px-6 lg:px-8`.
+- Inner content frame:
+  - Always wrap panel content in `.havi-app-shell`.
+  - `.havi-app-shell` remains the ONLY max-width constraint (currently `max-w-[390px]`).
+  - No additional per-panel horizontal padding.
+
+**Mobile (`<md`)**
+- Sidebar: hidden (`hidden md:flex`).
+- Header + hamburger: visible (`md:hidden`).
+- Inner content frame:
+  - `.havi-app-shell` defines horizontal padding (currently `px-4`).
+  - Panels must not remove or override this padding.
+- Mobile overlay sheet:
+  - Appears on top of content (absolute/fixed) and MUST NOT resize layout.
+  - Backdrop must cover the viewport and MUST fully unmount when closed.
+
+### Tests required
+- Add/maintain regression tests in `apps/web/src/app/__tests__/app-layout.test.tsx`:
+  1. Panels render inside the canonical frame wrapper (`data-testid="app-frame"`).
+  2. Backdrop/overlay unmount when `navOpen` becomes `false`.
+  3. Desktop padding rules: sidebar wrapper includes `md:w-60 p-3 border-r`, main wrapper includes `px-4 md:px-6 lg:px-8`.
+  4. Mobile padding + overlay: `app-frame` remains mounted when overlay opens; closing overlay removes sheet + backdrop while keeping frame/child panel intact.
+
 ## Test / Lint Status (After Changes)
 
 - Tests: `cd apps/web && npm test`
