@@ -30,7 +30,7 @@ def test_conversation_continue_new_share_tasks_memory(monkeypatch) -> None:
     seed_profile(DEFAULT_PROFILE)
     child_id = get_primary_child_id()
 
-    monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
+    monkeypatch.setattr("app.main.generate_actions", lambda message, **kwargs: [])
 
     conversation_a = create_conversation(client, child_id=child_id)
     conversation_b = create_conversation(client, child_id=child_id)

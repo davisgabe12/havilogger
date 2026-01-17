@@ -6,7 +6,8 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
+
 from uuid import uuid4
 
 from . import dev_config
@@ -195,6 +196,38 @@ def initialize_db() -> None:
                 FOREIGN KEY (session_id) REFERENCES conversation_sessions(id),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS message_feedback (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                user_id TEXT,
+                session_id TEXT,
+                rating TEXT NOT NULL CHECK (rating IN ('up', 'down')),
+                feedback_text TEXT,
+                model_version TEXT,
+                response_metadata TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS message_feedback_user_unique
+            ON message_feedback (conversation_id, message_id, user_id)
+            WHERE user_id IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS message_feedback_session_unique
+            ON message_feedback (conversation_id, message_id, session_id)
+            WHERE session_id IS NOT NULL
             """
         )
 
@@ -499,6 +532,117 @@ def _row_to_dict(row: sqlite3.Row | None) -> dict:
     if row is None:
         return {}
     return {key: row[key] for key in row.keys()}
+
+
+def _feedback_row_to_dict(row: sqlite3.Row | None) -> dict:
+    data = _row_to_dict(row)
+    if not data:
+        return {}
+    metadata = data.get("response_metadata")
+    if metadata:
+        try:
+            data["response_metadata"] = json.loads(metadata)
+        except (TypeError, json.JSONDecodeError):
+            data["response_metadata"] = None
+    return data
+
+
+def upsert_message_feedback(
+    conversation_id: str,
+    message_id: str,
+    rating: str,
+    *,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    feedback_text: Optional[str] = None,
+    model_version: Optional[str] = None,
+    response_metadata: Optional[Dict[str, Any]] = None,
+) -> dict:
+    timestamp = datetime.now(tz=timezone.utc).isoformat()
+    metadata_payload = json.dumps(response_metadata) if response_metadata is not None else None
+
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        existing = None
+        # Best-effort de-duplication: without a user_id or session_id, we cannot
+        # enforce uniqueness for anonymous feedback.
+        if user_id:
+            existing = conn.execute(
+                """
+                SELECT *
+                FROM message_feedback
+                WHERE conversation_id = ? AND message_id = ? AND user_id = ?
+                """,
+                (conversation_id, message_id, user_id),
+            ).fetchone()
+        elif session_id:
+            existing = conn.execute(
+                """
+                SELECT *
+                FROM message_feedback
+                WHERE conversation_id = ? AND message_id = ? AND session_id = ?
+                """,
+                (conversation_id, message_id, session_id),
+            ).fetchone()
+
+        if existing:
+            conn.execute(
+                """
+                UPDATE message_feedback
+                SET rating = ?,
+                    feedback_text = ?,
+                    model_version = ?,
+                    response_metadata = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    rating,
+                    feedback_text,
+                    model_version,
+                    metadata_payload,
+                    timestamp,
+                    existing["id"],
+                ),
+            )
+            feedback_id = existing["id"]
+        else:
+            feedback_id = str(uuid4())
+            conn.execute(
+                """
+                INSERT INTO message_feedback (
+                    id,
+                    conversation_id,
+                    message_id,
+                    user_id,
+                    session_id,
+                    rating,
+                    feedback_text,
+                    model_version,
+                    response_metadata,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    feedback_id,
+                    conversation_id,
+                    message_id,
+                    user_id,
+                    session_id,
+                    rating,
+                    feedback_text,
+                    model_version,
+                    metadata_payload,
+                    timestamp,
+                    timestamp,
+                ),
+            )
+
+        row = conn.execute("SELECT * FROM message_feedback WHERE id = ?", (feedback_id,)).fetchone()
+        conn.commit()
+
+    return _feedback_row_to_dict(row)
 
 
 def persist_log(
