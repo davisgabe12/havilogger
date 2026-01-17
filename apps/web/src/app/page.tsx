@@ -19,6 +19,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
 import { cn } from "@/lib/utils";
 
 const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
@@ -185,6 +186,12 @@ type ConversationMessage = {
   content: string;
   intent?: string | null;
   created_at: string;
+};
+
+type MessageFeedbackEntry = {
+  message_id: number | string;
+  rating: FeedbackRating;
+  comment?: string | null;
 };
 
 type ChatEntry = {
@@ -443,6 +450,9 @@ export default function Home() {
   const retryCountRef = useRef(0);
   const activeConversationIdRef = useRef<number | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [messageFeedbackById, setMessageFeedbackById] = useState<
+    Record<string, { rating: FeedbackRating; comment: string }>
+  >({});
   const [questionCategory, setQuestionCategory] =
     useState<LoadingCategory>("generic");
   const [pendingCategoryHint, setPendingCategoryHint] =
@@ -917,6 +927,53 @@ export default function Home() {
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  const assistantMessageIds = useMemo(() => {
+    const ids = new Set<string>();
+    chatEntries.forEach((entry) => {
+      const senderType =
+        entry.senderType ?? (entry.role === "havi" ? "assistant" : "self");
+      if (senderType === "assistant" && entry.messageId) {
+        ids.add(entry.messageId);
+      }
+    });
+    return Array.from(ids);
+  }, [chatEntries]);
+
+  useEffect(() => {
+    setMessageFeedbackById({});
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    if (!activeConversationId || assistantMessageIds.length === 0) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      conversation_id: String(activeConversationId),
+      message_ids: assistantMessageIds.join(","),
+    });
+    fetch(`${API_BASE_URL}/api/v1/feedback?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Unable to load feedback");
+        return res.json();
+      })
+      .then((data: MessageFeedbackEntry[]) => {
+        setMessageFeedbackById((prev) => {
+          const next = { ...prev };
+          data.forEach((item) => {
+            if (!item?.message_id) return;
+            next[String(item.message_id)] = {
+              rating: item.rating ?? null,
+              comment: item.comment ?? "",
+            };
+          });
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [activeConversationId, assistantMessageIds]);
 
   const postClientMetrics = useCallback(
     (errorType?: string) => {
@@ -3400,6 +3457,8 @@ export default function Home() {
                         }}
                         copiedMessageId={copiedMessageId}
                         highlightedMessageId={highlightedMessageId}
+                        feedbackByMessageId={messageFeedbackById}
+                        conversationId={activeConversationId}
                       />
                     </div>
                   );
@@ -3728,6 +3787,8 @@ function MessageBubble({
   onCopy,
   copiedMessageId,
   highlightedMessageId,
+  feedbackByMessageId,
+  conversationId,
 }: {
   entry: ChatEntry;
   onToggleTimestamp: (id: string) => void;
@@ -3735,6 +3796,8 @@ function MessageBubble({
   onCopy: (text: string, id: string) => void;
   copiedMessageId: string | null;
   highlightedMessageId: string | null;
+  feedbackByMessageId: Record<string, { rating: FeedbackRating; comment: string }>;
+  conversationId: number | null;
 }) {
   const createdAt = entry.createdAt ?? new Date().toISOString();
   const senderType =
@@ -3746,6 +3809,9 @@ function MessageBubble({
   const bubbleMaxWidth = { maxWidth: "min(520px, 82%)" };
   const isHighlighted =
     entry.messageId && entry.messageId === highlightedMessageId;
+  const feedback = entry.messageId
+    ? feedbackByMessageId[entry.messageId]
+    : undefined;
 
   const markdownComponents: Components = {
     p: ({ node: _node, className, ...props }) => (
@@ -3860,7 +3926,7 @@ function MessageBubble({
     isSelf
       ? "bg-primary text-primary-foreground"
       : isAssistant
-        ? "bg-muted/40 text-muted-foreground"
+        ? "bg-muted/40 text-muted-foreground pb-9"
         : "bg-background/80 text-foreground border border-border/40",
     isHighlighted && "ring-2 ring-primary/40",
   );
@@ -3943,6 +4009,15 @@ function MessageBubble({
                 </span>
               ) : null}
             </div>
+          ) : null}
+          {isAssistant ? (
+            <MessageFeedback
+              conversationId={conversationId}
+              messageId={entry.messageId}
+              apiBaseUrl={API_BASE_URL}
+              initialRating={feedback?.rating ?? null}
+              initialComment={feedback?.comment ?? ""}
+            />
           ) : null}
         </div>
         {isAssistant ? (
