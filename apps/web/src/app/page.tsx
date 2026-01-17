@@ -3,9 +3,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Copy, Menu, Mic, Share, Square } from "lucide-react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ArrowUpRight, Menu, Mic, Share, Square } from "lucide-react";
 
 import { TimelinePanel } from "@/components/timeline/timeline-panel";
 import { Button } from "@/components/ui/button";
@@ -20,9 +18,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
+import { buildHaviModelRequest } from "@/lib/havi-model-request";
+import { CHAT_BODY_TEXT, MessageBubble } from "@/components/chat/message-bubble";
+import type { ChatEntry } from "@/components/chat/types";
 import { cn } from "@/lib/utils";
-
-const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
 
 type ActionMetadata = {
   amount_value?: number | null;
@@ -1718,6 +1717,16 @@ export default function Home() {
 
       const timezone = childTimezone || DEFAULT_TIMEZONE;
       const resolvedSource = options?.source ?? "chat";
+      const modelRequest = buildHaviModelRequest({
+        userMessage: textToSend,
+        userPreferences: null,
+        child: {
+          name: activeChildName || childFirstName || null,
+          dob: childDob || null,
+          dueDate: childDueDate || null,
+        },
+        feedbackSummary: null,
+      });
 
       try {
         const res = await fetch(`${API_BASE_URL}/api/v1/activities`, {
@@ -1731,6 +1740,7 @@ export default function Home() {
             source: resolvedSource,
             child_id: numericChildId,
             conversation_id: activeConversationIdRef.current,
+            model_request: modelRequest,
           }),
         });
 
@@ -3740,12 +3750,6 @@ function toApiDate(value: string): string | null {
   const parts = extractDateParts(value);
   if (!parts) return null;
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
-}
-
-function formatTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 // due_at is stored as an ISO timestamp; render it in the user's local time

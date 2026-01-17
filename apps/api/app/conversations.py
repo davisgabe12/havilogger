@@ -173,12 +173,18 @@ def get_message(message_id: int) -> ConversationMessage:
     return _row_to_message(row)
 
 
-def list_messages(session_id: int, limit: int = 100) -> List[ConversationMessage]:
+def list_messages(session_id: int, limit: Optional[int] = 100) -> List[ConversationMessage]:
     with get_connection() as conn:
-        cursor = conn.execute(
-            "SELECT * FROM conversation_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
-            (session_id, limit),
-        )
+        if limit is None:
+            cursor = conn.execute(
+                "SELECT * FROM conversation_messages WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,),
+            )
+        else:
+            cursor = conn.execute(
+                "SELECT * FROM conversation_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
+                (session_id, limit),
+            )
         rows = cursor.fetchall()
     return [_row_to_message(row) for row in rows]
 
