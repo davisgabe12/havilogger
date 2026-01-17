@@ -6,11 +6,12 @@ import logging
 import os
 import re
 import time
+from typing import Any, Callable, Dict, List, Optional
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from typing import Any, Callable, Dict, List, Optional
 
+from dateparser.search import search_dates
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
@@ -447,12 +448,16 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
     if intent_result.intent == "task_request":
         task_title = extract_task_title(payload.message)
         due_at = extract_task_due_at(payload.message, resolved_timezone)
+        remind_at = extract_task_remind_at(payload.message, resolved_timezone)
+        if due_at and remind_at is None:
+            remind_at = due_at
         owner_id = profile_id if profile_id is not None else 1
         created_task = create_task(
             title=task_title,
             user_id=owner_id,
             child_id=child_id,
             due_at=due_at,
+            remind_at=remind_at,
         )
         user_message_obj = append_message(
             CreateMessagePayload(
@@ -954,7 +959,78 @@ _TASK_DATE_PATTERN = re.compile(_TASK_DATE_REGEX)
 _TASK_TIME_PATTERN = re.compile(_TASK_TIME_REGEX, re.IGNORECASE)
 
 
-def extract_task_due_at(message: str, timezone_value: Optional[str]) -> Optional[str]:
+_DATE_HINT_WORDS = {
+    "today",
+    "tomorrow",
+    "tonight",
+    "morning",
+    "afternoon",
+    "evening",
+    "next",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "weekday",
+    "weekend",
+    "week",
+    "month",
+    "year",
+}
+
+
+def _has_date_hint(text: str) -> bool:
+    lower = text.lower()
+    if re.search(r"\d", lower):
+        return True
+    return any(word in lower for word in _DATE_HINT_WORDS)
+
+
+def _build_dateparser_settings(
+    tz_name: str, base_time: Optional[datetime] = None
+) -> Dict[str, Any]:
+    settings: Dict[str, Any] = {
+        "RETURN_AS_TIMEZONE_AWARE": True,
+        "TIMEZONE": tz_name,
+        "TO_TIMEZONE": "UTC",
+        "PREFER_DATES_FROM": "future",
+    }
+    if base_time is not None:
+        settings["RELATIVE_BASE"] = base_time
+    return settings
+
+
+def _parse_natural_datetime(
+    message: str,
+    timezone_value: Optional[str],
+    base_time: Optional[datetime] = None,
+) -> Optional[datetime]:
+    tz_name = timezone_value or "America/Los_Angeles"
+    settings = _build_dateparser_settings(tz_name, base_time)
+    try:
+        parsed = search_dates(
+            message,
+            settings=settings,
+            languages=["en"],
+        )
+    except (ValueError, TypeError):
+        parsed = None
+    if not parsed:
+        return None
+    for phrase, parsed_dt in parsed:
+        if parsed_dt and _has_date_hint(phrase):
+            return parsed_dt
+    return None
+
+
+def extract_task_due_at(
+    message: str,
+    timezone_value: Optional[str],
+    base_time: Optional[datetime] = None,
+) -> Optional[str]:
     """Best-effort parse of a due date/time from a task message.
 
     This is intentionally narrow: it looks for patterns like "6pm on 1/2/25"
@@ -966,7 +1042,16 @@ def extract_task_due_at(message: str, timezone_value: Optional[str]) -> Optional
 
     date_match = _TASK_DATE_PATTERN.search(message)
     if not date_match:
-        return None
+        parsed_dt = _parse_natural_datetime(message, timezone_value, base_time)
+        if not parsed_dt:
+            return None
+        if parsed_dt.tzinfo is None:
+            tz_name = timezone_value or "America/Los_Angeles"
+            try:
+                parsed_dt = parsed_dt.replace(tzinfo=ZoneInfo(tz_name))
+            except Exception:
+                parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+        return parsed_dt.astimezone(timezone.utc).isoformat()
     month_str, day_str, year_str = date_match.groups()
     try:
         month = int(month_str)
@@ -1005,6 +1090,25 @@ def extract_task_due_at(message: str, timezone_value: Optional[str]) -> Optional
         return None
     utc_dt = local_dt.astimezone(timezone.utc)
     return utc_dt.isoformat()
+
+
+def extract_task_remind_at(
+    message: str,
+    timezone_value: Optional[str],
+    base_time: Optional[datetime] = None,
+) -> Optional[str]:
+    if not message:
+        return None
+    parsed_dt = _parse_natural_datetime(message, timezone_value, base_time)
+    if not parsed_dt:
+        return None
+    if parsed_dt.tzinfo is None:
+        tz_name = timezone_value or "America/Los_Angeles"
+        try:
+            parsed_dt = parsed_dt.replace(tzinfo=ZoneInfo(tz_name))
+        except Exception:
+            parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+    return parsed_dt.astimezone(timezone.utc).isoformat()
 
 
 def detect_catch_up_entry(message: str) -> bool:
