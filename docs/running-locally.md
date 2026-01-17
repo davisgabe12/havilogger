@@ -47,7 +47,7 @@ This guide describes how to start the backend and frontend using only commands a
   - `apps/web/src/app/page.tsx`
     - Chat panel calls `POST ${API_BASE_URL}/api/v1/activities`.
     - Tasks panel calls `GET/PATCH ${API_BASE_URL}/api/v1/tasks`.
-    - History panel calls `GET ${API_BASE_URL}/api/v1/sessions`.
+    - History panel calls `GET ${API_BASE_URL}/api/v1/conversations`.
     - Settings panel calls `GET/PUT ${API_BASE_URL}/api/v1/settings`.
   - `apps/web/src/components/timeline/timeline-panel.tsx`
     - Fetches `GET ${API_BASE_URL}/events` with `child_id`, `start`, `end`.
@@ -64,4 +64,3 @@ This guide describes how to start the backend and frontend using only commands a
   - Next.js dev logs when started via `./restart.sh`.
 - `tmp/backend.pid`, `tmp/frontend.pid`
   - PID files tracked by `restart.sh` and `stop.sh`.
-

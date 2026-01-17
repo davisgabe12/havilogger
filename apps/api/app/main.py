@@ -23,16 +23,17 @@ from .conversations import (
     CreateMessagePayload,
     append_message,
     catch_up_mode_should_end,
-    close_session,
-    create_or_get_active_session,
     create_session,
+    count_messages,
+    ensure_unique_title,
+    generate_conversation_title,
     get_last_assistant_message,
     get_session,
     list_messages,
     list_sessions,
-    reopen_session,
     set_catch_up_mode,
     touch_catch_up_mode,
+    update_session_title,
 )
 from .context_builders import build_child_context
 from .db import (
@@ -99,6 +100,23 @@ def _format_compose_error(reason: Optional[str] = None) -> str:
     if len(raw) > 200:
         raw = raw[:197] + "..."
     return f"Error composing response [E_COMPOSE]: {raw}"
+
+
+def maybe_autotitle_session(
+    session: ConversationSession,
+    *,
+    child_id: Optional[int],
+    child_name: Optional[str],
+    message: str,
+    existing_message_count: int,
+) -> ConversationSession:
+    if existing_message_count != 0:
+        return session
+    if session.title != "New chat":
+        return session
+    base_title = generate_conversation_title(message, child_name=child_name)
+    unique_title = ensure_unique_title(base_title=base_title, child_id=child_id)
+    return update_session_title(session.id, unique_title)
 RELATIVE_TIME_HINTS = [
     "today",
     "tonight",
@@ -159,6 +177,17 @@ class SettingsPayload(BaseModel):
 class SettingsResponse(BaseModel):
     caregiver: CaregiverProfile
     child: ChildProfile
+
+
+class RenameConversationPayload(BaseModel):
+    title: str
+
+
+class CreateConversationMessagePayload(BaseModel):
+    role: str
+    content: str
+    user_id: Optional[int] = None
+    intent: Optional[str] = None
 
 
 STAGE_TIPS = [
@@ -263,6 +292,8 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
     start = time.perf_counter()
     if payload.child_id is None:
         raise HTTPException(status_code=400, detail="child_id is required for activities.")
+    if payload.conversation_id is None:
+        raise HTTPException(status_code=400, detail="conversation_id is required for activities.")
     logger.info(
         "child-scoped request",
         extra={"method": "POST", "path": "/api/v1/activities", "child_id": payload.child_id},
@@ -282,10 +313,14 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
     intent_result = classify_intent(normalized_message)
     symptom_tags = message_symptom_tags(normalized_message)
     question_category = classify_question_category(normalized_message, symptom_tags)
-    session = create_or_get_active_session(user_id=profile_id, child_id=child_id)
+    try:
+        session = get_session(payload.conversation_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     prefixed_notes: List[str] = []
     analysis_message = normalized_message
     last_assistant_message = get_last_assistant_message(session.id)
+    existing_message_count = count_messages(session.id)
     save_target = detect_memory_save_target(analysis_message)
     if save_target:
         memory_response = handle_memory_command(
@@ -299,6 +334,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             last_assistant_message=last_assistant_message,
         )
         if memory_response:
+            session = maybe_autotitle_session(
+                session,
+                child_id=child_id,
+                child_name=child_data.get("first_name"),
+                message=payload.message,
+                existing_message_count=existing_message_count,
+            )
             return memory_response
     routine_acceptance = detect_routine_acceptance(analysis_message)
     routine_accept_message: Optional[str] = None
@@ -325,6 +367,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
                 intent="log",
             )
         )
+        session = maybe_autotitle_session(
+            session,
+            child_id=child_id,
+            child_name=child_data.get("first_name"),
+            message=payload.message,
+            existing_message_count=existing_message_count,
+        )
         assistant_message_obj = append_message(
             CreateMessagePayload(
                 session_id=session.id,
@@ -341,7 +390,7 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             latency_ms=latency_ms,
             assistant_message=assistant_message,
             question_category=question_category,
-            session_id=session.id,
+            conversation_id=session.id,
             user_message_id=user_message_obj.id,
             assistant_message_id=assistant_message_obj.id,
             intent=intent_result.intent,
@@ -361,6 +410,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
                 intent="log",
             )
         )
+        session = maybe_autotitle_session(
+            session,
+            child_id=child_id,
+            child_name=child_data.get("first_name"),
+            message=payload.message,
+            existing_message_count=existing_message_count,
+        )
         assistant_message_obj = append_message(
             CreateMessagePayload(
                 session_id=session.id,
@@ -377,7 +433,7 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             latency_ms=latency_ms,
             assistant_message=assistant_message,
             question_category=question_category,
-            session_id=session.id,
+            conversation_id=session.id,
             user_message_id=user_message_obj.id,
             assistant_message_id=assistant_message_obj.id,
             intent=intent_result.intent,
@@ -406,6 +462,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
                 intent="task_request",
             )
         )
+        session = maybe_autotitle_session(
+            session,
+            child_id=child_id,
+            child_name=child_data.get("first_name"),
+            message=payload.message,
+            existing_message_count=existing_message_count,
+        )
         assistant_message = f"Task added: {created_task.title}."
         assistant_message_obj = append_message(
             CreateMessagePayload(
@@ -424,7 +487,7 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             assistant_message=assistant_message,
             question_category=question_category,
             intent=intent_result.intent,
-            session_id=session.id,
+            conversation_id=session.id,
             user_message_id=user_message_obj.id,
             assistant_message_id=assistant_message_obj.id,
         )
@@ -469,6 +532,13 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             content=payload.message,
             intent="log",
         )
+    )
+    session = maybe_autotitle_session(
+        session,
+        child_id=child_id,
+        child_name=child_data.get("first_name"),
+        message=payload.message,
+        existing_message_count=existing_message_count,
     )
 
     message_source = (payload.source or "chat").lower()
@@ -607,7 +677,7 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
         assistant_message=assistant_message,
         question_category=question_category,
         intent=intent_result.intent,
-        session_id=session.id,
+        conversation_id=session.id,
         user_message_id=user_message.id,
         assistant_message_id=assistant_message_obj.id,
         ui_nudges=ui_nudges or None,
@@ -646,44 +716,55 @@ async def change_inference_status(inference_id: int, status: InferenceStatus) ->
     return update_inference_status(inference_id, status=status)
 
 
-@app.post("/api/v1/sessions", response_model=ConversationSession)
-async def create_conversation_session(user_id: Optional[int] = None, child_id: Optional[int] = None) -> ConversationSession:
+@app.post("/api/v1/conversations", response_model=ConversationSession)
+async def create_conversation(user_id: Optional[int] = None, child_id: Optional[int] = None) -> ConversationSession:
     if child_id is None:
-        raise HTTPException(status_code=400, detail="child_id is required for sessions.")
+        raise HTTPException(status_code=400, detail="child_id is required for conversations.")
     logger.info(
         "child-scoped request",
-        extra={"method": "POST", "path": "/api/v1/sessions", "child_id": child_id},
+        extra={"method": "POST", "path": "/api/v1/conversations", "child_id": child_id},
     )
     return create_session(user_id=user_id, child_id=child_id)
 
 
-@app.get("/api/v1/sessions", response_model=List[ConversationSession])
-async def fetch_sessions(user_id: Optional[int] = None, child_id: Optional[int] = None) -> List[ConversationSession]:
+@app.get("/api/v1/conversations", response_model=List[ConversationSession])
+async def fetch_conversations(user_id: Optional[int] = None, child_id: Optional[int] = None) -> List[ConversationSession]:
     if child_id is None:
-        raise HTTPException(status_code=400, detail="child_id is required for sessions.")
+        raise HTTPException(status_code=400, detail="child_id is required for conversations.")
     logger.info(
         "child-scoped request",
-        extra={"method": "GET", "path": "/api/v1/sessions", "child_id": child_id},
+        extra={"method": "GET", "path": "/api/v1/conversations", "child_id": child_id},
     )
     return list_sessions(user_id=user_id, child_id=child_id)
 
 
-@app.post("/api/v1/sessions/{session_id}/close", response_model=ConversationSession)
-async def close_conversation(session_id: int) -> ConversationSession:
-    return close_session(session_id)
+@app.get("/api/v1/conversations/{session_id}", response_model=ConversationSession)
+async def fetch_conversation(session_id: int) -> ConversationSession:
+    return get_session(session_id)
 
 
-@app.post("/api/v1/sessions/{session_id}/reopen", response_model=ConversationSession)
-async def reopen_conversation(session_id: int) -> ConversationSession:
-    return reopen_session(session_id)
+@app.patch("/api/v1/conversations/{session_id}", response_model=ConversationSession)
+async def rename_conversation(session_id: int, payload: RenameConversationPayload) -> ConversationSession:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title cannot be empty")
+    return update_session_title(session_id, title)
 
 
-@app.post("/api/v1/messages", response_model=ConversationMessage)
-async def post_message(payload: CreateMessagePayload) -> ConversationMessage:
-    return append_message(payload)
+@app.post("/api/v1/conversations/{session_id}/messages", response_model=ConversationMessage)
+async def post_message(session_id: int, payload: CreateConversationMessagePayload) -> ConversationMessage:
+    return append_message(
+        CreateMessagePayload(
+            session_id=session_id,
+            role=payload.role,
+            content=payload.content,
+            user_id=payload.user_id,
+            intent=payload.intent,
+        )
+    )
 
 
-@app.get("/api/v1/sessions/{session_id}/messages", response_model=List[ConversationMessage])
+@app.get("/api/v1/conversations/{session_id}/messages", response_model=List[ConversationMessage])
 async def fetch_messages(session_id: int) -> List[ConversationMessage]:
     return list_messages(session_id)
 
@@ -1129,7 +1210,7 @@ def _build_memory_response(
         latency_ms=latency_ms,
         assistant_message=assistant_text,
         question_category=question_category,
-        session_id=session.id,
+        conversation_id=session.id,
         user_message_id=user_message_obj.id,
         assistant_message_id=assistant_message_obj.id,
     )

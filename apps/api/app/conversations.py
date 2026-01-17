@@ -1,11 +1,11 @@
 """Conversation session + message helpers."""
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
+import re
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .db import get_connection
 
@@ -38,7 +38,6 @@ class ConversationSession(BaseModel):
     user_id: Optional[int]
     child_id: Optional[int]
     title: str
-    is_active: bool
     last_message_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -64,8 +63,7 @@ def _row_to_session(row) -> ConversationSession:
         id=row[0],
         user_id=row[1],
         child_id=row[2],
-        title=row[3] or "Daily log",
-        is_active=bool(row[4]),
+        title=row[3] or "New chat",
         last_message_at=datetime.fromisoformat(row[5]),
         created_at=datetime.fromisoformat(row[6]),
         updated_at=datetime.fromisoformat(row[7]),
@@ -106,31 +104,11 @@ def create_session(*, user_id: Optional[int], child_id: Optional[int], title: Op
             )
             VALUES (?, ?, ?, 1, ?, ?, ?, 0, NULL, NULL)
             """,
-            (user_id, child_id, title or "Daily log", now, now, now),
+            (user_id, child_id, title or "New chat", now, now, now),
         )
         conn.commit()
         session_id = cursor.lastrowid
     return get_session(session_id)
-
-
-def create_or_get_active_session(*, user_id: Optional[int], child_id: Optional[int]) -> ConversationSession:
-    if child_id is None:
-        raise ValueError("child_id is required to create or fetch a conversation session.")
-    with get_connection() as conn:
-        cursor = conn.execute(
-            """
-            SELECT * FROM conversation_sessions
-            WHERE user_id IS ? AND child_id IS ? AND is_active = 1
-            ORDER BY updated_at DESC
-            LIMIT 1
-            """,
-            (user_id, child_id),
-        )
-        row = cursor.fetchone()
-    if row:
-        return _row_to_session(row)
-    return create_session(user_id=user_id, child_id=child_id)
-
 
 def get_session(session_id: int) -> ConversationSession:
     with get_connection() as conn:
@@ -167,28 +145,6 @@ def list_sessions(
     return [_row_to_session(row) for row in rows]
 
 
-def close_session(session_id: int) -> ConversationSession:
-    now = _now_iso()
-    with get_connection() as conn:
-        conn.execute(
-            "UPDATE conversation_sessions SET is_active = 0, updated_at = ? WHERE id = ?",
-            (now, session_id),
-        )
-        conn.commit()
-    return get_session(session_id)
-
-
-def reopen_session(session_id: int) -> ConversationSession:
-    now = _now_iso()
-    with get_connection() as conn:
-        conn.execute(
-            "UPDATE conversation_sessions SET is_active = 1, updated_at = ?, last_message_at = ? WHERE id = ?",
-            (now, now, session_id),
-        )
-        conn.commit()
-    return get_session(session_id)
-
-
 def append_message(data: CreateMessagePayload) -> ConversationMessage:
     now = _now_iso()
     with get_connection() as conn:
@@ -200,7 +156,7 @@ def append_message(data: CreateMessagePayload) -> ConversationMessage:
             (data.session_id, data.user_id, data.role, data.content, data.intent, now),
         )
         conn.execute(
-            "UPDATE conversation_sessions SET last_message_at = ?, updated_at = ?, is_active = 1 WHERE id = ?",
+            "UPDATE conversation_sessions SET last_message_at = ?, updated_at = ? WHERE id = ?",
             (now, now, data.session_id),
         )
         conn.commit()
@@ -227,6 +183,16 @@ def list_messages(session_id: int, limit: int = 100) -> List[ConversationMessage
     return [_row_to_message(row) for row in rows]
 
 
+def count_messages(session_id: int) -> int:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT COUNT(*) FROM conversation_messages WHERE session_id = ?",
+            (session_id,),
+        )
+        row = cursor.fetchone()
+    return int(row[0]) if row else 0
+
+
 def get_last_assistant_message(session_id: int) -> Optional[str]:
     with get_connection() as conn:
         cursor = conn.execute(
@@ -237,6 +203,96 @@ def get_last_assistant_message(session_id: int) -> Optional[str]:
     if not row:
         return None
     return row[0]
+
+
+def update_session_title(session_id: int, title: str) -> ConversationSession:
+    now = _now_iso()
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE conversation_sessions SET title = ?, updated_at = ? WHERE id = ?",
+            (title, now, session_id),
+        )
+        conn.commit()
+    return get_session(session_id)
+
+
+def _clean_title_tokens(text: str) -> List[str]:
+    tokens = re.findall(r"[A-Za-z']+", text.lower())
+    blacklist = {
+        "today",
+        "tonight",
+        "tomorrow",
+        "yesterday",
+        "am",
+        "pm",
+    }
+    months = {
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    }
+    return [token for token in tokens if token not in blacklist and token not in months]
+
+
+def _sentence_case(text: str) -> str:
+    text = text.strip()
+    if not text:
+        return text
+    return text[0].upper() + text[1:].lower()
+
+
+def generate_conversation_title(message: str, *, child_name: Optional[str] = None) -> str:
+    message = (message or "").strip()
+    if not message:
+        return "New chat"
+    tokens = _clean_title_tokens(message)
+    if child_name:
+        tokens = [token for token in tokens if token != child_name.lower()]
+    if len(tokens) < 3:
+        tokens = _clean_title_tokens(message)
+    selection = tokens[:6]
+    if not selection:
+        return "New chat"
+    return _sentence_case(" ".join(selection))
+
+
+def ensure_unique_title(*, base_title: str, child_id: Optional[int]) -> str:
+    base_title = base_title.strip() or "New chat"
+    if child_id is None:
+        return base_title
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            SELECT title
+            FROM conversation_sessions
+            WHERE child_id IS ? AND (title = ? OR title LIKE ?)
+            """,
+            (child_id, base_title, f"{base_title} · %"),
+        )
+        rows = cursor.fetchall()
+    existing = {row[0] for row in rows}
+    if base_title not in existing:
+        return base_title
+    suffixes = []
+    for title in existing:
+        if title == base_title:
+            suffixes.append(1)
+            continue
+        if title.startswith(f"{base_title} · "):
+            suffix = title.replace(f"{base_title} · ", "", 1).strip()
+            if suffix.isdigit():
+                suffixes.append(int(suffix))
+    next_suffix = max(suffixes, default=1) + 1
+    return f"{base_title} · {next_suffix}"
 
 
 def set_catch_up_mode(session_id: int, enabled: bool) -> None:

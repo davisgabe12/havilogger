@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.main import app
 from app.db import ensure_default_profiles, get_connection, get_primary_child_id, update_child_profile
+from .conversation_helpers import create_conversation, with_conversation
 
 client = TestClient(app)
 
@@ -35,12 +36,13 @@ def reset_state() -> None:
 def test_time_only_messages_anchor_to_today(monkeypatch: pytest.MonkeyPatch) -> None:
     reset_state()
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
     update_child_profile({"timezone": "America/Los_Angeles"})
     monkeypatch.setattr("app.main.datetime", FrozenDateTime)
 
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "woke at 3am", "child_id": child_id},
+        json=with_conversation({"message": "woke at 3am", "child_id": child_id}, conversation_id=conversation_id),
     )
     assert resp.status_code == 200
 

@@ -80,6 +80,7 @@ class ChatRequest(BaseModel):
         default=None, description="Client-reported timezone (IANA name or city)."
     )
     child_id: Optional[int] = Field(default=None, description="Target child id for the message.")
+    conversation_id: Optional[int] = Field(default=None, description="Conversation id for the message.")
     source: Optional[str] = Field(
         default=None,
         description="Where the message originated (chat, chip, manual, import).",
@@ -93,7 +94,7 @@ class ChatResponse(BaseModel):
     latency_ms: int
     assistant_message: str = Field(default="")
     question_category: str = Field(default="generic")
-    session_id: Optional[int] = None
+    conversation_id: Optional[int] = None
     user_message_id: Optional[int] = None
     assistant_message_id: Optional[int] = None
     intent: Optional[str] = Field(default=None, description="Router-derived primary intent")

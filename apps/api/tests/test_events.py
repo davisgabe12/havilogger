@@ -16,6 +16,7 @@ from app.db import (
 from app.schemas import Action, ActionMetadata, CoreActionType
 
 from .test_conversation_cases import DEFAULT_PROFILE, seed_profile
+from .conversation_helpers import create_conversation, with_conversation
 
 client = TestClient(app)
 
@@ -37,6 +38,7 @@ def test_chat_logging_creates_timeline_event(monkeypatch: pytest.MonkeyPatch) ->
     reset_state()
     seed_profile(DEFAULT_PROFILE)
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
 
     target_start = datetime(2024, 6, 2, 15, 0, 0)
 
@@ -55,12 +57,15 @@ def test_chat_logging_creates_timeline_event(monkeypatch: pytest.MonkeyPatch) ->
 
     response = client.post(
         "/api/v1/activities",
-        json={
-            "message": "Changed a diaper",
-            "timezone": "America/Los_Angeles",
-            "source": "chip",
-            "child_id": child_id,
-        },
+        json=with_conversation(
+            {
+                "message": "Changed a diaper",
+                "timezone": "America/Los_Angeles",
+                "source": "chip",
+                "child_id": child_id,
+            },
+            conversation_id=conversation_id,
+        ),
     )
     assert response.status_code == 200
 
@@ -89,6 +94,8 @@ def test_timeline_dev_mode_orphan_events(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr("app.dev_config.ALLOW_ORPHAN_EVENTS", True)
     reset_state()
     seed_profile(DEFAULT_PROFILE)
+    child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
     target_start = datetime(2024, 6, 2, 15, 0, 0)
 
     def fake_generate_actions(_: str, **kwargs):
@@ -106,12 +113,15 @@ def test_timeline_dev_mode_orphan_events(monkeypatch: pytest.MonkeyPatch) -> Non
 
     response = client.post(
         "/api/v1/activities",
-        json={
-            "message": "Changed a diaper",
-            "timezone": "America/Los_Angeles",
-            "source": "chip",
-            "child_id": get_primary_child_id(),
-        },
+        json=with_conversation(
+            {
+                "message": "Changed a diaper",
+                "timezone": "America/Los_Angeles",
+                "source": "chip",
+                "child_id": child_id,
+            },
+            conversation_id=conversation_id,
+        ),
     )
     assert response.status_code == 200
 
@@ -199,6 +209,7 @@ def test_timeline_normalizes_to_child_timezone_pacific(monkeypatch: pytest.Monke
     reset_state()
     seed_profile(DEFAULT_PROFILE)
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
     update_child_profile({"timezone": "America/Los_Angeles"})
 
     target_start = datetime(2024, 6, 2, 15, 0, 0)
@@ -218,11 +229,14 @@ def test_timeline_normalizes_to_child_timezone_pacific(monkeypatch: pytest.Monke
 
     response = client.post(
         "/api/v1/activities",
-        json={
-            "message": "3pm today 2oz bottle",
-            "source": "chip",
-            "child_id": child_id,
-        },
+        json=with_conversation(
+            {
+                "message": "3pm today 2oz bottle",
+                "source": "chip",
+                "child_id": child_id,
+            },
+            conversation_id=conversation_id,
+        ),
     )
     assert response.status_code == 200
 
@@ -239,6 +253,7 @@ def test_timeline_normalizes_to_child_timezone_eastern(monkeypatch: pytest.Monke
     reset_state()
     seed_profile(DEFAULT_PROFILE)
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
     update_child_profile({"timezone": "America/New_York"})
 
     target_start = datetime(2024, 6, 2, 15, 0, 0)
@@ -258,11 +273,14 @@ def test_timeline_normalizes_to_child_timezone_eastern(monkeypatch: pytest.Monke
 
     response = client.post(
         "/api/v1/activities",
-        json={
-            "message": "3pm today 2oz bottle",
-            "source": "chip",
-            "child_id": child_id,
-        },
+        json=with_conversation(
+            {
+                "message": "3pm today 2oz bottle",
+                "source": "chip",
+                "child_id": child_id,
+            },
+            conversation_id=conversation_id,
+        ),
     )
     assert response.status_code == 200
 

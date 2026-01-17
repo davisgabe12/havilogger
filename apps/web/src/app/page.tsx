@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpRight, Copy, Menu, Mic, Share, Square } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -50,7 +51,6 @@ type Action = {
 type ConversationSession = {
   id: number;
   title: string;
-  is_active: boolean;
   last_message_at: string;
 };
 
@@ -172,10 +172,19 @@ type ApiResponse = {
   model: string;
   latency_ms: number;
   question_category?: string;
-  session_id?: number;
+  conversation_id?: number;
   user_message_id?: number;
   assistant_message_id?: number;
   intent?: string;
+};
+
+type ConversationMessage = {
+  id: number;
+  session_id: number;
+  role: "user" | "assistant" | "caregiver";
+  content: string;
+  intent?: string | null;
+  created_at: string;
 };
 
 type ChatEntry = {
@@ -395,12 +404,20 @@ const InlineSpinner = () => (
 );
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState("");
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [activePanel, setActivePanel] = useState<Panel>("havi");
   const [navOpen, setNavOpen] = useState(false);
   const [conversationState, setConversationState] =
     useState<ConversationState>("idle");
+  const conversationIdParam = useMemo(() => {
+    const raw = searchParams.get("conversationId");
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [searchParams]);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
   const [scrollViewport, setScrollViewport] = useState<HTMLDivElement | null>(
     null,
@@ -424,7 +441,8 @@ export default function Home() {
   const thinkingShortStartRef = useRef<number | null>(null);
   const thinkingRichStartRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
-  const activeSessionIdRef = useRef<number | null>(null);
+  const activeConversationIdRef = useRef<number | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [questionCategory, setQuestionCategory] =
     useState<LoadingCategory>("generic");
   const [pendingCategoryHint, setPendingCategoryHint] =
@@ -896,6 +914,10 @@ export default function Home() {
     setHydrated(true);
   }, []);
 
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
   const postClientMetrics = useCallback(
     (errorType?: string) => {
       if (thinkingShortStartRef.current == null) {
@@ -919,7 +941,7 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          session_id: activeSessionIdRef.current,
+          session_id: activeConversationIdRef.current,
           thinking_short_ms: shortMs,
           thinking_rich_ms: richMs,
           error_type: errorType ?? null,
@@ -930,6 +952,87 @@ export default function Home() {
       });
     },
     [],
+  );
+
+  const updateConversationParam = useCallback(
+    (conversationId: number | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (conversationId) {
+        params.set("conversationId", String(conversationId));
+      } else {
+        params.delete("conversationId");
+      }
+      const query = params.toString();
+      router.replace(query ? `?${query}` : "/", { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const loadConversation = useCallback(
+    async (conversationId: number) => {
+      try {
+        setConversationState("idle");
+        const [conversationRes, messagesRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}`),
+          fetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}/messages`),
+        ]);
+        if (!conversationRes.ok) throw new Error("Unable to load conversation.");
+        if (!messagesRes.ok) throw new Error("Unable to load conversation messages.");
+        const conversation: ConversationSession = await conversationRes.json();
+        const messages: ConversationMessage[] = await messagesRes.json();
+        setActiveConversationId(conversation.id);
+        setChatTitle(conversation.title);
+        setChatEntries(
+          messages.map((msg) => ({
+            id: String(msg.id),
+            role: msg.role === "assistant" ? "havi" : "user",
+            text: msg.content,
+            messageId: String(msg.id),
+            createdAt: msg.created_at,
+            senderType: msg.role === "assistant" ? "assistant" : "self",
+            senderName: msg.role === "assistant" ? "HAVI" : caregiverFirstName || "You",
+          })),
+        );
+        setHasAnyLog(messages.length > 0);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Unable to load conversation.";
+        setHistoryError(reason);
+      }
+    },
+    [caregiverFirstName],
+  );
+
+  const createConversation = useCallback(
+    async (childId: string) => {
+      const res = await fetch(
+        `${API_BASE_URL}/api/v1/conversations?child_id=${encodeURIComponent(childId)}`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        throw new Error("Unable to start a new chat.");
+      }
+      const conversation: ConversationSession = await res.json();
+      return conversation;
+    },
+    [],
+  );
+
+  const refreshConversationTitle = useCallback(async (conversationId: number) => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}`);
+    if (!res.ok) return;
+    const conversation: ConversationSession = await res.json();
+    setChatTitle(conversation.title);
+  }, []);
+
+  const handleSelectConversation = useCallback(
+    async (conversationId: number) => {
+      updateConversationParam(conversationId);
+      await loadConversation(conversationId);
+      setMessage("");
+      setActivePanel("havi");
+      setNavOpen(false);
+    },
+    [loadConversation, updateConversationParam],
   );
 
   const renderChipLabel = useCallback(
@@ -1111,7 +1214,7 @@ export default function Home() {
       }
       try {
         const res = await fetch(
-          `${API_BASE_URL}/api/v1/sessions?child_id=${encodeURIComponent(childId)}`,
+          `${API_BASE_URL}/api/v1/conversations?child_id=${encodeURIComponent(childId)}`,
         );
         if (!res.ok) throw new Error("Unable to load history");
         const data: ConversationSession[] = await res.json();
@@ -1133,6 +1236,37 @@ export default function Home() {
     [activeChildId],
   );
 
+  const handleNewChat = useCallback(async () => {
+    const childId =
+      activeChildId && !Number.isNaN(Number(activeChildId))
+        ? activeChildId
+        : primaryChildId;
+    if (!childId || Number.isNaN(Number(childId))) {
+      setHistoryError("Select a child to start a new chat.");
+      return;
+    }
+    try {
+      const conversation = await createConversation(childId);
+      updateConversationParam(conversation.id);
+      setActiveConversationId(conversation.id);
+      setChatTitle(conversation.title);
+      setChatEntries([]);
+      setMessage("");
+      setActivePanel("havi");
+      setNavOpen(false);
+      fetchHistory({ silent: true });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Unable to start a new chat.";
+      setHistoryError(reason);
+    }
+  }, [
+    activeChildId,
+    createConversation,
+    fetchHistory,
+    primaryChildId,
+    updateConversationParam,
+  ]);
+
   useEffect(() => {
     if (activePanel === "history") {
       fetchHistory();
@@ -1142,6 +1276,16 @@ export default function Home() {
   useEffect(() => {
     fetchHistory({ silent: true });
   }, [fetchHistory]);
+
+  useEffect(() => {
+    if (conversationIdParam) {
+      void loadConversation(conversationIdParam);
+    } else {
+      setActiveConversationId(null);
+      setChatEntries([]);
+      setChatTitle(null);
+    }
+  }, [conversationIdParam, loadConversation]);
 
   const loadInferences = useCallback(async () => {
     const childId =
@@ -1486,6 +1630,11 @@ export default function Home() {
         setConversationState("error_hard");
         return;
       }
+      if (!activeConversationIdRef.current) {
+        setHardErrorMessage("Start a new chat before sending.");
+        setConversationState("error_hard");
+        return;
+      }
       if (!activeChildId && primaryChildId && numericChildId !== null) {
         setActiveChildId(String(numericChildId));
       }
@@ -1524,6 +1673,7 @@ export default function Home() {
             timezone,
             source: resolvedSource,
             child_id: numericChildId,
+            conversation_id: activeConversationIdRef.current,
           }),
         });
 
@@ -1549,8 +1699,11 @@ export default function Home() {
         const data: ApiResponse & { question_category?: LoadingCategory } =
           await res.json();
         setLastIntent(data.intent ?? null);
-        activeSessionIdRef.current =
-          data.session_id ?? activeSessionIdRef.current;
+        activeConversationIdRef.current =
+          data.conversation_id ?? activeConversationIdRef.current;
+        if (data.conversation_id) {
+          setActiveConversationId(data.conversation_id);
+        }
         if (data.actions?.length) {
           setHasAnyLog(true);
           setTimelineRefreshKey((prev) => prev + 1);
@@ -1585,14 +1738,8 @@ export default function Home() {
           senderType: "assistant",
           senderName: "HAVI",
         });
-        if (!chatTitle && textToSend) {
-          const normalized = textToSend.replace(/\s+/g, " ").trim();
-          const maxLen = 60;
-          const title =
-            normalized.length > maxLen
-              ? `${normalized.slice(0, maxLen).trimEnd()}…`
-              : normalized;
-          setChatTitle(title);
+        if (activeConversationIdRef.current) {
+          void refreshConversationTitle(activeConversationIdRef.current);
         }
         setMessage("");
         setPendingCategoryHint(null);
@@ -1634,6 +1781,7 @@ export default function Home() {
       pendingCategoryHint,
       postClientMetrics,
       questionCategory,
+      refreshConversationTitle,
       rotateChips,
       startLoadingTimer,
     ],
@@ -1657,23 +1805,6 @@ export default function Home() {
       setActiveChildName(childName);
     }
   }, []);
-
-  const handleReopenSession = useCallback(
-    async (sessionId: number) => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/sessions/${sessionId}/reo
-          pen`, {
-          method: "POST",
-        });
-        if (!res.ok) throw new Error("Unable to reopen session");
-        fetchHistory();
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : "Unknown error";
-        setHistoryError(reason);
-      }
-    },
-    [fetchHistory],
-  );
 
   const handleCompleteTask = useCallback(
     async (taskId: number, targetStatus: "open" | "done" = "done") => {
@@ -1891,7 +2022,7 @@ export default function Home() {
 
   const handleShareConversation = useCallback(async () => {
     try {
-      const sessionId = activeSessionIdRef.current ?? sessions[0]?.id;
+      const sessionId = activeConversationIdRef.current ?? sessions[0]?.id;
       if (!sessionId) {
         setShareMessage("No conversation to share yet.");
         return;
@@ -2098,6 +2229,11 @@ export default function Home() {
               Log events, ask what&apos;s expected, or compare recent days—one
               chat, zero friction.
             </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button size="sm" onClick={handleNewChat}>
+                New chat
+              </Button>
+            </div>
             {/* Mobile nav: hamburger + overlay sheet */}
             <div className="mt-4 flex gap-2 md:hidden">
               <Button
@@ -2492,10 +2628,17 @@ export default function Home() {
       {activePanel === "history" ? (
         <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Chat history</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Recent conversations auto-titled by HAVI.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold">Chat history</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Recent conversations auto-titled by HAVI.
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={handleNewChat}>
+                New chat
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {historyLoading ? (
@@ -2518,27 +2661,13 @@ export default function Home() {
                         {new Date(session.last_message_at).toLocaleString()}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "text-[11px] uppercase tracking-wide",
-                          session.is_active
-                            ? "text-emerald-300"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {session.is_active ? "active" : "archived"}
-                      </span>
-                      {!session.is_active ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReopenSession(session.id)}
-                        >
-                          Resume
-                        </Button>
-                      ) : null}
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSelectConversation(session.id)}
+                    >
+                      Open
+                    </Button>
                   </li>
                 ))}
               </ul>

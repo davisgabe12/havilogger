@@ -10,8 +10,8 @@ This document gives a concise, code‑anchored picture of how Havi is structured
       - `GET /api/v1/settings`, `PUT /api/v1/settings` → settings/profile sync, including `_sync_child_knowledge`.
       - `GET /api/v1/insights/compare`, `GET /api/v1/insights/expected` → insight endpoints (wrap `insight_engine.compare_metrics` / `expected_ranges`).
       - `POST/GET /api/v1/inferences*` → inference CRUD (`create_inference`, `list_inferences`, `update_inference_status`).
-      - `POST /api/v1/sessions`, `GET /api/v1/sessions`, `POST /api/v1/sessions/{id}/close|reopen` → conversation session lifecycle.
-      - `POST /api/v1/messages`, `GET /api/v1/sessions/{id}/messages` → message CRUD.
+      - `POST /api/v1/conversations`, `GET /api/v1/conversations`, `GET/PATCH /api/v1/conversations/{id}` → conversation lifecycle.
+      - `POST/GET /api/v1/conversations/{id}/messages` → message CRUD.
       - `POST /api/v1/metrics/loading` → `record_loading_metric`.
       - Root `GET /health`, `GET /` – health and simple readiness.
     - Orchestrates:
@@ -63,8 +63,8 @@ This document gives a concise, code‑anchored picture of how Havi is structured
     - Provides `expected_ranges(stage, observed)` and `compare_and_expected`.
   - `app/conversations.py`
     - Conversation session + message model and helpers:
-      - `create_or_get_active_session`, `list_sessions`, `close_session`, `reopen_session`.
-      - `append_message`, `list_messages`, `get_last_assistant_message`.
+      - `create_session`, `list_sessions`, `update_session_title`, `count_messages`.
+      - `append_message`, `list_messages`, `get_last_assistant_message`, `generate_conversation_title`.
       - Catch‑up mode state: `set_catch_up_mode`, `touch_catch_up_mode`, `catch_up_mode_should_end`.
   - `app/routes/`
     - `routes/tasks.py`
@@ -138,4 +138,3 @@ This document gives a concise, code‑anchored picture of how Havi is structured
     - `apps/api/requirements.txt` – install with `pip install -r apps/api/requirements.txt`.
   - Local database:
     - SQLite file at `apps/api/data/havilogger.db` initialized by `initialize_db()` when `app.main` is imported.
-
