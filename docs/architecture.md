@@ -71,6 +71,9 @@ This document gives a concise, code‑anchored picture of how Havi is structured
       - `POST /api/v1/tasks` → `create_task_endpoint` – structured task creation.
       - `GET /api/v1/tasks` → `list_tasks_endpoint` – filters by `view` (`open|scheduled|completed`) and `child_id`.
       - `PATCH /api/v1/tasks/{task_id}` → `update_task_endpoint` – updates title, due date/time, status, assignee.
+    - `routes/reminders.py`
+      - `GET /api/v1/reminders/due` – returns open tasks with a due reminder.
+      - `POST /api/v1/reminders/{task_id}/ack` – acknowledges delivery and optionally snoozes.
     - `routes/events.py`
       - `GET /events` → `list_events` – timeline range query, requires `child_id` in non‑dev mode.
     - `routes/knowledge.py`
@@ -94,7 +97,7 @@ This document gives a concise, code‑anchored picture of how Havi is structured
       - **Timeline** – wraps `TimelinePanel`, passing:
         - `childName`, `timezone`, `childOptions`, `selectedChildId`, `refreshTrigger`.
         - `onOpenInChat` → scrolls chat view to a given `originMessageId`.
-      - **Tasks** – fetches from `/api/v1/tasks` (multiple `view` params) and PATCHes `/api/v1/tasks/{id}` for edits/completions.
+      - **Tasks** – fetches from `/api/v1/tasks` (multiple `view` params), `/api/v1/reminders/due` for due reminders, and PATCHes `/api/v1/tasks/{id}` for edits/completions.
       - **History** – calls `/api/v1/sessions` and `/api/v1/sessions/{id}/reopen`.
       - **Knowledge (“Havi remembers”)** – calls `/api/v1/inferences` and posts to `/api/v1/inferences/{id}/status`.
       - **Settings** – calls `/api/v1/settings` and `PUT /api/v1/settings` to persist caregiver/child profile, then updates local snapshots.

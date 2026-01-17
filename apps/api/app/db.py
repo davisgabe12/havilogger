@@ -6,7 +6,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 from uuid import uuid4
 
 from . import dev_config
@@ -287,6 +287,13 @@ def initialize_db() -> None:
                 title TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'open',
                 due_at TEXT,
+                remind_at TEXT,
+                completed_at TEXT,
+                reminder_channel TEXT,
+                last_reminded_at TEXT,
+                snooze_count INTEGER DEFAULT 0,
+                is_recurring INTEGER DEFAULT 0,
+                recurrence_rule TEXT,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (child_id) REFERENCES children(id)
@@ -296,6 +303,13 @@ def initialize_db() -> None:
 
         _ensure_column(conn, "tasks", "created_by_user_id", "INTEGER")
         _ensure_column(conn, "tasks", "assigned_to_user_id", "INTEGER")
+        _ensure_column(conn, "tasks", "remind_at", "TEXT")
+        _ensure_column(conn, "tasks", "completed_at", "TEXT")
+        _ensure_column(conn, "tasks", "reminder_channel", "TEXT")
+        _ensure_column(conn, "tasks", "last_reminded_at", "TEXT")
+        _ensure_column(conn, "tasks", "snooze_count", "INTEGER")
+        _ensure_column(conn, "tasks", "is_recurring", "INTEGER")
+        _ensure_column(conn, "tasks", "recurrence_rule", "TEXT")
 
         conn.execute(
             """
@@ -309,6 +323,20 @@ def initialize_db() -> None:
             UPDATE tasks
             SET assigned_to_user_id = user_id
             WHERE user_id IS NOT NULL AND assigned_to_user_id IS NULL
+            """
+        )
+        conn.execute(
+            """
+            UPDATE tasks
+            SET snooze_count = 0
+            WHERE snooze_count IS NULL
+            """
+        )
+        conn.execute(
+            """
+            UPDATE tasks
+            SET is_recurring = 0
+            WHERE is_recurring IS NULL
             """
         )
 
@@ -924,6 +952,13 @@ def _row_to_task(row) -> Task:
         title=row["title"],
         status=TaskStatus(row["status"]),
         due_at=datetime.fromisoformat(row["due_at"]) if row["due_at"] else None,
+        remind_at=datetime.fromisoformat(row["remind_at"]) if row["remind_at"] else None,
+        completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
+        reminder_channel=row["reminder_channel"],
+        last_reminded_at=datetime.fromisoformat(row["last_reminded_at"]) if row["last_reminded_at"] else None,
+        snooze_count=row["snooze_count"],
+        is_recurring=bool(row["is_recurring"]) if row["is_recurring"] is not None else None,
+        recurrence_rule=row["recurrence_rule"],
         created_at=datetime.fromisoformat(row["created_at"]),
         created_by_user_id=row["created_by_user_id"],
         assigned_to_user_id=row["assigned_to_user_id"],
@@ -936,12 +971,17 @@ def create_task(
     user_id: Optional[int] = None,
     child_id: Optional[int] = None,
     due_at: Optional[str] = None,
+    remind_at: Optional[str] = None,
+    reminder_channel: Optional[str] = None,
+    is_recurring: Optional[bool] = None,
+    recurrence_rule: Optional[str] = None,
     assigned_to_user_id: Optional[int] = None,
     status: TaskStatus = TaskStatus.OPEN,
 ) -> Task:
     now = datetime.utcnow().isoformat()
     creator_id = user_id
     assignee_id = assigned_to_user_id if assigned_to_user_id is not None else creator_id
+    recurring_flag = 1 if is_recurring else 0
     with get_connection() as conn:
         cursor = conn.execute(
             """
@@ -951,11 +991,18 @@ def create_task(
                 title,
                 status,
                 due_at,
+                remind_at,
+                completed_at,
+                reminder_channel,
+                last_reminded_at,
+                snooze_count,
+                is_recurring,
+                recurrence_rule,
                 created_at,
                 created_by_user_id,
                 assigned_to_user_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -963,6 +1010,13 @@ def create_task(
                 title,
                 status.value,
                 due_at,
+                remind_at,
+                None,
+                reminder_channel,
+                None,
+                0,
+                recurring_flag,
+                recurrence_rule,
                 now,
                 creator_id,
                 assignee_id,
@@ -1015,9 +1069,59 @@ def list_tasks(
     return [_row_to_task(row) for row in rows]
 
 
-def update_task_status(task_id: int, status: TaskStatus) -> Task:
+def list_due_reminders(
+    *,
+    now: Optional[datetime] = None,
+    child_id: Optional[int] = None,
+    limit: int = 50,
+) -> List[Task]:
+    current = (now or datetime.utcnow()).isoformat()
+    query = """
+        SELECT *
+        FROM tasks
+        WHERE status = ?
+          AND remind_at IS NOT NULL
+          AND remind_at <= ?
+          AND (last_reminded_at IS NULL OR last_reminded_at < remind_at)
+    """
+    params: List[object] = [TaskStatus.OPEN.value, current]
+    if child_id is not None:
+        query += " AND (child_id = ? OR child_id IS NULL)"
+        params.append(child_id)
+    query += " ORDER BY remind_at ASC LIMIT ?"
+    params.append(limit)
     with get_connection() as conn:
-        conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (status.value, task_id))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return [_row_to_task(row) for row in rows]
+
+
+def acknowledge_reminder(
+    task_id: int,
+    *,
+    remind_at: Optional[str] = None,
+    snooze_count: Optional[int] = None,
+    last_reminded_at: Optional[str] = None,
+) -> Task:
+    updates: Dict[str, object] = {}
+    if remind_at is not None:
+        updates["remind_at"] = remind_at
+    if snooze_count is not None:
+        updates["snooze_count"] = snooze_count
+    if last_reminded_at is not None:
+        updates["last_reminded_at"] = last_reminded_at
+    if not updates:
+        return get_task(task_id)
+    return update_task(task_id, **updates)
+
+
+def update_task_status(task_id: int, status: TaskStatus) -> Task:
+    completed_at = datetime.utcnow().isoformat() if status == TaskStatus.DONE else None
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE tasks SET status = ?, completed_at = ? WHERE id = ?",
+            (status.value, completed_at, task_id),
+        )
         conn.commit()
     return get_task(task_id)
 
@@ -1027,6 +1131,13 @@ def update_task(
     *,
     title: Optional[str] = None,
     due_at: Optional[str] = None,
+    remind_at: Optional[str] = None,
+    reminder_channel: Optional[str] = None,
+    completed_at: Optional[str] = None,
+    last_reminded_at: Optional[str] = None,
+    snooze_count: Optional[int] = None,
+    is_recurring: Optional[bool] = None,
+    recurrence_rule: Optional[str] = None,
     status: Optional[TaskStatus] = None,
     assigned_to_user_id: object = _ASSIGNED_TO_UNSET,
 ) -> Task:
@@ -1038,9 +1149,37 @@ def update_task(
     if due_at is not None:
         fields.append("due_at = ?")
         params.append(due_at)
+    if remind_at is not None:
+        fields.append("remind_at = ?")
+        params.append(remind_at)
+    if reminder_channel is not None:
+        fields.append("reminder_channel = ?")
+        params.append(reminder_channel)
+    if completed_at is not None:
+        fields.append("completed_at = ?")
+        params.append(completed_at)
+    if last_reminded_at is not None:
+        fields.append("last_reminded_at = ?")
+        params.append(last_reminded_at)
+    if snooze_count is not None:
+        fields.append("snooze_count = ?")
+        params.append(snooze_count)
+    if is_recurring is not None:
+        fields.append("is_recurring = ?")
+        params.append(1 if is_recurring else 0)
+    if recurrence_rule is not None:
+        fields.append("recurrence_rule = ?")
+        params.append(recurrence_rule)
     if status is not None:
         fields.append("status = ?")
         params.append(status.value)
+        if completed_at is None:
+            if status == TaskStatus.DONE:
+                fields.append("completed_at = ?")
+                params.append(datetime.utcnow().isoformat())
+            else:
+                fields.append("completed_at = ?")
+                params.append(None)
     if assigned_to_user_id is not _ASSIGNED_TO_UNSET:
         fields.append("assigned_to_user_id = ?")
         params.append(assigned_to_user_id)
