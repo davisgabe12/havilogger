@@ -17,6 +17,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { CHAT_BODY_TEXT, MessageBubble } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
 import { cn } from "@/lib/utils";
@@ -1649,6 +1650,16 @@ export default function Home() {
 
       const timezone = childTimezone || DEFAULT_TIMEZONE;
       const resolvedSource = options?.source ?? "chat";
+      const modelRequest = buildHaviModelRequest({
+        userMessage: textToSend,
+        userPreferences: null,
+        child: {
+          name: activeChildName || childFirstName || null,
+          dob: childDob || null,
+          dueDate: childDueDate || null,
+        },
+        feedbackSummary: null,
+      });
 
       try {
         const res = await fetch(`${API_BASE_URL}/api/v1/activities`, {
@@ -1662,6 +1673,7 @@ export default function Home() {
             source: resolvedSource,
             child_id: numericChildId,
             conversation_id: activeConversationIdRef.current,
+            model_request: modelRequest,
           }),
         });
 
