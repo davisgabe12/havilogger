@@ -80,3 +80,13 @@
     @apply bg-card/70 backdrop-blur;
   }
 }
+
+@layer utilities {
+  .max-w-user {
+    max-width: min(520px, 82%);
+  }
+
+  .max-w-assistant {
+    max-width: min(760px, 92%);
+  }
+}

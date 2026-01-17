@@ -32,7 +32,7 @@ def test_gibberish_message_uses_fallback_not_error(monkeypatch: pytest.MonkeyPat
     conversation_id = create_conversation(client, child_id=child_id)
 
     # Avoid real OpenAI calls: no actions returned.
-    monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
+    monkeypatch.setattr("app.main.generate_actions", lambda message, **kwargs: [])
 
     resp = client.post(
         "/api/v1/activities",
@@ -54,7 +54,7 @@ def test_stage_guidance_error_surfaces_as_error_message(monkeypatch: pytest.Monk
     child_id = get_primary_child_id()
     conversation_id = create_conversation(client, child_id=child_id)
 
-    monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
+    monkeypatch.setattr("app.main.generate_actions", lambda message, **kwargs: [])
     monkeypatch.delenv("HAVI_SHOW_ERROR_DETAILS", raising=False)
 
     def boom(*_args, **_kwargs) -> str:
@@ -80,7 +80,7 @@ def test_error_detail_toggle_off_hides_reason(monkeypatch: pytest.MonkeyPatch) -
     child_id = get_primary_child_id()
     conversation_id = create_conversation(client, child_id=child_id)
 
-    monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
+    monkeypatch.setattr("app.main.generate_actions", lambda message, **kwargs: [])
     monkeypatch.setenv("HAVI_SHOW_ERROR_DETAILS", "0")
 
     def boom(*_args, **_kwargs) -> str:
@@ -108,7 +108,7 @@ def test_logging_intent_does_not_use_fallback_or_error(monkeypatch: pytest.Monke
     conversation_id = create_conversation(client, child_id=child_id)
 
     # No actions from the model; logging path should still produce a concise confirmation.
-    monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
+    monkeypatch.setattr("app.main.generate_actions", lambda message, **kwargs: [])
 
     resp = client.post(
         "/api/v1/activities",
@@ -134,7 +134,7 @@ def test_symptom_guidance_generic_line_updated(monkeypatch: pytest.MonkeyPatch) 
     conversation_id = create_conversation(client, child_id=child_id)
 
     # Avoid real OpenAI calls: no actions returned.
-    monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
+    monkeypatch.setattr("app.main.generate_actions", lambda message, **kwargs: [])
 
     resp = client.post(
         "/api/v1/activities",
