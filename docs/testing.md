@@ -33,6 +33,7 @@ This document lists the test and lint commands that are defined in the repo and 
       - `test_insight_engine.py` – `summaries_from_actions` and `expected_ranges`.
     - Tasks & router:
       - `test_task_helpers.py` – `extract_task_title` and `extract_task_due_at`.
+      - `test_reminders.py` – due reminder selection and snooze acknowledgement.
       - `test_router.py` – `app.router.classify_intent` behavior.
     - Sharing:
       - `test_share.py` – share link creation/retrieval via `/api/v1/share/*`.
@@ -65,3 +66,12 @@ This document lists the test and lint commands that are defined in the repo and 
 - **Frontend**
   - Add new Jest tests under `apps/web/src/**/__tests__`.
   - Use Testing Library patterns shown in `timeline-panel.test.tsx` (render, user interactions, assertions).
+
+## Suggested End-to-End Smoke Tests
+
+- **Reminder delivery + snooze**
+  - Create a task with a reminder in the past, verify it appears in `GET /api/v1/reminders/due`, and acknowledge it with a snooze.
+- **Task reminder from chat**
+  - Send “Remind me tomorrow morning to call the pediatrician” and verify `remind_at` is populated and the task shows in the Tasks UI.
+- **Reminder completion flow**
+  - Acknowledge a reminder, mark the task done, and confirm it no longer appears in due reminders.

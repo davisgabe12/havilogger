@@ -44,7 +44,8 @@ This document connects user‑visible flows to specific endpoints and code paths
   - Chat handler: `capture_activity` in `apps/api/app/main.py`
     - When `intent_result.intent == "task_request"`:
       - Derives title: `extract_task_title`.
-      - Derives due date/time: `extract_task_due_at`.
+      - Derives due date/time: `extract_task_due_at` (supports relative phrases).
+      - Derives reminder time: `extract_task_remind_at` and defaults to the due date when only a due date is present.
       - Creates a task via `db.create_task`.
       - Appends conversation messages with `intent="task_request"`.
       - Returns `ChatResponse` with confirmation (`assistant_message="Task added: …"`), no `actions`.
@@ -53,6 +54,9 @@ This document connects user‑visible flows to specific endpoints and code paths
     - `POST /api/v1/tasks` → `create_task_endpoint` – structured task creation.
     - `GET /api/v1/tasks` → `list_tasks_endpoint` – filters by `view` (`open|scheduled|completed`) and `child_id`.
     - `PATCH /api/v1/tasks/{task_id}` → `update_task_endpoint` – updates title, due date/time, status, assignee.
+  - `apps/api/app/routes/reminders.py`
+    - `GET /api/v1/reminders/due` – returns open tasks with reminders ready to deliver.
+    - `POST /api/v1/reminders/{task_id}/ack` – acknowledges delivery and optionally snoozes.
   - Persistence: `apps/api/app/db.py`
     - `create_task`, `list_tasks`, `update_task`, `update_task_status`, `get_task`.
 - **Frontend**
@@ -60,6 +64,9 @@ This document connects user‑visible flows to specific endpoints and code paths
     - `loadTasks`:
       - Calls `GET ${API_BASE_URL}/api/v1/tasks?view=open|scheduled|completed[&child_id=…]`.
       - Merges results into a single `TaskItem[]`.
+    - `loadDueReminders`:
+      - Calls `GET ${API_BASE_URL}/api/v1/reminders/due[&child_id=…]`.
+      - Surfaces reminders in the Tasks panel with snooze/done actions.
     - `handleCompleteTask`:
       - Optimistically toggles a task’s `status`, then `PATCH ${API_BASE_URL}/api/v1/tasks/{id}`.
     - `saveTaskDetails`:

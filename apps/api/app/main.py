@@ -77,6 +77,7 @@ from .router import classify_intent
 from .routes import events as events_routes
 from .routes import feedback as feedback_routes
 from .routes import knowledge as knowledge_routes
+from .routes import reminders as reminder_routes
 from .routes import tasks as task_routes
 from . import share as share_routes
 from .schemas import (
@@ -282,6 +283,7 @@ app.add_middleware(
 app.include_router(events_routes.router)
 app.include_router(feedback_routes.router)
 app.include_router(knowledge_routes.router)
+app.include_router(reminder_routes.router)
 app.include_router(task_routes.router)
 app.include_router(share_routes.router, prefix="/api/v1/share", tags=["share"])
 

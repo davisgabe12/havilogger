@@ -67,6 +67,9 @@ type TaskItem = {
   title: string;
   status: "open" | "done";
   due_at?: string | null;
+  remind_at?: string | null;
+  last_reminded_at?: string | null;
+  snooze_count?: number | null;
   created_at: string;
   user_id?: number | null;
   child_id?: number | null;
@@ -525,6 +528,9 @@ export default function Home() {
   const [tasksAssigneeFilter, setTasksAssigneeFilter] = useState<
     "all" | "me" | "others"
   >("all");
+  const [dueReminders, setDueReminders] = useState<TaskItem[]>([]);
+  const [remindersLoading, setRemindersLoading] = useState(false);
+  const [remindersError, setRemindersError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [taskDetailTitle, setTaskDetailTitle] = useState("");
   const [taskDetailDueDate, setTaskDetailDueDate] = useState<string>("");
@@ -1405,11 +1411,33 @@ export default function Home() {
     }
   }, [activeChildId]);
 
+  const loadDueReminders = useCallback(async () => {
+    setRemindersLoading(true);
+    setRemindersError(null);
+    try {
+      const params = new URLSearchParams();
+      if (activeChildId && !Number.isNaN(Number(activeChildId))) {
+        params.append("child_id", activeChildId);
+      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/reminders/due?${params}`);
+      if (!res.ok) throw new Error("Unable to load reminders");
+      const data: TaskItem[] = await res.json();
+      setDueReminders(data);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      setRemindersError(reason);
+      setDueReminders([]);
+    } finally {
+      setRemindersLoading(false);
+    }
+  }, [activeChildId]);
+
   useEffect(() => {
     if (activePanel === "tasks") {
       loadTasks();
+      loadDueReminders();
     }
-  }, [activePanel, loadTasks]);
+  }, [activePanel, loadDueReminders, loadTasks]);
 
   const loadSettings = useCallback(async () => {
     setSettingsLoading(true);
@@ -1887,6 +1915,29 @@ export default function Home() {
     [loadTasks],
   );
 
+  const handleSnoozeReminder = useCallback(
+    async (taskId: number, snoozeMinutes: number) => {
+      setRemindersError(null);
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/v1/reminders/${taskId}/ack`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ snooze_minutes: snoozeMinutes }),
+          },
+        );
+        if (!res.ok) throw new Error("Unable to snooze reminder");
+        await loadDueReminders();
+        await loadTasks();
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Unknown error";
+        setRemindersError(reason);
+      }
+    },
+    [loadDueReminders, loadTasks],
+  );
+
   const formatDateInput = (value?: string | null) => {
     if (!value) return "";
     const d = new Date(value);
@@ -1899,6 +1950,18 @@ export default function Home() {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return "";
     return d.toISOString().slice(11, 16);
+  };
+
+  const formatReminderLabel = (value?: string | null) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   };
 
   const openTaskDetails = useCallback((task: TaskItem) => {
@@ -2511,6 +2574,58 @@ export default function Home() {
               </div>
               <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card/90 to-transparent" />
             </div>
+            {remindersLoading ? (
+              <p className="text-sm text-muted-foreground">Loading reminders…</p>
+            ) : remindersError ? (
+              <p className="text-sm text-destructive">{remindersError}</p>
+            ) : dueReminders.length > 0 ? (
+              <div className="space-y-2 rounded-md border border-amber-200/30 bg-amber-50/10 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-amber-200">
+                    Reminders due now
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    {dueReminders.length} active
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {dueReminders.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/40 bg-background/70 p-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{task.title}</p>
+                        {formatReminderLabel(task.remind_at) ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            Reminder set{" "}
+                            {formatReminderLabel(task.remind_at)}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSnoozeReminder(task.id, 30)}
+                        >
+                          Snooze 30m
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            handleCompleteTask(task.id, "done");
+                            loadDueReminders();
+                          }}
+                        >
+                          Mark done
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {tasksLoading ? (
               <p className="text-sm text-muted-foreground">Loading tasks…</p>
             ) : tasksError ? (

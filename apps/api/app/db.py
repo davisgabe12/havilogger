@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
+
 from uuid import uuid4
 
 from . import dev_config
@@ -1210,6 +1211,52 @@ def list_tasks(
         conn.row_factory = sqlite3.Row
         rows = conn.execute(query, tuple(params)).fetchall()
     return [_row_to_task(row) for row in rows]
+
+
+def list_due_reminders(
+    *,
+    now: Optional[datetime] = None,
+    child_id: Optional[int] = None,
+    limit: int = 50,
+) -> List[Task]:
+    current = (now or datetime.utcnow()).isoformat()
+    query = """
+        SELECT *
+        FROM tasks
+        WHERE status = ?
+          AND remind_at IS NOT NULL
+          AND remind_at <= ?
+          AND (last_reminded_at IS NULL OR last_reminded_at < remind_at)
+    """
+    params: List[object] = [TaskStatus.OPEN.value, current]
+    if child_id is not None:
+        query += " AND (child_id = ? OR child_id IS NULL)"
+        params.append(child_id)
+    query += " ORDER BY remind_at ASC LIMIT ?"
+    params.append(limit)
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return [_row_to_task(row) for row in rows]
+
+
+def acknowledge_reminder(
+    task_id: int,
+    *,
+    remind_at: Optional[str] = None,
+    snooze_count: Optional[int] = None,
+    last_reminded_at: Optional[str] = None,
+) -> Task:
+    updates: Dict[str, object] = {}
+    if remind_at is not None:
+        updates["remind_at"] = remind_at
+    if snooze_count is not None:
+        updates["snooze_count"] = snooze_count
+    if last_reminded_at is not None:
+        updates["last_reminded_at"] = last_reminded_at
+    if not updates:
+        return get_task(task_id)
+    return update_task(task_id, **updates)
 
 
 def update_task_status(task_id: int, status: TaskStatus) -> Task:
