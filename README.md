@@ -1,6 +1,6 @@
 # HaviLogger
 
-HaviLogger is a voice‑first, AI‑assisted parenting logger and assistant. It turns short, natural‑language inputs into structured, queryable data (feeds, diapers, sleep, tasks, milestones) and returns concise, stage‑aware guidance.
+HaviLogger is a AI‑assisted parenting logger and assistant. It turns short, natural‑language inputs into structured, queryable data (feeds, diapers, sleep, tasks, milestones) and returns concise, stage‑aware guidance.
 
 ## Tech Stack
 
