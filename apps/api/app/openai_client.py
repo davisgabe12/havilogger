@@ -206,7 +206,28 @@ def _build_context_system_message(context: Optional[Dict[str, Any]]) -> Optional
     return payload
 
 
-def _call_chat_completions(message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _normalize_context_messages(
+    context_messages: Optional[List[Dict[str, Any]]],
+) -> List[Dict[str, str]]:
+    if not context_messages:
+        return []
+    normalized: List[Dict[str, str]] = []
+    for message in context_messages:
+        role = message.get("role")
+        content = message.get("content")
+        if role not in {"user", "assistant", "system"}:
+            continue
+        if not isinstance(content, str):
+            continue
+        normalized.append({"role": role, "content": content})
+    return normalized
+
+
+def _call_chat_completions(
+    message: str,
+    context: Optional[Dict[str, Any]] = None,
+    context_messages: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Fallback for SDK builds lacking the Responses API."""
     system_prompt = SYSTEM_PROMPT + FALLBACK_PROMPT_SUFFIX
     try:
@@ -214,7 +235,11 @@ def _call_chat_completions(message: str, context: Optional[Dict[str, Any]] = Non
         message_list = [{"role": "system", "content": system_prompt}]
         if context_message:
             message_list.append(context_message)
-        message_list.append({"role": "user", "content": message})
+        normalized_context_messages = _normalize_context_messages(context_messages)
+        if normalized_context_messages:
+            message_list.extend(normalized_context_messages)
+        else:
+            message_list.append({"role": "user", "content": message})
         response = client.chat.completions.create(
             model=CONFIG.openai_model,
             messages=message_list,
@@ -278,17 +303,24 @@ def _stub_response(note: str = "Responses API stub") -> Dict[str, Any]:
     return {"actions": [stub_action]}
 
 
-def _call_responses_api(message: str) -> Dict[str, Any]:
+def _call_responses_api(
+    message: str, context_messages: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
     return _stub_response("Responses API stub")
 
 
-def generate_actions(message: str, *, knowledge_context: Optional[Dict[str, Any]] = None) -> List[Action]:
+def generate_actions(
+    message: str,
+    *,
+    knowledge_context: Optional[Dict[str, Any]] = None,
+    context_messages: Optional[List[Dict[str, Any]]] = None,
+) -> List[Action]:
     global USE_RESPONSES_API
 
     payload: Dict[str, Any] | None = None
     if USE_RESPONSES_API:
         try:
-            payload = _call_responses_api(message)
+            payload = _call_responses_api(message, context_messages)
         except AttributeError:
             # SDK no longer exposes the Responses API; fall back permanently.
             USE_RESPONSES_API = False
@@ -296,6 +328,8 @@ def generate_actions(message: str, *, knowledge_context: Optional[Dict[str, Any]
             raise exc
 
     if payload is None:
-        payload = _call_chat_completions(message, knowledge_context)
+        payload = _call_chat_completions(
+            message, knowledge_context, context_messages=context_messages
+        )
     raw_actions = payload.get("actions", [])
     return [_coerce_action(item) for item in raw_actions]

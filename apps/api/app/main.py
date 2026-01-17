@@ -36,6 +36,7 @@ from .conversations import (
     update_session_title,
 )
 from .context_builders import build_child_context
+from .context_pack import build_message_context
 from .db import (
     create_task,
     fetch_primary_profiles,
@@ -492,9 +493,22 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             assistant_message_id=assistant_message_obj.id,
         )
 
+    user_message = append_message(
+        CreateMessagePayload(
+            session_id=session.id,
+            role="user",
+            content=payload.message,
+            intent="log",
+        )
+    )
+    context_pack = build_message_context(session.id, max_messages=50, budget_tokens=2000)
+
     try:
         actions: List[Action] = await asyncio.to_thread(
-            generate_actions, analysis_message, knowledge_context=child_context
+            generate_actions,
+            analysis_message,
+            knowledge_context=child_context,
+            context_messages=context_pack["messages"],
         )
     except RuntimeError as exc:  # Raised when OpenAI client fails
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -525,14 +539,6 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
         actions={"actions": [action.model_dump(mode="json") for action in actions]},
     )
 
-    user_message = append_message(
-        CreateMessagePayload(
-            session_id=session.id,
-            role="user",
-            content=payload.message,
-            intent="log",
-        )
-    )
     session = maybe_autotitle_session(
         session,
         child_id=child_id,
