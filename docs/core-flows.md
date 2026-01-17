@@ -13,7 +13,7 @@ This document connects user‑visible flows to specific endpoints and code paths
       - `router.classify_intent`.
       - `message_symptom_tags`, `classify_question_category`.
     - Manages conversation:
-      - `create_or_get_active_session`, `get_last_assistant_message`, `append_message`.
+      - `get_session`, `get_last_assistant_message`, `append_message`.
       - Catch‑up mode (`detect_catch_up_entry`, `detect_catch_up_exit`, `catch_up_mode_should_end`, `set_catch_up_mode`).
     - Handles special intents:
       - Memory save: `detect_memory_save_target`, `handle_memory_command` (uses `set_explicit_knowledge`).
@@ -31,7 +31,7 @@ This document connects user‑visible flows to specific endpoints and code paths
 - **Frontend entrypoints**
   - `apps/web/src/app/page.tsx`
     - `sendMessage`:
-      - Sends `POST ${API_BASE_URL}/api/v1/activities` with `{ message, timezone, source, child_id }`.
+      - Sends `POST ${API_BASE_URL}/api/v1/activities` with `{ message, timezone, source, child_id, conversation_id }`.
       - Shows loading UX using `LOADING_MESSAGES` keyed by `question_category`.
       - Appends user + assistant chat entries to local state.
       - On non‑empty `actions`, increments `timelineRefreshKey` so the Timeline panel reloads.
@@ -166,4 +166,3 @@ This document connects user‑visible flows to specific endpoints and code paths
     - Renders:
       - Title (`data.title`).
       - Message list (`data.messages`) with role‑specific styling for `"user"` vs `"assistant"` vs `"caregiver"`.
-

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.schemas import Action, ActionMetadata, CoreActionType
 from app.db import ensure_default_profiles, get_connection, get_primary_child_id
+from .conversation_helpers import create_conversation, with_conversation
 
 client = TestClient(app)
 
@@ -426,6 +427,7 @@ SCENARIOS = [
 def test_conversation_scenarios(monkeypatch, scenario):
     reset_state()
     seed_profile(scenario.get("profile"))
+    conversation_id = create_conversation(client, child_id=get_primary_child_id())
 
     action_batches = scenario["actions"]
     generator_batches = scenario.get("generator_actions", action_batches)
@@ -446,7 +448,10 @@ def test_conversation_scenarios(monkeypatch, scenario):
         payload = {"message": message["text"], "child_id": get_primary_child_id()}
         if message.get("timezone") is not None:
             payload["timezone"] = message["timezone"]
-        response = client.post("/api/v1/activities", json=payload)
+        response = client.post(
+            "/api/v1/activities",
+            json=with_conversation(payload, conversation_id=conversation_id),
+        )
         assert response.status_code == 200
         responses.append(response.json()["assistant_message"])
         expected_batch = action_batches[idx]

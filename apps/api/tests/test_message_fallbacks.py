@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.db import ensure_default_profiles, get_connection, get_primary_child_id
+from .conversation_helpers import create_conversation, with_conversation
 
 
 client = TestClient(app)
@@ -28,13 +29,14 @@ def reset_state() -> None:
 
 def test_gibberish_message_uses_fallback_not_error(monkeypatch: pytest.MonkeyPatch) -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
 
     # Avoid real OpenAI calls: no actions returned.
     monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
 
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "asdf qwer zzzz", "child_id": child_id},
+        json=with_conversation({"message": "asdf qwer zzzz", "child_id": child_id}, conversation_id=conversation_id),
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -50,6 +52,7 @@ def test_gibberish_message_uses_fallback_not_error(monkeypatch: pytest.MonkeyPat
 
 def test_stage_guidance_error_surfaces_as_error_message(monkeypatch: pytest.MonkeyPatch) -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
 
     monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
     monkeypatch.delenv("HAVI_SHOW_ERROR_DETAILS", raising=False)
@@ -61,7 +64,10 @@ def test_stage_guidance_error_surfaces_as_error_message(monkeypatch: pytest.Monk
 
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "what should I expect", "child_id": child_id},
+        json=with_conversation(
+            {"message": "what should I expect", "child_id": child_id},
+            conversation_id=conversation_id,
+        ),
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -72,6 +78,7 @@ def test_stage_guidance_error_surfaces_as_error_message(monkeypatch: pytest.Monk
 
 def test_error_detail_toggle_off_hides_reason(monkeypatch: pytest.MonkeyPatch) -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
 
     monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
     monkeypatch.setenv("HAVI_SHOW_ERROR_DETAILS", "0")
@@ -83,7 +90,10 @@ def test_error_detail_toggle_off_hides_reason(monkeypatch: pytest.MonkeyPatch) -
 
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "what should I expect", "child_id": child_id},
+        json=with_conversation(
+            {"message": "what should I expect", "child_id": child_id},
+            conversation_id=conversation_id,
+        ),
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -95,13 +105,17 @@ def test_error_detail_toggle_off_hides_reason(monkeypatch: pytest.MonkeyPatch) -
 
 def test_logging_intent_does_not_use_fallback_or_error(monkeypatch: pytest.MonkeyPatch) -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
 
     # No actions from the model; logging path should still produce a concise confirmation.
     monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
 
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "dirty diaper at 2pm", "child_id": child_id},
+        json=with_conversation(
+            {"message": "dirty diaper at 2pm", "child_id": child_id},
+            conversation_id=conversation_id,
+        ),
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -117,13 +131,17 @@ def test_logging_intent_does_not_use_fallback_or_error(monkeypatch: pytest.Monke
 
 def test_symptom_guidance_generic_line_updated(monkeypatch: pytest.MonkeyPatch) -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
 
     # Avoid real OpenAI calls: no actions returned.
     monkeypatch.setattr("app.main.generate_actions", lambda message, knowledge_context=None: [])
 
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "Is our routine okay overall?", "child_id": child_id},
+        json=with_conversation(
+            {"message": "Is our routine okay overall?", "child_id": child_id},
+            conversation_id=conversation_id,
+        ),
     )
     assert resp.status_code == 200
     data = resp.json()

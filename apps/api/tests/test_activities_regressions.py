@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.db import ensure_default_profiles, get_connection, get_primary_child_id
+from .conversation_helpers import create_conversation, with_conversation
 
 
 client = TestClient(app)
@@ -66,9 +67,13 @@ def assert_no_gating(data: dict) -> None:
 
 def test_non_logging_advice_is_not_gated() -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
     resp = client.post(
         "/api/v1/activities",
-        json={"message": "baby is hitting, is that normal", "child_id": child_id},
+        json=with_conversation(
+            {"message": "baby is hitting, is that normal", "child_id": child_id},
+            conversation_id=conversation_id,
+        ),
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -80,12 +85,16 @@ def test_non_logging_advice_is_not_gated() -> None:
 
 def test_aggression_synonyms_trigger_guidance() -> None:
     child_id = get_primary_child_id()
+    conversation_id = create_conversation(client, child_id=child_id)
     messages = [
         "my baby smacked me, is that normal",
         "my toddler hits sometimes",
     ]
     for text in messages:
-        resp = client.post("/api/v1/activities", json={"message": text, "child_id": child_id})
+        resp = client.post(
+            "/api/v1/activities",
+            json=with_conversation({"message": text, "child_id": child_id}, conversation_id=conversation_id),
+        )
         assert resp.status_code == 200
         data = resp.json()
         guidance_lower = data["assistant_message"].lower()
@@ -96,7 +105,11 @@ def test_aggression_synonyms_trigger_guidance() -> None:
 
 def test_logging_reply_stays_minimal() -> None:
     child_id = get_primary_child_id()
-    resp = client.post("/api/v1/activities", json={"message": "woke at 3am", "child_id": child_id})
+    conversation_id = create_conversation(client, child_id=child_id)
+    resp = client.post(
+        "/api/v1/activities",
+        json=with_conversation({"message": "woke at 3am", "child_id": child_id}, conversation_id=conversation_id),
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["intent"] == "logging"
