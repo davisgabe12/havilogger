@@ -17,6 +17,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { CHAT_BODY_TEXT, MessageBubble } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
@@ -184,6 +185,22 @@ type ConversationMessage = {
   content: string;
   intent?: string | null;
   created_at: string;
+};
+
+type MessageFeedbackEntry = {
+  message_id: number | string;
+  rating: FeedbackRating;
+  comment?: string | null;
+};
+
+type ChatEntry = {
+  id: string;
+  role: "user" | "havi";
+  text: string;
+  messageId?: string;
+  createdAt: string;
+  senderType?: "self" | "assistant" | "caregiver";
+  senderName?: string;
 };
 
 type SpeechRecognitionEventLike = {
@@ -432,6 +449,9 @@ export default function Home() {
   const retryCountRef = useRef(0);
   const activeConversationIdRef = useRef<number | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [messageFeedbackById, setMessageFeedbackById] = useState<
+    Record<string, { rating: FeedbackRating; comment: string }>
+  >({});
   const [questionCategory, setQuestionCategory] =
     useState<LoadingCategory>("generic");
   const [pendingCategoryHint, setPendingCategoryHint] =
@@ -906,6 +926,53 @@ export default function Home() {
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  const assistantMessageIds = useMemo(() => {
+    const ids = new Set<string>();
+    chatEntries.forEach((entry) => {
+      const senderType =
+        entry.senderType ?? (entry.role === "havi" ? "assistant" : "self");
+      if (senderType === "assistant" && entry.messageId) {
+        ids.add(entry.messageId);
+      }
+    });
+    return Array.from(ids);
+  }, [chatEntries]);
+
+  useEffect(() => {
+    setMessageFeedbackById({});
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    if (!activeConversationId || assistantMessageIds.length === 0) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      conversation_id: String(activeConversationId),
+      message_ids: assistantMessageIds.join(","),
+    });
+    fetch(`${API_BASE_URL}/api/v1/feedback?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Unable to load feedback");
+        return res.json();
+      })
+      .then((data: MessageFeedbackEntry[]) => {
+        setMessageFeedbackById((prev) => {
+          const next = { ...prev };
+          data.forEach((item) => {
+            if (!item?.message_id) return;
+            next[String(item.message_id)] = {
+              rating: item.rating ?? null,
+              comment: item.comment ?? "",
+            };
+          });
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [activeConversationId, assistantMessageIds]);
 
   const postClientMetrics = useCallback(
     (errorType?: string) => {
@@ -3400,6 +3467,8 @@ export default function Home() {
                         }}
                         copiedMessageId={copiedMessageId}
                         highlightedMessageId={highlightedMessageId}
+                        feedbackByMessageId={messageFeedbackById}
+                        conversationId={activeConversationId}
                       />
                     </div>
                   );
@@ -3713,6 +3782,284 @@ function EditableField({
       />
     </div>
   );
+}
+
+function MessageBubble({
+  entry,
+  onToggleTimestamp,
+  isPinned,
+  onCopy,
+  copiedMessageId,
+  highlightedMessageId,
+  feedbackByMessageId,
+  conversationId,
+}: {
+  entry: ChatEntry;
+  onToggleTimestamp: (id: string) => void;
+  isPinned: boolean;
+  onCopy: (text: string, id: string) => void;
+  copiedMessageId: string | null;
+  highlightedMessageId: string | null;
+  feedbackByMessageId: Record<string, { rating: FeedbackRating; comment: string }>;
+  conversationId: number | null;
+}) {
+  const createdAt = entry.createdAt ?? new Date().toISOString();
+  const senderType =
+    entry.senderType ?? (entry.role === "havi" ? "assistant" : "self");
+  const isSelf = senderType === "self";
+  const isAssistant = senderType === "assistant";
+  const isCaregiver = senderType === "caregiver";
+  const showTimestamp = isPinned;
+  const bubbleMaxWidth = { maxWidth: "min(520px, 82%)" };
+  const isHighlighted =
+    entry.messageId && entry.messageId === highlightedMessageId;
+  const feedback = entry.messageId
+    ? feedbackByMessageId[entry.messageId]
+    : undefined;
+
+  const markdownComponents: Components = {
+    p: ({ node: _node, className, ...props }) => (
+      <p
+        className={cn("mb-3 leading-relaxed last:mb-0", className)}
+        {...props}
+      />
+    ),
+    h1: ({ node: _node, className, ...props }) => (
+      <h1
+        className={cn("mb-2 mt-1 text-base font-semibold", className)}
+        {...props}
+      />
+    ),
+    h2: ({ node: _node, className, ...props }) => (
+      <h2
+        className={cn("mb-2 mt-1 text-sm font-semibold", className)}
+        {...props}
+      />
+    ),
+    h3: ({ node: _node, className, ...props }) => (
+      <h3
+        className={cn("mb-2 mt-1 text-[13px] font-semibold", className)}
+        {...props}
+      />
+    ),
+    ul: ({ node: _node, className, ...props }) => (
+      <ul
+        className={cn("mb-3 ml-5 list-disc space-y-1 last:mb-0", className)}
+        {...props}
+      />
+    ),
+    ol: ({ node: _node, className, ...props }) => (
+      <ol
+        className={cn("mb-3 ml-5 list-decimal space-y-1 last:mb-0", className)}
+        {...props}
+      />
+    ),
+    li: ({ node: _node, className, ...props }) => (
+      <li className={cn("leading-relaxed", className)} {...props} />
+    ),
+    a: ({ node: _node, className, ...props }) => (
+      <a
+        className={cn("text-primary underline underline-offset-2", className)}
+        {...props}
+      />
+    ),
+    table: ({ node: _node, className, ...props }) => (
+      <div className="mb-3 overflow-x-auto">
+        <table
+          className={cn("min-w-full border-collapse text-sm", className)}
+          {...props}
+        />
+      </div>
+    ),
+    thead: ({ node: _node, className, ...props }) => (
+      <thead className={cn("border-b border-border/80", className)} {...props} />
+    ),
+    th: ({ node: _node, className, ...props }) => (
+      <th
+        className={cn("px-2 py-1 text-left font-semibold", className)}
+        {...props}
+      />
+    ),
+    td: ({ node: _node, className, ...props }) => (
+      <td
+        className={cn("border-b border-border/60 px-2 py-1 align-top", className)}
+        {...props}
+      />
+    ),
+    code: (codeProps) => {
+      const { inline, className, children, ...props } = codeProps as {
+        inline?: boolean;
+        className?: string;
+        children?: React.ReactNode;
+      };
+      if (inline) {
+        return (
+          <code
+            className={cn(
+              "rounded bg-muted/60 px-1 py-[2px] text-[12px]",
+              className,
+            )}
+            {...props}
+          >
+            {children}
+          </code>
+        );
+      }
+      return (
+        <code
+          className={cn("text-[12px] leading-relaxed", className)}
+          {...props}
+        >
+          {children}
+        </code>
+      );
+    },
+    pre: ({ node: _node, className, ...props }) => (
+      <pre
+        className={cn(
+          "mb-3 overflow-x-auto rounded bg-muted/40 p-3 text-[12px]",
+          className,
+        )}
+        {...props}
+      />
+    ),
+  };
+
+  const bubbleClasses = cn(
+    "relative rounded-lg px-3 py-2 ring-offset-2 group",
+    isSelf
+      ? "bg-primary text-primary-foreground"
+      : isAssistant
+        ? "bg-muted/40 text-muted-foreground pb-9"
+        : "bg-background/80 text-foreground border border-border/40",
+    isHighlighted && "ring-2 ring-primary/40",
+  );
+
+  const gutter = (
+    <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
+      {isAssistant ? (
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted/80 text-[11px] font-semibold text-foreground">
+          HAVI
+        </span>
+      ) : isCaregiver ? (
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
+          full bg-primary/10 text-[11px] font-semibold text-primary">
+          {getInitials(entry.senderName ?? "Caregiver")}
+        </span>
+      ) : null}
+    </div>
+  );
+
+  if (isSelf) {
+    return (
+      <div className="flex w-full justify-end">
+        <div
+          data-message-id={entry.messageId ?? undefined}
+          className={bubbleClasses}
+          style={bubbleMaxWidth}
+        >
+          <p className={cn("whitespace-pre-wrap pr-10", CHAT_BODY_TEXT)}>
+            {entry.text}
+          </p>
+          {showTimestamp ? (
+            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <button
+                type="button"
+                className="rounded px-1"
+                onClick={() => onToggleTimestamp(entry.id)}
+              >
+                {isPinned ? "Hide time" : formatTimestamp(createdAt)}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-start gap-2">
+      {gutter}
+      <div className="flex flex-col" style={bubbleMaxWidth}>
+        <div
+          data-message-id={entry.messageId ?? undefined}
+          className={bubbleClasses}
+        >
+          {isAssistant ? (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+              className={cn("pr-10", CHAT_BODY_TEXT)}
+            >
+              {entry.text}
+            </ReactMarkdown>
+          ) : (
+            <p className={cn("whitespace-pre-wrap pr-10", CHAT_BODY_TEXT)}>
+              {entry.text}
+            </p>
+          )}
+          {showTimestamp ? (
+            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <button
+                type="button"
+                className="rounded px-1"
+                onClick={() => onToggleTimestamp(entry.id)}
+              >
+                {isPinned ? "Hide time" : formatTimestamp(createdAt)}
+              </button>
+              {entry.senderName ? (
+                <span className="inline-flex items-center gap-1 rounded bg-background/60 px-2 py-1 text-[10px] uppercase">
+                  {getInitials(entry.senderName)}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {isAssistant ? (
+            <MessageFeedback
+              conversationId={conversationId}
+              messageId={entry.messageId}
+              apiBaseUrl={API_BASE_URL}
+              initialRating={feedback?.rating ?? null}
+              initialComment={feedback?.comment ?? ""}
+            />
+          ) : null}
+        </div>
+        {isAssistant ? (
+          <div
+            className={cn(
+              "min-h-[28px] pt-2",
+              "flex items-center gap-2",
+              "supports-[hover:hover]:opacity-0 supports-[hover:hover]:pointer-events-none",
+              "group-hover:supports-[hover:hover]:opacity-100 group-hover:supports-[hover:hover]:pointer-events-auto",
+              "transition-opacity duration-150",
+            )}
+          >
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              onClick={() => onCopy(entry.text, entry.id)}
+              aria-label="Copy message"
+              title="Copy"
+            >
+              <Copy className="h-3 w-3" />
+            </button>
+            {copiedMessageId === entry.id ? (
+              <span className="text-[11px] text-muted-foreground">Copied</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 function formatAdjustedAge(dob: string, dueDate: string): string {
