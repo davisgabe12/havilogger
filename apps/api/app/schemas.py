@@ -146,6 +146,13 @@ class Task(BaseModel):
     title: str
     status: TaskStatus
     due_at: Optional[datetime] = None
+    remind_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    reminder_channel: Optional[str] = None
+    last_reminded_at: Optional[datetime] = None
+    snooze_count: Optional[int] = None
+    is_recurring: Optional[bool] = None
+    recurrence_rule: Optional[str] = None
     created_at: datetime
     created_by_user_id: Optional[int] = None
     assigned_to_user_id: Optional[int] = None

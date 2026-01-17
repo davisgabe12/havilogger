@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from zoneinfo import ZoneInfo
 
-from app.main import extract_task_due_at, extract_task_title
+from app.main import extract_task_due_at, extract_task_remind_at, extract_task_title
 
 
 def test_extract_task_due_at_basic() -> None:
@@ -53,3 +53,12 @@ def test_extract_task_title_from_task_prefix() -> None:
   title = extract_task_title("task: pick up groceries on 1/2/25 at 6pm")
   assert title == "pick up groceries"
 
+
+def test_extract_task_remind_at_relative() -> None:
+  tz = "America/Los_Angeles"
+  base = datetime(2025, 1, 1, 9, 0, tzinfo=timezone.utc)
+  iso = extract_task_remind_at("remind me tomorrow morning to call the doctor", tz, base)
+  assert iso is not None
+  dt = datetime.fromisoformat(iso)
+  local = dt.astimezone(ZoneInfo(tz))
+  assert (local.year, local.month, local.day) == (2025, 1, 2)
