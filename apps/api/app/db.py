@@ -645,6 +645,25 @@ def upsert_message_feedback(
     return _feedback_row_to_dict(row)
 
 
+def list_message_feedback(
+    conversation_id: str,
+    message_ids: Optional[List[str]] = None,
+) -> List[dict]:
+    query = "SELECT * FROM message_feedback WHERE conversation_id = ?"
+    params: List[Any] = [conversation_id]
+    if message_ids:
+        placeholders = ",".join("?" for _ in message_ids)
+        query += f" AND message_id IN ({placeholders})"
+        params.extend(message_ids)
+    query += " ORDER BY updated_at DESC"
+
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(query, params).fetchall()
+
+    return [_feedback_row_to_dict(row) for row in rows]
+
+
 def persist_log(
     input_text: str,
     actions: dict,

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
-from ..db import upsert_message_feedback
+from ..db import list_message_feedback, upsert_message_feedback
 
 router = APIRouter()
 
@@ -41,3 +41,13 @@ def create_feedback(payload: MessageFeedbackPayload) -> Dict[str, Any]:
 @router.put("/api/v1/messages/feedback")
 def update_feedback(payload: MessageFeedbackPayload) -> Dict[str, Any]:
     return _save_feedback(payload)
+
+
+@router.get("/api/v1/messages/feedback")
+def list_feedback(
+    conversation_id: str = Query(..., min_length=1),
+    message_ids: Optional[str] = Query(None, description="Comma-separated message ids"),
+) -> List[Dict[str, Any]]:
+    ids = [item.strip() for item in message_ids.split(",")] if message_ids else []
+    ids = [item for item in ids if item]
+    return list_message_feedback(conversation_id, ids or None)

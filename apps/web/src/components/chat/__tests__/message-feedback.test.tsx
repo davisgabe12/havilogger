@@ -36,13 +36,16 @@ describe("MessageFeedback", () => {
       "true",
     );
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0]?.[0]).toBe(`${apiBaseUrl}/api/v1/feedback`);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      `${apiBaseUrl}/api/v1/messages/feedback`,
+    );
     const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string);
     expect(body).toEqual({
-      conversation_id: 42,
+      conversation_id: "42",
       message_id: "123",
       rating: "up",
-      comment: null,
+      feedback_text: null,
+      session_id: "42",
     });
   });
 
@@ -71,10 +74,11 @@ describe("MessageFeedback", () => {
     const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
     const body = JSON.parse(lastCall?.[1]?.body as string);
     expect(body).toEqual({
-      conversation_id: 42,
+      conversation_id: "42",
       message_id: "123",
       rating: "down",
-      comment: "Too vague",
+      feedback_text: "Too vague",
+      session_id: "42",
     });
   });
 

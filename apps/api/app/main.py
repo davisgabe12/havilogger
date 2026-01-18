@@ -656,6 +656,8 @@ async def capture_activity(payload: ChatRequest) -> ChatResponse:
             "intent": intent_result.intent,
         },
     )
+    if not assistant_message or not str(assistant_message).strip():
+        assistant_message = _format_compose_error("empty response")
 
     guidance_context = {
         **child_context,

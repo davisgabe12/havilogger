@@ -3,7 +3,9 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Menu, Mic, Share, Square } from "lucide-react";
+import { ArrowUpRight, Copy, Menu, Mic, Share, Square } from "lucide-react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { TimelinePanel } from "@/components/timeline/timeline-panel";
 import { Button } from "@/components/ui/button";
@@ -19,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
-import { CHAT_BODY_TEXT, MessageBubble } from "@/components/chat/message-bubble";
+import { CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -193,7 +195,7 @@ type ConversationMessage = {
 type MessageFeedbackEntry = {
   message_id: number | string;
   rating: FeedbackRating;
-  comment?: string | null;
+  feedback_text?: string | null;
 };
 
 type SpeechRecognitionEventLike = {
@@ -888,6 +890,22 @@ export default function Home() {
     childLatestWeightDate,
   ]);
 
+  const missingProfileFields = useMemo(
+    () => computeMissingExpectationFields(),
+    [computeMissingExpectationFields],
+  );
+  const needsCaregiverSetup = !caregiverFirstName && !caregiverLastName && !caregiverEmail;
+  const showSignupPrompt =
+    missingProfileFields.length > 0 || needsCaregiverSetup;
+  const hardErrorLower = hardErrorMessage?.toLowerCase() ?? "";
+  const showNewChatButton = hardErrorLower.includes("start a new chat");
+  const showSignupButton =
+    showSignupPrompt &&
+    (hardErrorLower.includes("profile") ||
+      hardErrorLower.includes("settings") ||
+      hardErrorLower.includes("child") ||
+      hardErrorLower.includes("select an active child"));
+
   const startLoadingTimer = useCallback(
     (category: LoadingCategory) => {
       if (loadingTimerRef.current) {
@@ -946,7 +964,7 @@ export default function Home() {
       conversation_id: String(activeConversationId),
       message_ids: assistantMessageIds.join(","),
     });
-    fetch(`${API_BASE_URL}/api/v1/feedback?${params.toString()}`, {
+    fetch(`${API_BASE_URL}/api/v1/messages/feedback?${params.toString()}`, {
       signal: controller.signal,
     })
       .then((res) => {
@@ -960,7 +978,7 @@ export default function Home() {
             if (!item?.message_id) return;
             next[String(item.message_id)] = {
               rating: item.rating ?? null,
-              comment: item.comment ?? "",
+              comment: item.feedback_text ?? "",
             };
           });
           return next;
@@ -1287,6 +1305,13 @@ export default function Home() {
     },
     [activeChildId],
   );
+
+  const openSignupPanel = useCallback(() => {
+    setActivePanel("settings");
+    setNavOpen(false);
+    setShowCaregiverForm(true);
+    setShowChildForm(true);
+  }, []);
 
   const handleNewChat = useCallback(async () => {
     const childId =
@@ -2495,6 +2520,24 @@ export default function Home() {
                 >
                   Edit message
                 </Button>
+                {showNewChatButton ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setHardErrorMessage(null);
+                      setConversationState("idle");
+                      void handleNewChat();
+                    }}
+                  >
+                    New chat
+                  </Button>
+                ) : null}
+                {showSignupButton ? (
+                  <Button size="sm" variant="outline" onClick={openSignupPanel}>
+                    Sign up
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -3679,19 +3722,45 @@ export default function Home() {
         </>
       ) : null}
 
-            {settingsSuccess ? (
-              <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-                <div className="pointer-events-auto rounded-md border border-emerald-500/40 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-50 shadow-lg">
-                  {settingsSuccess}
-                </div>
-              </div>
+      {showSignupPrompt && activePanel !== "settings" ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
+            <div className="space-y-1">
+              <p className="text-base font-semibold">
+                Finish setup to personalize HAVI
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Add caregiver + child details to unlock tailored guidance and
+                reminders.
+              </p>
+            </div>
+            {missingProfileFields.length ? (
+              <p className="text-xs text-muted-foreground">
+                Missing: {missingProfileFields.join(", ")}
+              </p>
             ) : null}
-            {knowledgeToast ? (
-              <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-                <div className="pointer-events-auto rounded-md border border-primary/40 bg-primary/15 px-4 py-2 text-sm text-primary shadow-lg">
-                  {knowledgeToast}
-                </div>
-              </div>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" onClick={openSignupPanel}>
+                Finish setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {settingsSuccess ? (
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+          <div className="pointer-events-auto rounded-md border border-emerald-500/40 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-50 shadow-lg">
+            {settingsSuccess}
+          </div>
+        </div>
+      ) : null}
+      {knowledgeToast ? (
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+          <div className="pointer-events-auto rounded-md border border-primary/40 bg-primary/15 px-4 py-2 text-sm text-primary shadow-lg">
+            {knowledgeToast}
+          </div>
+        </div>
       ) : null}
       {inviteOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -3889,6 +3958,12 @@ function EditableField({
   );
 }
 
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 function MessageBubble({
   entry,
   onToggleTimestamp,
@@ -4035,10 +4110,13 @@ function MessageBubble({
     isSelf
       ? "bg-primary text-primary-foreground"
       : isAssistant
-        ? "bg-muted/40 text-muted-foreground pb-9"
+        ? "bg-muted/40 text-muted-foreground"
         : "bg-background/80 text-foreground border border-border/40",
     isHighlighted && "ring-2 ring-primary/40",
   );
+
+  const actionButtonBase =
+    "inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
@@ -4053,6 +4131,20 @@ function MessageBubble({
         </span>
       ) : null}
     </div>
+  );
+
+  const copyAction = (
+    <>
+      <button
+        type="button"
+        className={actionButtonBase}
+        onClick={() => onCopy(entry.text, entry.id)}
+        aria-label="Copy message"
+        title="Copy"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </>
   );
 
   if (isSelf) {
@@ -4119,39 +4211,24 @@ function MessageBubble({
               ) : null}
             </div>
           ) : null}
-          {isAssistant ? (
-            <MessageFeedback
-              conversationId={conversationId}
-              messageId={entry.messageId}
-              apiBaseUrl={API_BASE_URL}
-              initialRating={feedback?.rating ?? null}
-              initialComment={feedback?.comment ?? ""}
-            />
-          ) : null}
         </div>
         {isAssistant ? (
-          <div
-            className={cn(
-              "min-h-[28px] pt-2",
-              "flex items-center gap-2",
-              "supports-[hover:hover]:opacity-0 supports-[hover:hover]:pointer-events-none",
-              "group-hover:supports-[hover:hover]:opacity-100 group-hover:supports-[hover:hover]:pointer-events-auto",
-              "transition-opacity duration-150",
-            )}
-          >
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-              onClick={() => onCopy(entry.text, entry.id)}
-              aria-label="Copy message"
-              title="Copy"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-            {copiedMessageId === entry.id ? (
-              <span className="text-[11px] text-muted-foreground">Copied</span>
-            ) : null}
-          </div>
+          <MessageFeedback
+            conversationId={conversationId}
+            messageId={entry.messageId}
+            apiBaseUrl={API_BASE_URL}
+            initialRating={feedback?.rating ?? null}
+            initialComment={feedback?.comment ?? ""}
+            layout="stacked"
+            beforeButtons={copyAction}
+            afterButtons={
+              copiedMessageId === entry.id ? (
+                <span className="text-[11px] text-muted-foreground">Copied</span>
+              ) : null
+            }
+            buttonClassName={actionButtonBase}
+            actionRowClassName="min-h-[28px] pt-2"
+          />
         ) : null}
       </div>
     </div>
