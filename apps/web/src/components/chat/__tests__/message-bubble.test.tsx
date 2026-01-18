@@ -7,7 +7,7 @@ import type { ChatEntry } from "../types";
 describe("MessageBubble width and spacing", () => {
   const noop = () => {};
 
-  it("applies max width classes for user and assistant roles", () => {
+  it("applies max width styles for user and assistant roles", () => {
     const userEntry: ChatEntry = {
       id: "user-1",
       role: "user",
@@ -34,8 +34,8 @@ describe("MessageBubble width and spacing", () => {
       />,
     );
 
-    expect(screen.getByTestId("message-bubble").className).toContain(
-      "max-w-user",
+    expect(screen.getByTestId("message-bubble").style.maxWidth).toBe(
+      "min(520px, 82%)",
     );
 
     rerender(
@@ -49,9 +49,9 @@ describe("MessageBubble width and spacing", () => {
       />,
     );
 
-    expect(
-      screen.getByTestId("message-bubble-wrapper").className,
-    ).toContain("max-w-assistant");
+    expect(screen.getByTestId("message-bubble-wrapper").style.maxWidth).toBe(
+      "min(520px, 82%)",
+    );
   });
 
   it("renders long assistant messages without truncation", () => {

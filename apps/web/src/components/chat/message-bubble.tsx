@@ -3,11 +3,15 @@ import { Copy } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
 import { cn } from "@/lib/utils";
 
 import type { ChatEntry } from "./types";
 
 export const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 function formatTimestamp(value: string): string {
   const date = new Date(value);
@@ -24,6 +28,20 @@ function getInitials(name: string): string {
     .join("");
 }
 
+type MessageBubbleProps = {
+  entry: ChatEntry;
+  onToggleTimestamp: (id: string) => void;
+  isPinned: boolean;
+  onCopy: (text: string, id: string) => void;
+  copiedMessageId: string | null;
+  highlightedMessageId: string | null;
+  feedbackByMessageId?: Record<
+    string,
+    { rating: FeedbackRating; comment: string }
+  >;
+  conversationId?: number | null;
+};
+
 export function MessageBubble({
   entry,
   onToggleTimestamp,
@@ -31,14 +49,9 @@ export function MessageBubble({
   onCopy,
   copiedMessageId,
   highlightedMessageId,
-}: {
-  entry: ChatEntry;
-  onToggleTimestamp: (id: string) => void;
-  isPinned: boolean;
-  onCopy: (text: string, id: string) => void;
-  copiedMessageId: string | null;
-  highlightedMessageId: string | null;
-}) {
+  feedbackByMessageId,
+  conversationId,
+}: MessageBubbleProps) {
   const createdAt = entry.createdAt ?? new Date().toISOString();
   const senderType =
     entry.senderType ?? (entry.role === "havi" ? "assistant" : "self");
@@ -46,9 +59,11 @@ export function MessageBubble({
   const isAssistant = senderType === "assistant";
   const isCaregiver = senderType === "caregiver";
   const showTimestamp = isPinned;
+  const bubbleMaxWidth = { maxWidth: "min(520px, 82%)" };
   const isHighlighted =
     entry.messageId && entry.messageId === highlightedMessageId;
-  const widthClass = isSelf ? "max-w-user" : "max-w-assistant";
+  const feedbackLookup = feedbackByMessageId ?? {};
+  const feedback = entry.messageId ? feedbackLookup[entry.messageId] : undefined;
 
   const markdownComponents: Components = {
     p: ({ node: _node, className, ...props }) => (
@@ -168,6 +183,9 @@ export function MessageBubble({
     isHighlighted && "ring-2 ring-primary/40",
   );
 
+  const actionButtonBase =
+    "inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
       {isAssistant ? (
@@ -175,11 +193,26 @@ export function MessageBubble({
           HAVI
         </span>
       ) : isCaregiver ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
+          full bg-primary/10 text-[11px] font-semibold text-primary">
           {getInitials(entry.senderName ?? "Caregiver")}
         </span>
       ) : null}
     </div>
+  );
+
+  const copyAction = (
+    <>
+      <button
+        type="button"
+        className={actionButtonBase}
+        onClick={() => onCopy(entry.text, entry.id)}
+        aria-label="Copy message"
+        title="Copy"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </>
   );
 
   if (isSelf) {
@@ -188,7 +221,8 @@ export function MessageBubble({
         <div
           data-message-id={entry.messageId ?? undefined}
           data-testid="message-bubble"
-          className={cn(bubbleClasses, widthClass)}
+          className={bubbleClasses}
+          style={bubbleMaxWidth}
         >
           <p className={cn("whitespace-pre-wrap pr-10", CHAT_BODY_TEXT)}>
             {entry.text}
@@ -213,7 +247,8 @@ export function MessageBubble({
     <div className="flex w-full items-start gap-2">
       {gutter}
       <div
-        className={cn("flex flex-col w-full", widthClass)}
+        className="flex flex-col"
+        style={bubbleMaxWidth}
         data-testid="message-bubble-wrapper"
       >
         <div
@@ -252,28 +287,22 @@ export function MessageBubble({
           ) : null}
         </div>
         {isAssistant ? (
-          <div
-            className={cn(
-              "min-h-[28px] pt-2",
-              "flex items-center gap-2",
-              "supports-[hover:hover]:opacity-0 supports-[hover:hover]:pointer-events-none",
-              "group-hover:supports-[hover:hover]:opacity-100 group-hover:supports-[hover:hover]:pointer-events-auto",
-              "transition-opacity duration-150",
-            )}
-          >
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-              onClick={() => onCopy(entry.text, entry.id)}
-              aria-label="Copy message"
-              title="Copy"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-            {copiedMessageId === entry.id ? (
-              <span className="text-[11px] text-muted-foreground">Copied</span>
-            ) : null}
-          </div>
+          <MessageFeedback
+            conversationId={conversationId ?? null}
+            messageId={entry.messageId}
+            apiBaseUrl={API_BASE_URL}
+            initialRating={feedback?.rating ?? null}
+            initialComment={feedback?.comment ?? ""}
+            layout="stacked"
+            beforeButtons={copyAction}
+            afterButtons={
+              copiedMessageId === entry.id ? (
+                <span className="text-[11px] text-muted-foreground">Copied</span>
+              ) : null
+            }
+            buttonClassName={actionButtonBase}
+            actionRowClassName="min-h-[28px] pt-2"
+          />
         ) : null}
       </div>
     </div>
