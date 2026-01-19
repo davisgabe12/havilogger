@@ -15,7 +15,7 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 ## Design Tokens
 
 - Core HAVI tokens (CSS): `apps/web/src/styles/havi-tokens.css`
-  - Core colors: `--havi-bg`, `--havi-fg`, `--havi-moss`, surfaces 1–3.
+  - Core colors: `--havi-bg`, `--havi-fg`, `--havi-fg-fog`, `--havi-fg-oat`, `--havi-moss`, surfaces 1–3.
   - Text: `--havi-text`, `--havi-text-muted`, `--havi-text-disabled`.
   - Borders: `--havi-border`, `--havi-border-strong`.
   - Actions:
@@ -87,9 +87,10 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 - Shows:
   - HAVI wordmark.
   - Swatches for `background`, `card`, `muted`, `border`, `primary`, `secondary`, `destructive`, `ring`.
+  - Oat/fog neutral swatch for softened foreground reference.
   - Real components using existing classes:
     - `Button` (primary / secondary / ghost, with live hover/active).
-    - Input + focus ring via `.havi-input` (maps to `border-input`, `ring-ring`).
+    - `Input` + `InputMessage` states (default, warning, error) using `havi-input` base styling.
     - Card with primary + muted text.
     - Tooltip-style block using `bg-popover`, `text-popover-foreground`.
     - Chips using `bg-muted`, `bg-secondary`.
@@ -113,6 +114,7 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 
 - Canonical text input + textarea style:
   - Class: `havi-input` (defined in `apps/web/src/app/globals.css`).
+  - Component wrapper: `Input` + `InputMessage` in `apps/web/src/components/ui/input.tsx` for status states.
   - Applies to:
     - Chat composer textarea (`Textarea` component in `components/ui/textarea.tsx`).
     - Settings form fields (`EditableField` in `app/page.tsx`).
