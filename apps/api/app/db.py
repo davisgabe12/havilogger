@@ -418,7 +418,7 @@ def ensure_default_profiles() -> None:
                     "Baby",
                     "Baby",
                     "",
-                    "",
+                    "2024-05-01",
                     "",
                     "",
                     "UTC",

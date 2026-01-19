@@ -48,6 +48,29 @@ type Action = {
   custom_action_label?: string | null;
 };
 
+type HomeEvent = {
+  id: string;
+  type: "sleep" | "bottle" | "diaper" | "activity" | "growth";
+  title: string;
+  detail?: string;
+  amountLabel?: string;
+  start: string;
+  end?: string;
+  originMessageId?: string;
+};
+
+type HomeApiEvent = {
+  id: string;
+  child_id: string;
+  type: string;
+  title: string;
+  detail?: string;
+  amount_label?: string;
+  start: string;
+  end?: string;
+  origin_message_id?: string | number;
+};
+
 type ConversationSession = {
   id: number;
   title: string;
@@ -355,6 +378,7 @@ const API_BASE_URL =
 const DEMO_CHILD_NAME = process.env.NEXT_PUBLIC_CHILD_NAME ?? "baby";
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
 const FIRST_CHAT_SEEN_KEY = "havi_first_chat_seen";
+const HOME_EXPECTATION_WEEK_KEY = "havi_home_expected_week";
 
 const newId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -583,7 +607,7 @@ export default function Home() {
     [statusFilteredTasks, tasksAssigneeFilter, currentUserId],
   );
   const [childDob, setChildDob] = useState("05-01-2024");
-  const [childDueDate, setChildDueDate] = useState("05-07-2024");
+  const [childDueDate, setChildDueDate] = useState("");
   const [childGender, setChildGender] = useState("");
   const [childBirthWeight, setChildBirthWeight] = useState("");
   const [childBirthWeightUnit, setChildBirthWeightUnit] = useState("oz");
@@ -597,7 +621,7 @@ export default function Home() {
   const settingsSuccessTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chipTemplates, setChipTemplates] = useState<ChipTemplate[]>(
-    chipLibrary.slice(0, 4),
+    chipLibrary.slice(0, 6),
   );
   const [profilePromptCount, setProfilePromptCount] = useState(0);
   const [routineEligible, setRoutineEligible] = useState(false);
@@ -612,6 +636,10 @@ export default function Home() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Parent");
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [recentEvents, setRecentEvents] = useState<HomeEvent[]>([]);
+  const [recentEventsLoading, setRecentEventsLoading] = useState(false);
+  const [recentEventsError, setRecentEventsError] = useState<string | null>(null);
+  const [showComingUp, setShowComingUp] = useState(false);
 
   const agentCards = useMemo(
     () => [
@@ -871,13 +899,14 @@ export default function Home() {
 
   const computeMissingExpectationFields = useCallback(() => {
     const missing: string[] = [];
-    if (!childDob) missing.push("date of birth");
+    if (!childDob && !childDueDate) {
+      missing.push("date of birth or due date");
+    }
     if (!childGender) missing.push("gender");
     if (!childBirthWeight) missing.push("birth weight");
     if (!childLatestWeight || !childLatestWeightDate) {
       missing.push("latest weight + date");
     }
-    if (!childDueDate) missing.push("due date");
     return missing;
   }, [
     childBirthWeight,
@@ -903,6 +932,37 @@ export default function Home() {
       hardErrorLower.includes("settings") ||
       hardErrorLower.includes("child") ||
       hardErrorLower.includes("select an active child"));
+  const homeChildName = childFirstName?.trim() || DEMO_CHILD_NAME;
+  const homeGreeting = buildTimeGreeting();
+  const homeAgeLabel = formatHomeAgeLabel(childDob, childDueDate);
+  const comingUpWeek =
+    computeWeekFromDob(childDob) ?? computeWeekFromDob(childDueDate);
+  const recentWindowEvents = useMemo(
+    () => filterEventsByWindow(recentEvents, 72),
+    [recentEvents],
+  );
+  const recentLastEvent = recentWindowEvents[0] ?? null;
+  const recentTypeCount = useMemo(
+    () => new Set(recentWindowEvents.map((event) => event.type)).size,
+    [recentWindowEvents],
+  );
+  const showLastTile = recentWindowEvents.length > 0;
+  const showChapterTile =
+    showLastTile && (recentWindowEvents.length >= 5 || recentTypeCount >= 2);
+  const chapterSummary = showChapterTile
+    ? buildChapterSummary(recentWindowEvents)
+    : "";
+  const lastSummary = recentLastEvent ? buildLastSummary(recentLastEvent) : "";
+  const chapterSeed = showChapterTile
+    ? buildChapterSeedMessage(recentWindowEvents, homeChildName)
+    : "";
+  const lastSeed = recentLastEvent
+    ? buildLastSeedMessage(recentLastEvent, homeChildName)
+    : "";
+  const comingUpSeed =
+    comingUpWeek && showComingUp
+      ? buildComingUpSeedMessage(comingUpWeek, homeChildName)
+      : "";
 
   const startLoadingTimer = useCallback(
     (category: LoadingCategory) => {
@@ -934,6 +994,22 @@ export default function Home() {
   useEffect(() => {
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const weekNumber =
+      computeWeekFromDob(childDob) ?? computeWeekFromDob(childDueDate);
+    if (!weekNumber) {
+      setShowComingUp(false);
+      return;
+    }
+    const stored = window.localStorage.getItem(HOME_EXPECTATION_WEEK_KEY);
+    if (stored !== String(weekNumber)) {
+      setShowComingUp(true);
+    } else {
+      setShowComingUp(false);
+    }
+  }, [childDob, childDueDate, hydrated]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -1122,8 +1198,9 @@ export default function Home() {
       if (chip.requiresRoutine && !routineEligible) return false;
       return true;
     });
-    const selection = filtered.length ? filtered.slice(0, 5) : chipLibrary.slice(
-          0, 5);
+    const selection = filtered.length
+      ? filtered.slice(0, 6)
+      : chipLibrary.slice(0, 6);
     setChipTemplates(selection);
   }, [
     chatEntries,
@@ -1323,6 +1400,7 @@ export default function Home() {
     try {
       const conversation = await createConversation(childId);
       updateConversationParam(conversation.id);
+      activeConversationIdRef.current = conversation.id;
       setActiveConversationId(conversation.id);
       setChatTitle(conversation.title);
       setChatEntries([]);
@@ -1534,6 +1612,49 @@ export default function Home() {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const loadRecentEvents = useCallback(async () => {
+    const resolvedChildId = [activeChildId, primaryChildId]
+      .map((val) => (val && !Number.isNaN(Number(val)) ? Number(val) : null))
+      .find((val) => val !== null);
+    if (!resolvedChildId) {
+      setRecentEvents([]);
+      setRecentEventsError(null);
+      setRecentEventsLoading(false);
+      return;
+    }
+    setRecentEventsLoading(true);
+    setRecentEventsError(null);
+    try {
+      const now = new Date();
+      const start = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+      const params = new URLSearchParams({
+        start: start.toISOString(),
+        end: now.toISOString(),
+        child_id: String(resolvedChildId),
+      });
+      const res = await fetch(`${API_BASE_URL}/events?${params}`);
+      if (!res.ok) {
+        throw new Error("Unable to load recent activity");
+      }
+      const data: HomeApiEvent[] = await res.json();
+      const mapped = data
+        .map(mapHomeEvent)
+        .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+      setRecentEvents(mapped);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      setRecentEventsError(reason);
+      setRecentEvents([]);
+    } finally {
+      setRecentEventsLoading(false);
+    }
+  }, [activeChildId, primaryChildId]);
+
+  useEffect(() => {
+    if (activePanel !== "home") return;
+    loadRecentEvents();
+  }, [activePanel, loadRecentEvents, timelineRefreshKey]);
 
   useEffect(() => {
     const caregiverChanged =
@@ -2110,7 +2231,7 @@ export default function Home() {
             id: newId(),
             role: "havi",
             text:
-              "To personalize expectations, I’ll need date of birth, gender, birth weight, latest weight + date, and due date. Share them here or add everything in Settings.",
+              "To personalize expectations, I’ll need date of birth or due date, gender, birth weight, and latest weight + date. Share them here or add everything in Settings.",
             createdAt: new Date().toISOString(),
           });
           return;
@@ -2157,6 +2278,59 @@ export default function Home() {
       setAutoScrollEnabled,
     ],
   );
+
+  const handleHomeChip = useCallback(
+    async (chip: ChipTemplate) => {
+      if (!activeConversationIdRef.current) {
+        await handleNewChat();
+      }
+      setActivePanel("havi");
+      setNavOpen(false);
+      handleChip(chip);
+    },
+    [handleChip, handleNewChat],
+  );
+
+  const startSeededConversation = useCallback(
+    async (seedText: string) => {
+      const childId =
+        activeChildId && !Number.isNaN(Number(activeChildId))
+          ? activeChildId
+          : primaryChildId;
+      if (!childId || Number.isNaN(Number(childId))) {
+        setHistoryError("Select a child to start a new chat.");
+        return;
+      }
+      try {
+        const conversation = await createConversation(childId);
+        updateConversationParam(conversation.id);
+        activeConversationIdRef.current = conversation.id;
+        setActiveConversationId(conversation.id);
+        setChatTitle(conversation.title);
+        setChatEntries([]);
+        setMessage("");
+        setActivePanel("havi");
+        setNavOpen(false);
+        await sendMessage(seedText);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Unable to start a new chat.";
+        setHistoryError(reason);
+      }
+    },
+    [
+      activeChildId,
+      primaryChildId,
+      createConversation,
+      sendMessage,
+      updateConversationParam,
+    ],
+  );
+
+  const handleAskQuestion = useCallback(() => {
+    setActivePanel("havi");
+    setNavOpen(false);
+    setTimeout(() => composerRef.current?.focus(), 0);
+  }, []);
 
   const handleOpenTimelineMessage = useCallback((messageId: string) => {
     setActivePanel("havi");
@@ -2225,6 +2399,14 @@ export default function Home() {
     }
     if (!validateDate(childDueDate)) {
       nextFieldErrors.childDueDate = "Enter a valid date in MM-DD-YYYY format.";
+    }
+    const hasDob = Boolean(childDob?.trim());
+    const hasDueDate = Boolean(childDueDate?.trim());
+    if (hasDob === hasDueDate) {
+      nextFieldErrors.childDob =
+        "Add a date of birth or clear the due date.";
+      nextFieldErrors.childDueDate =
+        "Add a due date or clear the date of birth.";
     }
     if (!validateDate(childLatestWeightDate)) {
       nextFieldErrors.childLatestWeightDate =
@@ -2545,11 +2727,160 @@ export default function Home() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Home</CardTitle>
             <CardDescription className="text-muted-foreground">
-              A quick snapshot to start your day.
+              A calm, structured snapshot.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Hi, Home!</p>
+            <div className="space-y-6">
+              <section data-testid="home-zone-status" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Status
+                </p>
+                <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">{homeGreeting}</p>
+                  <p className="text-lg font-semibold">
+                    {homeChildName} · {homeAgeLabel}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Here’s a calm snapshot based on what you’ve logged.
+                  </p>
+                </div>
+              </section>
+
+              <section data-testid="home-zone-recent" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Recent
+                  </p>
+                  {recentEventsLoading ? (
+                    <span className="text-xs text-muted-foreground">
+                      Updating…
+                    </span>
+                  ) : null}
+                </div>
+                {recentEventsError ? (
+                  <p className="text-sm text-muted-foreground">
+                    Recent activity is unavailable right now.
+                  </p>
+                ) : null}
+                {!recentEventsLoading && !showLastTile ? (
+                  <div className="rounded-md border border-dashed border-border/40 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      You’re up to date. Log something to see it here.
+                    </p>
+                  </div>
+                ) : null}
+                {showChapterTile ? (
+                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold">Last chapter</p>
+                        <p className="text-sm text-muted-foreground">
+                          {chapterSummary}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          startSeededConversation(chapterSeed)
+                        }
+                      >
+                        View details →
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {showLastTile ? (
+                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold">Last</p>
+                        <p className="text-sm text-muted-foreground">
+                          {lastSummary}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => startSeededConversation(lastSeed)}
+                      >
+                        View details →
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section data-testid="home-zone-coming-up" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Coming up
+                </p>
+                {showComingUp && comingUpWeek ? (
+                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        What to expect
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Week {comingUpWeek} guidance for {homeChildName}.
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (comingUpSeed) {
+                          startSeededConversation(comingUpSeed);
+                          window.localStorage.setItem(
+                            HOME_EXPECTATION_WEEK_KEY,
+                            String(comingUpWeek),
+                          );
+                          setShowComingUp(false);
+                        }
+                      }}
+                    >
+                      View what to expect →
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-border/40 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      We’ll surface what’s next when a new age window starts.
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              <section data-testid="home-zone-utilities" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Utilities
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={handleAskQuestion}>
+                    Ask a question
+                  </Button>
+                </div>
+              </section>
+
+              <section data-testid="home-zone-chips" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Quick chips
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {chipTemplates.slice(0, 6).map((chip) => (
+                    <Button
+                      key={chip.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleHomeChip(chip)}
+                    >
+                      {renderChipLabel(chip)}
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -3630,19 +3961,6 @@ export default function Home() {
           </Card>
 
           <div className="mt-4 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {/* TODO: Compare-day chips removed until proper implementation returns results reliably. */}
-              {chipTemplates.map((chip) => (
-                <Button
-                  key={chip.id}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleChip(chip)}
-                >
-                  {renderChipLabel(chip)}
-                </Button>
-              ))}
-            </div>
             <div className="flex flex-col gap-2">
               <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
                 <div className="flex-1 min-w-0">
@@ -3932,6 +4250,167 @@ function formatDueDateLabel(value: string): string {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function mapHomeEvent(event: HomeApiEvent): HomeEvent {
+  const type = event.type as HomeEvent["type"];
+  return {
+    id: event.id,
+    type: ["sleep", "bottle", "diaper", "activity", "growth"].includes(type)
+      ? type
+      : "activity",
+    title: event.title,
+    detail: event.detail ?? undefined,
+    amountLabel: event.amount_label ?? undefined,
+    start: event.start,
+    end: event.end ?? undefined,
+    originMessageId: event.origin_message_id
+      ? String(event.origin_message_id)
+      : undefined,
+  };
+}
+
+function buildTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function formatHomeAgeLabel(dob: string, dueDate: string): string {
+  const birth = parseDateToDate(dob);
+  const due = parseDateToDate(dueDate);
+  const anchor = birth ?? due;
+  if (!anchor) return "Age not set";
+  const now = new Date();
+  const diffDays = Math.floor(
+    (now.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (!birth && diffDays < 0) {
+    const weeks = Math.max(1, Math.ceil(Math.abs(diffDays) / 7));
+    return `Due in ${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+  }
+  const weeks = Math.max(1, Math.floor(Math.abs(diffDays) / 7));
+  return `${weeks} ${weeks === 1 ? "week" : "weeks"} old`;
+}
+
+function filterEventsByWindow(events: HomeEvent[], hours: number): HomeEvent[] {
+  const now = Date.now();
+  const windowMs = hours * 60 * 60 * 1000;
+  return events.filter((event) => {
+    const time = new Date(event.start).getTime();
+    return Number.isNaN(time) ? false : now - time <= windowMs;
+  });
+}
+
+function formatEventTypeLabel(type: HomeEvent["type"]): string {
+  switch (type) {
+    case "sleep":
+      return "Sleep";
+    case "bottle":
+      return "Feeds";
+    case "diaper":
+      return "Diapers";
+    case "growth":
+      return "Growth";
+    case "activity":
+    default:
+      return "Activities";
+  }
+}
+
+function formatEventWindow(events: HomeEvent[]): string {
+  if (!events.length) return "";
+  const times = events
+    .map((event) => new Date(event.start))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (!times.length) return "";
+  const start = times[0];
+  const end = times[times.length - 1];
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  if (start.toDateString() === end.toDateString()) {
+    return formatter.format(start);
+  }
+  return `${formatter.format(start)}–${formatter.format(end)}`;
+}
+
+function countEventTypes(events: HomeEvent[]): Record<HomeEvent["type"], number> {
+  return events.reduce(
+    (acc, event) => {
+      acc[event.type] += 1;
+      return acc;
+    },
+    { sleep: 0, bottle: 0, diaper: 0, activity: 0, growth: 0 },
+  );
+}
+
+function buildChapterSummary(events: HomeEvent[]): string {
+  if (!events.length) return "";
+  const uniqueDays = new Set(
+    events
+      .map((event) => new Date(event.start))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .map((date) => date.toDateString()),
+  );
+  const typeCounts = countEventTypes(events);
+  const activeTypes = (Object.keys(typeCounts) as HomeEvent["type"][]).filter(
+    (type) => typeCounts[type] > 0,
+  );
+  const typeLabels = activeTypes.map(formatEventTypeLabel);
+  const typeSummary = typeLabels.length
+    ? `${typeLabels.slice(0, 3).join(" + ")}`
+    : `${events.length} events`;
+  const dayCount = uniqueDays.size || 1;
+  return `${typeSummary} logged over ${dayCount} ${dayCount === 1 ? "day" : "days"}`;
+}
+
+function buildLastSummary(event: HomeEvent): string {
+  const detail = event.amountLabel || event.detail;
+  return `Most recent: ${event.title}${detail ? ` ${detail}` : ""}`;
+}
+
+function buildChapterSeedMessage(events: HomeEvent[], childName: string): string {
+  const windowLabel = formatEventWindow(events);
+  const typeCounts = countEventTypes(events);
+  const typeLines = (Object.keys(typeCounts) as HomeEvent["type"][])
+    .filter((type) => typeCounts[type] > 0)
+    .map((type) => `${formatEventTypeLabel(type)}: ${typeCounts[type]}`);
+  return [
+    `Recent summary (Last chapter) for ${childName}:`,
+    windowLabel ? `- Window: ${windowLabel}` : null,
+    typeLines.length ? `- Events: ${typeLines.join(", ")}` : null,
+    "- Based on what you logged.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildLastSeedMessage(event: HomeEvent, childName: string): string {
+  const timeLabel = new Date(event.start).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const detail = event.amountLabel || event.detail;
+  return [
+    `Recent summary (Last) for ${childName}:`,
+    `- Event: ${event.title}${detail ? ` (${detail})` : ""}`,
+    `- Time: ${timeLabel}`,
+    "- Based on what you logged.",
+  ].join("\n");
+}
+
+function buildComingUpSeedMessage(week: number, childName: string): string {
+  return [
+    `What to expect next for ${childName}:`,
+    `- Age window: Week ${week}`,
+    "- Based on what you logged.",
+  ].join("\n");
+}
+
 function EditableField({
   label,
   value,
@@ -3959,18 +4438,32 @@ function EditableField({
 function formatAdjustedAge(dob: string, dueDate: string): string {
   const birth = parseDateToDate(dob);
   const due = parseDateToDate(dueDate);
-  if (!birth || !due) {
+  if (birth && due) {
+    const now = new Date();
+    const diffMs = now.getTime() - birth.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const years = Math.floor(diffDays / 365);
+    const days = diffDays % 365;
+    const adjustedDiffDays = Math.floor(
+      (now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    return `${years}y ${days}d (adjusted ${Math.max(adjustedDiffDays, 0)}d)`;
+  }
+  const anchor = birth ?? due;
+  if (!anchor) {
     return "—";
   }
   const now = new Date();
-  const diffMs = now.getTime() - birth.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const years = Math.floor(diffDays / 365);
-  const days = diffDays % 365;
-  const adjustedDiffDays = Math.floor(
-    (now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24),
+  const diffDays = Math.floor(
+    (now.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24),
   );
-  return `${years}y ${days}d (adjusted ${Math.max(adjustedDiffDays, 0)}d)`;
+  if (diffDays < 0) {
+    const weeks = Math.max(1, Math.ceil(Math.abs(diffDays) / 7));
+    return `Due in ${weeks}w`;
+  }
+  const weeks = Math.max(1, Math.floor(diffDays / 7));
+  const days = diffDays % 7;
+  return `${weeks}w ${days}d`;
 }
 
 function computeWeekFromDob(dateStr: string): number | null {
