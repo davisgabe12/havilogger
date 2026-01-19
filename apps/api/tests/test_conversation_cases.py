@@ -17,7 +17,7 @@ DEFAULT_PROFILE = {
     "first_name": "Lev",
     "last_name": "Davis",
     "birth_date": "2024-05-01",
-    "due_date": "2024-05-07",
+    "due_date": "",
     "gender": "boy",
     "birth_weight": 7.5,
     "birth_weight_unit": "lb",
@@ -234,10 +234,10 @@ SCENARIOS = [
         "advice_required": True,
     },
     {
-        "name": "milestones_missing_profile",
+        "name": "milestones_with_due_date_only",
         "profile": {
             "birth_date": "",
-            "due_date": "",
+            "due_date": "2024-05-07",
             "gender": "",
             "birth_weight": None,
             "latest_weight": None,
@@ -246,7 +246,8 @@ SCENARIOS = [
         },
         "messages": [{"text": "What milestones should I expect today?", "timezone": "America/Los_Angeles"}],
         "actions": scenario_actions([[]]),
-        "expect": ["date of birth", "due date"],
+        "expect": ["cdc", "aap", "four f"],
+        "advice_required": True,
     },
     {
         "name": "symptom_guidance",
