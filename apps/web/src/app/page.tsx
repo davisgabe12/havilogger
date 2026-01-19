@@ -3,9 +3,10 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Menu, Mic, Share, Square } from "lucide-react";
+import { ArrowUpRight, Menu } from "lucide-react";
 
 import { TimelinePanel } from "@/components/timeline/timeline-panel";
+import { DictateButton, ShareButton } from "@/components/ui/action-buttons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -3539,9 +3540,7 @@ export default function Home() {
                 ) : null}
               </div>
               <div className="relative">
-                <Button
-                  size="icon"
-                  variant="outline"
+                <ShareButton
                   disabled={!shareEnabled}
                   title={
                     shareEnabled
@@ -3550,9 +3549,7 @@ export default function Home() {
                   }
                   onClick={() => void handleShareConversation()}
                   aria-label="Share conversation"
-                >
-                  <Share className="h-4 w-4" />
-                </Button>
+                />
                 {shareMessage ? (
                   <span className="absolute left-1/2 top-full z-10 -translate-x-1/2 mt-1 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
                     Copied
@@ -3674,13 +3671,8 @@ export default function Home() {
                     />
                   )}
                 </div>
-                <Button
-                  type="button"
-                  aria-label={
-                    voiceState === "recording" ? "Stop recording" : "Record voice"
-                  }
-                  variant="outline"
-                  size="icon"
+                <DictateButton
+                  isRecording={voiceState === "recording"}
                   onClick={() =>
                     voiceState === "recording" ? stopVoice() : startVoice()
                   }
@@ -3691,13 +3683,7 @@ export default function Home() {
                       ? "bg-red-500/10 text-red-500"
                       : "bg-background",
                   )}
-                >
-                  {voiceState === "recording" ? (
-                    <Square className="h-4 w-4" />
-                  ) : (
-                    <Mic className="h-4 w-4" />
-                  )}
-                </Button>
+                />
                 <Button
                   type="button"
                   aria-label="Send message"

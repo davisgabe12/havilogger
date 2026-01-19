@@ -8,7 +8,9 @@ Nest mark supports the name; icon-only is used for app icon/favicons.
 
 ## Core colors (Night Forest)
 - Background: #0C2B26
-- Foreground: #F4F2ED
+- Foreground (base): #EFE9E0
+- Foreground (fog): #F3F0EA
+- Foreground (oat): #E7DDCF
 - Support: #9EA993
 
 Principle: calm, restrained, near-monochrome. Accent is earned.
