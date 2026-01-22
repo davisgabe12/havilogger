@@ -22,7 +22,7 @@ const stepContent = {
   },
   2: {
     title: "Family details",
-    description: "Share a little about your family and add a child profile.",
+    description: "Add your partner and the people who matter most.",
   },
   3: {
     title: "Care team",
@@ -138,6 +138,14 @@ export default function SignupPage() {
                   Timezone
                   <input className="havi-input" placeholder="Pacific Time (US)" />
                 </label>
+                <label className="space-y-2 text-sm font-medium text-foreground">
+                  Partner name
+                  <input className="havi-input" placeholder="Jordan Johnson" />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-foreground">
+                  Partner email (optional)
+                  <input className="havi-input" placeholder="jordan@family.com" />
+                </label>
               </div>
 
               <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
@@ -147,7 +155,7 @@ export default function SignupPage() {
                       Add a child profile
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      You can skip this for now and add children later.
+                      You can add a child now and invite your partner next.
                     </p>
                   </div>
                   <label className="inline-flex items-center gap-2 text-sm font-medium">
