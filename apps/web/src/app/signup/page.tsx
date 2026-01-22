@@ -25,8 +25,8 @@ const stepContent = {
     description: "Build the home base. It keeps every update in the right place.",
   },
   3: {
-    title: "Parent village",
-    description: "Bring in your parent village when you’re ready. It helps everyone stay aligned.",
+    title: "Child profile",
+    description: "Personalize care with the essentials about your child.",
   },
 } as const;
 
@@ -134,8 +134,8 @@ export default function SignupPage() {
                     Family details
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    This keeps profiles, logs, and reminders tied to the right
-                    household.
+                    Set up the household once. Every log and reminder stays with
+                    the right family.
                   </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -158,6 +158,11 @@ export default function SignupPage() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
               <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">
@@ -182,11 +187,7 @@ export default function SignupPage() {
                       type="text"
                     />
                   </label>
-                  <label className="space-y-2 text-sm font-medium text-foreground">
-                    Pronouns
-                    <input className="havi-input" placeholder="they / them" />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-foreground">
+                  <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
                     Notes (optional)
                     <input
                       className="havi-input"
@@ -195,15 +196,10 @@ export default function SignupPage() {
                   </label>
                 </div>
               </div>
-            </div>
-          )}
 
-          {step === 3 && (
-            <div className="space-y-4">
               <div className="rounded-lg border border-border/60 bg-muted/40 p-4 text-sm text-muted-foreground">
-                Think of this as your parent village — partners, grandparents,
-                sitters, or clinicians who help you care. Invite anyone now, or
-                keep it for later.
+                Your parent village can join later. Invite caregivers or
+                clinicians when you want everyone on the same page.
               </div>
               {careTeam.map((entry, index) => (
                 <div
