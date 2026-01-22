@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+const stepsTotal = 4;
 const SignupPage = (): JSX.Element => {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -121,6 +122,7 @@ const stepContent = {
   },
   3: {
     title: "Child profile",
+    description: "Personalize care with the essentials about your child.",
     description: "A few details so Havi can shape day-to-day care.",
   },
   4: {
@@ -147,6 +149,10 @@ function ProgressBar({ value }: { value: number }) {
 }
 
 export default function SignupPage() {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [careTeam, setCareTeam] = useState<CareTeamEntry[]>([
+    { name: "", role: "", email: "" },
+  ]);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [careTeam, setCareTeam] = useState<CareTeamEntry[]>([
     { name: "", role: "", email: "" },
@@ -223,6 +229,7 @@ export default function SignupPage() {
               </label>
               <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
                 Phone (optional)
+                <input className="havi-input" placeholder="(555) 555-5555" />
                 <input
                   className="havi-input"
                   placeholder="(555) 555-5555"
@@ -236,6 +243,34 @@ export default function SignupPage() {
 
           {step === 2 && (
             <div className="space-y-6">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Family details
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Set up the household once. Every log and reminder stays with
+                    the right family.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Family name
+                    <input className="havi-input" placeholder="Johnson family" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Timezone
+                    <input className="havi-input" placeholder="Pacific Time (US)" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Partner name
+                    <input className="havi-input" placeholder="Jordan Johnson" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Partner email
+                    <input className="havi-input" placeholder="jordan@family.com" />
+                  </label>
+                </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
                   Family name
@@ -266,6 +301,9 @@ export default function SignupPage() {
             <div className="space-y-4">
               <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
                 <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    Child profile
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Required so Havi can tailor routines, insights, and care
                     plans to your child.
@@ -274,6 +312,11 @@ export default function SignupPage() {
 
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <label className="space-y-2 text-sm font-medium text-foreground">
+                    Child name
+                    <input className="havi-input" placeholder="Avery" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Birthday
                     Child first name
                     <input className="havi-input" placeholder="Avery" />
                   </label>
@@ -313,6 +356,20 @@ export default function SignupPage() {
                       type="text"
                     />
                   </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
+                    Notes (optional)
+                    <input
+                      className="havi-input"
+                      placeholder="Allergies, routines, etc."
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-4 text-sm text-muted-foreground">
+                Your parent village can join later. Invite caregivers or
+                clinicians when you want everyone on the same page.
+              </div>
                 </div>
               </div>
 
@@ -397,6 +454,19 @@ export default function SignupPage() {
                 </div>
               ))}
 
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  Add up to five care team members. You can always edit this later.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddCareTeam}
+                  disabled={careTeam.length >= 5}
+                >
+                  Add another
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Add up to five care team members. You can always edit this later.
               </p>
@@ -406,6 +476,7 @@ export default function SignupPage() {
         <CardFooter className="flex flex-wrap justify-between gap-3">
           <Button
             variant="ghost"
+            onClick={() => setStep((prev) => (prev === 1 ? prev : (prev - 1) as 1 | 2 | 3))}
             onClick={() =>
               setStep((prev) =>
                 prev === 1 ? prev : (prev - 1) as 1 | 2 | 3 | 4
@@ -426,6 +497,7 @@ export default function SignupPage() {
                 </Button>
               </>
             ) : (
+              <Button onClick={() => setStep((prev) => (prev + 1) as 1 | 2 | 3)}>
               <Button
                 onClick={() =>
                   setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4)
@@ -438,6 +510,7 @@ export default function SignupPage() {
         </CardFooter>
       </Card>
     </div>
+  );
 import Link from "next/link";
 
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
