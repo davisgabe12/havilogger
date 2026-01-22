@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpRight, Menu, Mic, Share, Square } from "lucide-react";
@@ -21,6 +22,7 @@ import { type FeedbackRating } from "@/components/chat/message-feedback";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { MessageBubble, CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
+import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type ActionMetadata = {
@@ -76,6 +78,14 @@ type TaskItem = {
   created_by_user_id?: number | null;
   assigned_to_user_id?: number | null;
   assigned_to_name?: string | null;
+};
+
+type CareTeamMember = {
+  id: string;
+  email: string;
+  role: string;
+  status: "invited";
+  invited_at: string;
 };
 
 const filterTasksByAssignee = (
@@ -354,6 +364,9 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const DEMO_CHILD_NAME = process.env.NEXT_PUBLIC_CHILD_NAME ?? "baby";
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
+const CARE_TEAM_STORAGE_KEY = "havi_care_team_local";
+const FAMILY_SETUP_KEY = "havi_family_setup_complete";
+const CHILD_SETUP_KEY = "havi_child_setup_complete";
 const FIRST_CHAT_SEEN_KEY = "havi_first_chat_seen";
 
 const newId = () =>
@@ -611,6 +624,9 @@ export default function Home() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Parent");
+  const [careTeamMembers, setCareTeamMembers] = useState<CareTeamMember[]>([]);
+  const careTeamLoadedRef = useRef(false);
+  const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   const agentCards = useMemo(
@@ -933,6 +949,49 @@ export default function Home() {
 
   useEffect(() => {
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(CARE_TEAM_STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as CareTeamMember[];
+        if (Array.isArray(parsed)) {
+          setCareTeamMembers(parsed);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    careTeamLoadedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!careTeamLoadedRef.current) return;
+    window.localStorage.setItem(
+      CARE_TEAM_STORAGE_KEY,
+      JSON.stringify(careTeamMembers),
+    );
+  }, [careTeamMembers]);
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSupabaseSession(data.session);
+      })
+      .catch(() => {});
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseSession(session);
+    });
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -1303,6 +1362,104 @@ export default function Home() {
     },
     [activeChildId],
   );
+
+  const ensureFamilySetup = useCallback(
+    async (session: Session) => {
+      if (typeof window === "undefined") return;
+      const userId = session.user?.id;
+      if (!userId) return;
+      const familySetupDone =
+        window.localStorage.getItem(FAMILY_SETUP_KEY) === "1";
+      const childSetupDone =
+        window.localStorage.getItem(CHILD_SETUP_KEY) === "1";
+      if (familySetupDone && childSetupDone) return;
+      try {
+        let familyId: string | null = null;
+        let existingMemberId: string | null = null;
+        const { data: existingMember, error: memberError } = await supabase
+          .from("family_members")
+          .select("id,family_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (memberError) {
+          throw memberError;
+        }
+        if (existingMember?.family_id) {
+          familyId = existingMember.family_id;
+          existingMemberId = existingMember.id;
+        }
+        if (!familyId && !familySetupDone) {
+          const { data: family, error: familyError } = await supabase
+            .from("families")
+            .insert({
+              created_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
+          if (familyError) {
+            throw familyError;
+          }
+          familyId = family?.id ?? null;
+        }
+        if (familyId && !existingMemberId && !familySetupDone) {
+          const { error: memberInsertError } = await supabase
+            .from("family_members")
+            .insert({
+              family_id: familyId,
+              user_id: userId,
+              role: "owner",
+              is_primary: true,
+            });
+          if (memberInsertError) {
+            throw memberInsertError;
+          }
+        }
+        if (familyId) {
+          window.localStorage.setItem(FAMILY_SETUP_KEY, "1");
+        }
+        if (!familyId || childSetupDone) {
+          return;
+        }
+        const birthDate = toApiDate(childDob);
+        const dueDate = toApiDate(childDueDate);
+        if (!birthDate && !dueDate) {
+          return;
+        }
+        const { data: existingChild, error: childLookupError } = await supabase
+          .from("children")
+          .select("id")
+          .eq("family_id", familyId)
+          .limit(1)
+          .maybeSingle();
+        if (childLookupError) {
+          throw childLookupError;
+        }
+        if (!existingChild) {
+          const { error: childInsertError } = await supabase
+            .from("children")
+            .insert({
+              family_id: familyId,
+              first_name: childFirstName || null,
+              last_name: childLastName || null,
+              birth_date: birthDate ?? null,
+              due_date: birthDate ? null : dueDate ?? null,
+            });
+          if (childInsertError) {
+            throw childInsertError;
+          }
+        }
+        window.localStorage.setItem(CHILD_SETUP_KEY, "1");
+      } catch (err) {
+        console.error("Supabase family setup failed", err);
+      }
+    },
+    [childDob, childDueDate, childFirstName, childLastName],
+  );
+
+  useEffect(() => {
+    if (!supabaseSession) return;
+    void ensureFamilySetup(supabaseSession);
+  }, [ensureFamilySetup, supabaseSession]);
 
   const openSignupPanel = useCallback(() => {
     setActivePanel("settings");
@@ -3203,6 +3360,37 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                  {careTeamMembers.length ? (
+                    <div className="space-y-2">
+                      {careTeamMembers.map((member) => (
+                        <div
+                          key={member.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background/60 p-3 text-sm"
+                        >
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {member.email}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {member.role} · {member.status}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            Invited{" "}
+                            {new Date(member.invited_at).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No additional caregivers yet. Invites are saved locally on
+                      this device.
+                    </p>
+                  )}
                   {showCaregiverForm ? (
                     <div className="space-y-2 rounded-md border border-border/60 bg-background/70 p-3">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -3816,7 +4004,19 @@ export default function Home() {
               <Button
                 size="sm"
                 onClick={() => {
-                  console.log("Invite caregiver", { inviteEmail, inviteRole });
+                  const email = inviteEmail.trim();
+                  if (email) {
+                    setCareTeamMembers((prev) => [
+                      ...prev,
+                      {
+                        id: newId(),
+                        email,
+                        role: inviteRole,
+                        status: "invited",
+                        invited_at: new Date().toISOString(),
+                      },
+                    ]);
+                  }
                   setInviteOpen(false);
                   setInviteEmail("");
                   setInviteRole("Parent");
