@@ -7,6 +7,10 @@ Principle: calm, legible, restrained. Default to system fonts.
   - apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif
 - Optional later: Inter (only if needed for cross-platform consistency)
 
+## Color pairing
+- Default text uses the softened foreground token (`--havi-text`) to keep contrast calm.
+- Use fog/oat variants for large type, hero, or headline moments when a softer glow is desired.
+
 ## Sizes (px) + usage
 - 32: Page title / hero (rare)
 - 24: Section title

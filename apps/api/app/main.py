@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from dateparser.search import search_dates
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, model_validator
 
 from .config import CONFIG
 from .conversations import (
@@ -171,6 +171,14 @@ class ChildProfile(BaseModel):
     latest_weight: Optional[float] = None
     latest_weight_date: Optional[str] = None
     routine_eligible: Optional[bool] = False
+
+    @model_validator(mode="after")
+    def validate_birth_or_due_date(self) -> "ChildProfile":
+        birth_date = (self.birth_date or "").strip()
+        due_date = (self.due_date or "").strip()
+        if bool(birth_date) == bool(due_date):
+            raise ValueError("Child must have exactly one of birth_date or due_date.")
+        return self
 
 
 class SettingsPayload(BaseModel):
@@ -1532,13 +1540,15 @@ def message_mentions_feed(message: str) -> bool:
 
 def profile_missing_fields_for_expectations(child_data: dict) -> List[str]:
     requirements = [
-        ("date of birth", child_data.get("birth_date")),
         ("gender", child_data.get("gender")),
         ("birth weight", child_data.get("birth_weight")),
         ("latest weight", child_data.get("latest_weight")),
         ("latest weight date", child_data.get("latest_weight_date")),
-        ("due date", child_data.get("due_date")),
     ]
+    birth_date = child_data.get("birth_date")
+    due_date = child_data.get("due_date")
+    if not birth_date and not due_date:
+        requirements.append(("date of birth or due date", None))
     return [label for label, value in requirements if not value]
 
 

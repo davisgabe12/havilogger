@@ -1,8 +1,10 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input, InputMessage } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function BrandPage() {
@@ -32,6 +34,12 @@ export default function BrandPage() {
           <TokenSwatch label="Secondary" boxClass="bg-secondary" textClass="text-secondary-foreground" />
           <TokenSwatch label="Ring (focus)" boxClass="bg-background ring-2 ring-ring" textClass="text-muted-foreground" />
           <TokenSwatch label="Destructive" boxClass="bg-destructive" textClass="text-background" />
+          <TokenSwatch
+            label="Oat / fog neutrals"
+            boxClass="border border-border"
+            textClass="text-muted-foreground"
+            style={{ background: "linear-gradient(90deg, var(--havi-fg-oat), var(--havi-fg-fog))" }}
+          />
         </CardContent>
       </Card>
 
@@ -57,12 +65,23 @@ export default function BrandPage() {
             </p>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide">Input + focus ring</p>
-            <input
-              className="havi-input"
-              placeholder="Type to see focus ring…"
-            />
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-wide">Form inputs + states</p>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Default</p>
+              <Input placeholder="Type to see focus ring…" />
+              <InputMessage>Clear, calm helper text.</InputMessage>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Warning</p>
+              <Input status="warning" defaultValue="Remember to save." />
+              <InputMessage status="warning">Needs a quick review before continuing.</InputMessage>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Error</p>
+              <Input status="error" defaultValue="" placeholder="Missing required info" />
+              <InputMessage status="error">Please add a valid email address.</InputMessage>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -148,14 +167,16 @@ function TokenSwatch({
   label,
   boxClass,
   textClass,
+  style,
 }: {
   label: string;
   boxClass: string;
   textClass: string;
+  style?: CSSProperties;
 }) {
   return (
     <div className="flex items-center gap-3">
-      <div className={`h-8 w-10 rounded-md ${boxClass}`} />
+      <div className={`h-8 w-10 rounded-md ${boxClass}`} style={style} />
       <p className={textClass}>{label}</p>
     </div>
   );
