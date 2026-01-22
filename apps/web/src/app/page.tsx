@@ -1,11 +1,16 @@
-"use client";
+import type { Metadata } from "next";
+import Link from "next/link";
 
+import { MarketingLayout } from "@/components/marketing/MarketingLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Menu, Mic, Share, Square } from "lucide-react";
+import { ArrowUpRight, Menu } from "lucide-react";
 
 import { TimelinePanel } from "@/components/timeline/timeline-panel";
+import { DictateButton, ShareButton } from "@/components/ui/action-buttons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -48,6 +53,29 @@ type Action = {
   metadata: ActionMetadata;
   is_core_action: boolean;
   custom_action_label?: string | null;
+};
+
+type HomeEvent = {
+  id: string;
+  type: "sleep" | "bottle" | "diaper" | "activity" | "growth";
+  title: string;
+  detail?: string;
+  amountLabel?: string;
+  start: string;
+  end?: string;
+  originMessageId?: string;
+};
+
+type HomeApiEvent = {
+  id: string;
+  child_id: string;
+  type: string;
+  title: string;
+  detail?: string;
+  amount_label?: string;
+  start: string;
+  end?: string;
+  origin_message_id?: string | number;
 };
 
 type ConversationSession = {
@@ -183,121 +211,51 @@ type ApiResponse = {
   intent?: string;
 };
 
-type ConversationMessage = {
-  id: number;
-  session_id: number;
-  role: "user" | "assistant" | "caregiver";
-  content: string;
-  intent?: string | null;
-  created_at: string;
+export const metadata: Metadata = {
+  title: "Havi | Another brain for your family",
+  description:
+    "Havi helps parents carry the mental load with calm, conversational support, shared memory, and Runway foresight.",
 };
 
-type MessageFeedbackEntry = {
-  message_id: number | string;
-  rating: FeedbackRating;
-  feedback_text?: string | null;
-};
-
-type SpeechRecognitionEventLike = {
-  results: Array<{
-    0: {
-      transcript: string;
-    };
-  }>;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart: () => void;
-  onerror: () => void;
-  onresult: (event: SpeechRecognitionEventLike) => void;
-  onend: () => void;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionGlobal = {
-  SpeechRecognition?: new () => SpeechRecognitionLike;
-  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-};
-
-type Panel =
-  | "home"
-  | "havi"
-  | "timeline"
-  | "tasks"
-  | "history"
-  | "knowledge"
-  | "integrations"
-  | "settings";
-
-const NAV_ITEMS: { id: Panel; label: string }[] = [
-  { id: "home", label: "Home" },
-  { id: "havi", label: "HAVI" },
-  { id: "timeline", label: "Timeline" },
-  { id: "tasks", label: "Tasks" },
-  { id: "history", label: "History" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "integrations", label: "Integrations" },
-  { id: "settings", label: "Settings" },
-];
-
-type ChipTemplate = {
-  id: string;
-  label: string;
-  text: string;
-  requiresHistory?: boolean;
-  onlyWhenNoHistory?: boolean;
-  requiresSymptom?: boolean;
-  requiresProfile?: boolean;
-  requiresRoutine?: boolean;
-};
-
-const chipLibrary: ChipTemplate[] = [
+const featureHighlights = [
   {
-    id: "diaper_now",
-    label: "Changed a dirty diaper",
-    text: "I just changed a dirty diaper for {child}—please log it.",
+    title: "Conversation-first support",
+    description:
+      "Ask questions by chat or voice and get calm guidance fast, without digging through tabs or threads.",
   },
   {
-    id: "bath_wrap",
-    label: "Finished bath routine",
-    text: "{child} just finished a bath and diaper change about 10 minutes ago.",
+    title: "Runway: a clear path ahead",
+    description:
+      "See what’s coming next and reduce guesswork with a simple, shared view of family growth.",
   },
   {
-    id: "feed_combo",
-    label: "Feed and diaper change 10 minutes ago",
-    text: "Finished a feed and diaper change for {child} about 10 minutes ago.",
-  },
-  {
-    id: "symptom_followup",
-    label: "Cough check-in",
-    text: "{child} has a cough—what should I watch for?",
-    requiresSymptom: true,
-  },
-  {
-    id: "milestones_today",
-    label: "What’s Ahead Today",
-    text: "Tell me about the next milestone for {child}.",
-    requiresProfile: true,
-  },
-  {
-    id: "week_intro",
-    label: "What happens in week {week}?",
-    text: "What development milestones are expected for week {week}?",
-    onlyWhenNoHistory: true,
-    requiresProfile: true,
-  },
-  {
-    id: "routine_setup",
-    label: "Routine setup",
-    text: "Can you help me build a routine for {child} based on recent days?",
-    requiresRoutine: true,
+    title: "Shared family memory",
+    description:
+      "Keep moments, decisions, and context in one place so partners and caregivers stay aligned.",
   },
 ];
 
+const whyHavi = [
+  {
+    title: "Too much to remember",
+    body: "Havi keeps moments, notes, and questions in one calm place, so nothing valuable disappears.",
+  },
+  {
+    title: "Advice everywhere. Clarity nowhere.",
+    body: "Havi helps you make sense of guidance in the context of your child and your situation.",
+  },
+  {
+    title: "Less logging. More living.",
+    body: "Capture information naturally through conversation and quick moments—then let Havi make it useful later.",
+  },
+];
+
+const quotes = [
+  "I’m not failing—I’m overloaded. Havi makes it feel manageable.",
+  "It’s like having another brain that actually remembers what happened.",
+  "We stopped arguing about who said what. We finally feel aligned.",
+  "At 3 a.m., I don’t need a blog post. I need a clear next step.",
+];
 type ConversationState =
   | "idle"
   | "sending"
@@ -357,6 +315,7 @@ const API_BASE_URL =
 const DEMO_CHILD_NAME = process.env.NEXT_PUBLIC_CHILD_NAME ?? "baby";
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
 const FIRST_CHAT_SEEN_KEY = "havi_first_chat_seen";
+const HOME_EXPECTATION_WEEK_KEY = "havi_home_expected_week";
 
 const newId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -623,7 +582,7 @@ export default function Home() {
     [statusFilteredTasks, tasksAssigneeFilter, currentUserId],
   );
   const [childDob, setChildDob] = useState("05-01-2024");
-  const [childDueDate, setChildDueDate] = useState("05-07-2024");
+  const [childDueDate, setChildDueDate] = useState("");
   const [childGender, setChildGender] = useState("");
   const [childBirthWeight, setChildBirthWeight] = useState("");
   const [childBirthWeightUnit, setChildBirthWeightUnit] = useState("oz");
@@ -637,7 +596,7 @@ export default function Home() {
   const settingsSuccessTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chipTemplates, setChipTemplates] = useState<ChipTemplate[]>(
-    chipLibrary.slice(0, 4),
+    chipLibrary.slice(0, 6),
   );
   const [profilePromptCount, setProfilePromptCount] = useState(0);
   const [routineEligible, setRoutineEligible] = useState(false);
@@ -652,6 +611,10 @@ export default function Home() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Parent");
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [recentEvents, setRecentEvents] = useState<HomeEvent[]>([]);
+  const [recentEventsLoading, setRecentEventsLoading] = useState(false);
+  const [recentEventsError, setRecentEventsError] = useState<string | null>(null);
+  const [showComingUp, setShowComingUp] = useState(false);
 
   const agentCards = useMemo(
     () => [
@@ -911,13 +874,14 @@ export default function Home() {
 
   const computeMissingExpectationFields = useCallback(() => {
     const missing: string[] = [];
-    if (!childDob) missing.push("date of birth");
+    if (!childDob && !childDueDate) {
+      missing.push("date of birth or due date");
+    }
     if (!childGender) missing.push("gender");
     if (!childBirthWeight) missing.push("birth weight");
     if (!childLatestWeight || !childLatestWeightDate) {
       missing.push("latest weight + date");
     }
-    if (!childDueDate) missing.push("due date");
     return missing;
   }, [
     childBirthWeight,
@@ -943,6 +907,37 @@ export default function Home() {
       hardErrorLower.includes("settings") ||
       hardErrorLower.includes("child") ||
       hardErrorLower.includes("select an active child"));
+  const homeChildName = childFirstName?.trim() || DEMO_CHILD_NAME;
+  const homeGreeting = buildTimeGreeting();
+  const homeAgeLabel = formatHomeAgeLabel(childDob, childDueDate);
+  const comingUpWeek =
+    computeWeekFromDob(childDob) ?? computeWeekFromDob(childDueDate);
+  const recentWindowEvents = useMemo(
+    () => filterEventsByWindow(recentEvents, 72),
+    [recentEvents],
+  );
+  const recentLastEvent = recentWindowEvents[0] ?? null;
+  const recentTypeCount = useMemo(
+    () => new Set(recentWindowEvents.map((event) => event.type)).size,
+    [recentWindowEvents],
+  );
+  const showLastTile = recentWindowEvents.length > 0;
+  const showChapterTile =
+    showLastTile && (recentWindowEvents.length >= 5 || recentTypeCount >= 2);
+  const chapterSummary = showChapterTile
+    ? buildChapterSummary(recentWindowEvents)
+    : "";
+  const lastSummary = recentLastEvent ? buildLastSummary(recentLastEvent) : "";
+  const chapterSeed = showChapterTile
+    ? buildChapterSeedMessage(recentWindowEvents, homeChildName)
+    : "";
+  const lastSeed = recentLastEvent
+    ? buildLastSeedMessage(recentLastEvent, homeChildName)
+    : "";
+  const comingUpSeed =
+    comingUpWeek && showComingUp
+      ? buildComingUpSeedMessage(comingUpWeek, homeChildName)
+      : "";
 
   const startLoadingTimer = useCallback(
     (category: LoadingCategory) => {
@@ -974,6 +969,22 @@ export default function Home() {
   useEffect(() => {
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const weekNumber =
+      computeWeekFromDob(childDob) ?? computeWeekFromDob(childDueDate);
+    if (!weekNumber) {
+      setShowComingUp(false);
+      return;
+    }
+    const stored = window.localStorage.getItem(HOME_EXPECTATION_WEEK_KEY);
+    if (stored !== String(weekNumber)) {
+      setShowComingUp(true);
+    } else {
+      setShowComingUp(false);
+    }
+  }, [childDob, childDueDate, hydrated]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -1162,8 +1173,9 @@ export default function Home() {
       if (chip.requiresRoutine && !routineEligible) return false;
       return true;
     });
-    const selection = filtered.length ? filtered.slice(0, 5) : chipLibrary.slice(
-          0, 5);
+    const selection = filtered.length
+      ? filtered.slice(0, 6)
+      : chipLibrary.slice(0, 6);
     setChipTemplates(selection);
   }, [
     chatEntries,
@@ -1363,6 +1375,7 @@ export default function Home() {
     try {
       const conversation = await createConversation(childId);
       updateConversationParam(conversation.id);
+      activeConversationIdRef.current = conversation.id;
       setActiveConversationId(conversation.id);
       setChatTitle(conversation.title);
       setChatEntries([]);
@@ -1574,6 +1587,49 @@ export default function Home() {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const loadRecentEvents = useCallback(async () => {
+    const resolvedChildId = [activeChildId, primaryChildId]
+      .map((val) => (val && !Number.isNaN(Number(val)) ? Number(val) : null))
+      .find((val) => val !== null);
+    if (!resolvedChildId) {
+      setRecentEvents([]);
+      setRecentEventsError(null);
+      setRecentEventsLoading(false);
+      return;
+    }
+    setRecentEventsLoading(true);
+    setRecentEventsError(null);
+    try {
+      const now = new Date();
+      const start = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+      const params = new URLSearchParams({
+        start: start.toISOString(),
+        end: now.toISOString(),
+        child_id: String(resolvedChildId),
+      });
+      const res = await fetch(`${API_BASE_URL}/events?${params}`);
+      if (!res.ok) {
+        throw new Error("Unable to load recent activity");
+      }
+      const data: HomeApiEvent[] = await res.json();
+      const mapped = data
+        .map(mapHomeEvent)
+        .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+      setRecentEvents(mapped);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      setRecentEventsError(reason);
+      setRecentEvents([]);
+    } finally {
+      setRecentEventsLoading(false);
+    }
+  }, [activeChildId, primaryChildId]);
+
+  useEffect(() => {
+    if (activePanel !== "home") return;
+    loadRecentEvents();
+  }, [activePanel, loadRecentEvents, timelineRefreshKey]);
 
   useEffect(() => {
     const caregiverChanged =
@@ -2150,7 +2206,7 @@ export default function Home() {
             id: newId(),
             role: "havi",
             text:
-              "To personalize expectations, I’ll need date of birth, gender, birth weight, latest weight + date, and due date. Share them here or add everything in Settings.",
+              "To personalize expectations, I’ll need date of birth or due date, gender, birth weight, and latest weight + date. Share them here or add everything in Settings.",
             createdAt: new Date().toISOString(),
           });
           return;
@@ -2197,6 +2253,59 @@ export default function Home() {
       setAutoScrollEnabled,
     ],
   );
+
+  const handleHomeChip = useCallback(
+    async (chip: ChipTemplate) => {
+      if (!activeConversationIdRef.current) {
+        await handleNewChat();
+      }
+      setActivePanel("havi");
+      setNavOpen(false);
+      handleChip(chip);
+    },
+    [handleChip, handleNewChat],
+  );
+
+  const startSeededConversation = useCallback(
+    async (seedText: string) => {
+      const childId =
+        activeChildId && !Number.isNaN(Number(activeChildId))
+          ? activeChildId
+          : primaryChildId;
+      if (!childId || Number.isNaN(Number(childId))) {
+        setHistoryError("Select a child to start a new chat.");
+        return;
+      }
+      try {
+        const conversation = await createConversation(childId);
+        updateConversationParam(conversation.id);
+        activeConversationIdRef.current = conversation.id;
+        setActiveConversationId(conversation.id);
+        setChatTitle(conversation.title);
+        setChatEntries([]);
+        setMessage("");
+        setActivePanel("havi");
+        setNavOpen(false);
+        await sendMessage(seedText);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Unable to start a new chat.";
+        setHistoryError(reason);
+      }
+    },
+    [
+      activeChildId,
+      primaryChildId,
+      createConversation,
+      sendMessage,
+      updateConversationParam,
+    ],
+  );
+
+  const handleAskQuestion = useCallback(() => {
+    setActivePanel("havi");
+    setNavOpen(false);
+    setTimeout(() => composerRef.current?.focus(), 0);
+  }, []);
 
   const handleOpenTimelineMessage = useCallback((messageId: string) => {
     setActivePanel("havi");
@@ -2265,6 +2374,14 @@ export default function Home() {
     }
     if (!validateDate(childDueDate)) {
       nextFieldErrors.childDueDate = "Enter a valid date in MM-DD-YYYY format.";
+    }
+    const hasDob = Boolean(childDob?.trim());
+    const hasDueDate = Boolean(childDueDate?.trim());
+    if (hasDob === hasDueDate) {
+      nextFieldErrors.childDob =
+        "Add a date of birth or clear the due date.";
+      nextFieldErrors.childDueDate =
+        "Add a due date or clear the date of birth.";
     }
     if (!validateDate(childLatestWeightDate)) {
       nextFieldErrors.childLatestWeightDate =
@@ -2386,105 +2503,51 @@ export default function Home() {
     return null;
   }
 
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="hidden md:flex md:h-screen md:w-60 md:flex-col md:sticky md:top-0 border-r border-border/60 bg-card/95 p-3">
-        <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Menu
-        </div>
-        <nav className="flex flex-col gap-1 text-sm">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cn(
-                "w-full rounded-md px-3 py-2 text-left text-foreground/80 hover:bg-muted/40",
-                activePanel === item.id &&
-                  "bg-primary/15 text-foreground border border-border/60",
-              )}
-              onClick={() => {
-                setActivePanel(item.id);
-                setNavOpen(false);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 min-w-0 px-4 md:px-6 lg:px-8">
-        <div className="havi-app-shell" data-testid="app-frame">
-          <div className="relative">
-            <button
-              type="button"
-              className="text-left"
-              onClick={() => {
-                setActivePanel("havi");
-                setNavOpen(false);
-              }}
-              aria-label="Back to HAVI chat"
-            >
-              <h1 className="text-3xl font-bold text-muted-foreground">
-                <HaviWordmark />
-              </h1>
-            </button>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Log events, ask what&apos;s expected, or compare recent days—one
-              chat, zero friction.
+    <MarketingLayout>
+      <section className="border-b border-border/60">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-16 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-2xl space-y-6">
+            <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
+              Havi — another brain for your family
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" onClick={handleNewChat}>
-                New chat
+            <h1 className="text-3xl font-semibold leading-tight md:text-5xl">
+              Havi is another brain for your family—designed to help you be the parent
+              you want to be.
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Parenting isn’t hard because parents aren’t trying hard enough. It’s hard
+              because there’s too much to hold in your head—often on very little sleep.
+            </p>
+            <p className="text-base text-muted-foreground">
+              Havi helps carry the mental load. It learns as you live, not as you log,
+              bringing moments, questions, reminders, and insights into one calm place.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/signup">Get started</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/stories">Read stories</Link>
               </Button>
             </div>
-            {/* Mobile nav: hamburger + overlay sheet */}
-            <div className="mt-4 flex gap-2 md:hidden">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setNavOpen((prev) => !prev)}
-              >
-                <Menu className="mr-2 h-4 w-4" />
-                Menu
-              </Button>
-            </div>
-            {navOpen ? (
-              <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg md:hidden">
-                {NAV_ITEMS.map((item) => (
-                  <button
-                    key={item.id}
-                    className={cn(
-                      "w-full rounded-md px-2 py-1 text-left hover:bg-muted",
-                      activePanel === item.id && "bg-muted/60",
-                    )}
-                    onClick={() => {
-                      setActivePanel(item.id);
-                      setNavOpen(false);
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
-
-          {navOpen ? (
-            <button
-              type="button"
-              aria-label="Close navigation overlay"
-              className="fixed inset-0 z-10 cursor-default bg-black/40 md:hidden"
-              onClick={() => setNavOpen(false)}
-            />
-          ) : null}
-
-          {networkOffline ? (
-            <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
-          3 py-2 text-sm text-amber-100">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-lg">Built for the mental load</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
               <p>
-                It looks like we’re offline. Please check your connection and
-                tap retry.
+                Havi remembers for you when sleep deprivation changes everything, and it
+                keeps care teams aligned without more meetings or message threads.
               </p>
+              <p>
+                The goal is simple: be present now, and prepared for what’s next—without
+                turning parenting into data entry.
+              </p>
+            </CardContent>
+          </Card>
               <div className="mt-2 flex gap-2">
                 <Button
                   size="sm"
@@ -2605,11 +2668,160 @@ export default function Home() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Home</CardTitle>
             <CardDescription className="text-muted-foreground">
-              A quick snapshot to start your day.
+              A calm, structured snapshot.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Hi, Home!</p>
+            <div className="space-y-6">
+              <section data-testid="home-zone-status" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Status
+                </p>
+                <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">{homeGreeting}</p>
+                  <p className="text-lg font-semibold">
+                    {homeChildName} · {homeAgeLabel}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Here’s a calm snapshot based on what you’ve logged.
+                  </p>
+                </div>
+              </section>
+
+              <section data-testid="home-zone-recent" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Recent
+                  </p>
+                  {recentEventsLoading ? (
+                    <span className="text-xs text-muted-foreground">
+                      Updating…
+                    </span>
+                  ) : null}
+                </div>
+                {recentEventsError ? (
+                  <p className="text-sm text-muted-foreground">
+                    Recent activity is unavailable right now.
+                  </p>
+                ) : null}
+                {!recentEventsLoading && !showLastTile ? (
+                  <div className="rounded-md border border-dashed border-border/40 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      You’re up to date. Log something to see it here.
+                    </p>
+                  </div>
+                ) : null}
+                {showChapterTile ? (
+                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold">Last chapter</p>
+                        <p className="text-sm text-muted-foreground">
+                          {chapterSummary}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          startSeededConversation(chapterSeed)
+                        }
+                      >
+                        View details →
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {showLastTile ? (
+                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold">Last</p>
+                        <p className="text-sm text-muted-foreground">
+                          {lastSummary}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => startSeededConversation(lastSeed)}
+                      >
+                        View details →
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section data-testid="home-zone-coming-up" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Coming up
+                </p>
+                {showComingUp && comingUpWeek ? (
+                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        What to expect
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Week {comingUpWeek} guidance for {homeChildName}.
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (comingUpSeed) {
+                          startSeededConversation(comingUpSeed);
+                          window.localStorage.setItem(
+                            HOME_EXPECTATION_WEEK_KEY,
+                            String(comingUpWeek),
+                          );
+                          setShowComingUp(false);
+                        }
+                      }}
+                    >
+                      View what to expect →
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-border/40 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      We’ll surface what’s next when a new age window starts.
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              <section data-testid="home-zone-utilities" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Utilities
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={handleAskQuestion}>
+                    Ask a question
+                  </Button>
+                </div>
+              </section>
+
+              <section data-testid="home-zone-chips" className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Quick chips
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {chipTemplates.slice(0, 6).map((chip) => (
+                    <Button
+                      key={chip.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleHomeChip(chip)}
+                    >
+                      {renderChipLabel(chip)}
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -3602,9 +3814,7 @@ export default function Home() {
                 ) : null}
               </div>
               <div className="relative">
-                <Button
-                  size="icon"
-                  variant="outline"
+                <ShareButton
                   disabled={!shareEnabled}
                   title={
                     shareEnabled
@@ -3613,9 +3823,7 @@ export default function Home() {
                   }
                   onClick={() => void handleShareConversation()}
                   aria-label="Share conversation"
-                >
-                  <Share className="h-4 w-4" />
-                </Button>
+                />
                 {shareMessage ? (
                   <span className="absolute left-1/2 top-full z-10 -translate-x-1/2 mt-1 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
                     Copied
@@ -3693,19 +3901,6 @@ export default function Home() {
           </Card>
 
           <div className="mt-4 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {/* TODO: Compare-day chips removed until proper implementation returns results reliably. */}
-              {chipTemplates.map((chip) => (
-                <Button
-                  key={chip.id}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleChip(chip)}
-                >
-                  {renderChipLabel(chip)}
-                </Button>
-              ))}
-            </div>
             <div className="flex flex-col gap-2">
               <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
                 <div className="flex-1 min-w-0">
@@ -3737,13 +3932,8 @@ export default function Home() {
                     />
                   )}
                 </div>
-                <Button
-                  type="button"
-                  aria-label={
-                    voiceState === "recording" ? "Stop recording" : "Record voice"
-                  }
-                  variant="outline"
-                  size="icon"
+                <DictateButton
+                  isRecording={voiceState === "recording"}
                   onClick={() =>
                     voiceState === "recording" ? stopVoice() : startVoice()
                   }
@@ -3754,13 +3944,7 @@ export default function Home() {
                       ? "bg-red-500/10 text-red-500"
                       : "bg-background",
                   )}
-                >
-                  {voiceState === "recording" ? (
-                    <Square className="h-4 w-4" />
-                  ) : (
-                    <Mic className="h-4 w-4" />
-                  )}
-                </Button>
+                />
                 <Button
                   type="button"
                   aria-label="Send message"
@@ -3807,91 +3991,84 @@ export default function Home() {
             </div>
           </div>
         </div>
-      ) : null}
+      </section>
 
-      {settingsSuccess ? (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-          <div className="pointer-events-auto rounded-md border border-emerald-500/40 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-50 shadow-lg">
-            {settingsSuccess}
+      <section className="border-b border-border/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+          <div className="grid gap-6 md:grid-cols-3">
+            {featureHighlights.map((feature) => (
+              <Card key={feature.title} className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-lg">{feature.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  {feature.description}
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
-      ) : null}
-      {knowledgeToast ? (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-          <div className="pointer-events-auto rounded-md border border-primary/40 bg-primary/15 px-4 py-2 text-sm text-primary shadow-lg">
-            {knowledgeToast}
+      </section>
+
+      <section className="border-b border-border/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+          <div className="mb-10 max-w-2xl space-y-4">
+            <h2 className="text-2xl font-semibold md:text-3xl">Why Havi</h2>
+            <p className="text-base text-muted-foreground">
+              Built for real families. Designed to reduce the cognitive load of modern
+              parenting.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {whyHavi.map((item) => (
+              <div key={item.title} className="space-y-3 rounded-lg border border-border/60 p-6">
+                <h3 className="text-base font-semibold">{item.title}</h3>
+                <p className="text-sm text-muted-foreground">{item.body}</p>
+              </div>
+            ))}
           </div>
         </div>
-      ) : null}
-      {inviteOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-sm space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-base font-semibold">Invite a caregiver</p>
-                <p className="text-sm text-muted-foreground">
-                  Send a quick invite to join this care team.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-sm text-muted-foreground"
-                onClick={() => setInviteOpen(false)}
-                aria-label="Close invite dialog"
+      </section>
+
+      <section className="border-b border-border/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+          <div className="mb-10 max-w-2xl space-y-4">
+            <h2 className="text-2xl font-semibold md:text-3xl">What parents say</h2>
+            <p className="text-base text-muted-foreground">
+              Early reactions from parents who want a calmer, clearer way to keep up.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            {quotes.map((quote) => (
+              <blockquote
+                key={quote}
+                className="rounded-lg border border-border/60 p-6 text-sm text-muted-foreground"
               >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-2">
-              <div>
-                <p className="text-[11px] text-muted-foreground">Email</p>
-                <input
-                  className="mt-1 havi-input"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  type="email"
-                  placeholder="caregiver@example.com"
-                />
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground">Role</p>
-                <select
-                  className="mt-1 w-full havi-select"
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                >
-                  {["Parent", "Grandparent", "Nanny", "Relative", "Other"].map(
-                    (role) => (
-                      <option key={role}>{role}</option>
-                    ),
-                  )}
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setInviteOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  console.log("Invite caregiver", { inviteEmail, inviteRole });
-                  setInviteOpen(false);
-                  setInviteEmail("");
-                  setInviteRole("Parent");
-                }}
-              >
-                Send invite
-              </Button>
-            </div>
+                “{quote}”
+              </blockquote>
+            ))}
           </div>
         </div>
-      ) : null}
+      </section>
+
+      <section>
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-4 px-6 py-16 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-xl space-y-3">
+            <h2 className="text-2xl font-semibold md:text-3xl">
+              Ready for a calmer way to parent?
+            </h2>
+            <p className="text-base text-muted-foreground">
+              Havi is a family brain that learns as you live—helping you reduce mental
+              load and stay ready for what’s next.
+            </p>
           </div>
+          <Button asChild>
+            <Link href="/signup">Get started</Link>
+          </Button>
+        </div>
+      </section>
+    </MarketingLayout>
+  );
         </main>
       </div>
   );
@@ -3995,6 +4172,167 @@ function formatDueDateLabel(value: string): string {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function mapHomeEvent(event: HomeApiEvent): HomeEvent {
+  const type = event.type as HomeEvent["type"];
+  return {
+    id: event.id,
+    type: ["sleep", "bottle", "diaper", "activity", "growth"].includes(type)
+      ? type
+      : "activity",
+    title: event.title,
+    detail: event.detail ?? undefined,
+    amountLabel: event.amount_label ?? undefined,
+    start: event.start,
+    end: event.end ?? undefined,
+    originMessageId: event.origin_message_id
+      ? String(event.origin_message_id)
+      : undefined,
+  };
+}
+
+function buildTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function formatHomeAgeLabel(dob: string, dueDate: string): string {
+  const birth = parseDateToDate(dob);
+  const due = parseDateToDate(dueDate);
+  const anchor = birth ?? due;
+  if (!anchor) return "Age not set";
+  const now = new Date();
+  const diffDays = Math.floor(
+    (now.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (!birth && diffDays < 0) {
+    const weeks = Math.max(1, Math.ceil(Math.abs(diffDays) / 7));
+    return `Due in ${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+  }
+  const weeks = Math.max(1, Math.floor(Math.abs(diffDays) / 7));
+  return `${weeks} ${weeks === 1 ? "week" : "weeks"} old`;
+}
+
+function filterEventsByWindow(events: HomeEvent[], hours: number): HomeEvent[] {
+  const now = Date.now();
+  const windowMs = hours * 60 * 60 * 1000;
+  return events.filter((event) => {
+    const time = new Date(event.start).getTime();
+    return Number.isNaN(time) ? false : now - time <= windowMs;
+  });
+}
+
+function formatEventTypeLabel(type: HomeEvent["type"]): string {
+  switch (type) {
+    case "sleep":
+      return "Sleep";
+    case "bottle":
+      return "Feeds";
+    case "diaper":
+      return "Diapers";
+    case "growth":
+      return "Growth";
+    case "activity":
+    default:
+      return "Activities";
+  }
+}
+
+function formatEventWindow(events: HomeEvent[]): string {
+  if (!events.length) return "";
+  const times = events
+    .map((event) => new Date(event.start))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (!times.length) return "";
+  const start = times[0];
+  const end = times[times.length - 1];
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  if (start.toDateString() === end.toDateString()) {
+    return formatter.format(start);
+  }
+  return `${formatter.format(start)}–${formatter.format(end)}`;
+}
+
+function countEventTypes(events: HomeEvent[]): Record<HomeEvent["type"], number> {
+  return events.reduce(
+    (acc, event) => {
+      acc[event.type] += 1;
+      return acc;
+    },
+    { sleep: 0, bottle: 0, diaper: 0, activity: 0, growth: 0 },
+  );
+}
+
+function buildChapterSummary(events: HomeEvent[]): string {
+  if (!events.length) return "";
+  const uniqueDays = new Set(
+    events
+      .map((event) => new Date(event.start))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .map((date) => date.toDateString()),
+  );
+  const typeCounts = countEventTypes(events);
+  const activeTypes = (Object.keys(typeCounts) as HomeEvent["type"][]).filter(
+    (type) => typeCounts[type] > 0,
+  );
+  const typeLabels = activeTypes.map(formatEventTypeLabel);
+  const typeSummary = typeLabels.length
+    ? `${typeLabels.slice(0, 3).join(" + ")}`
+    : `${events.length} events`;
+  const dayCount = uniqueDays.size || 1;
+  return `${typeSummary} logged over ${dayCount} ${dayCount === 1 ? "day" : "days"}`;
+}
+
+function buildLastSummary(event: HomeEvent): string {
+  const detail = event.amountLabel || event.detail;
+  return `Most recent: ${event.title}${detail ? ` ${detail}` : ""}`;
+}
+
+function buildChapterSeedMessage(events: HomeEvent[], childName: string): string {
+  const windowLabel = formatEventWindow(events);
+  const typeCounts = countEventTypes(events);
+  const typeLines = (Object.keys(typeCounts) as HomeEvent["type"][])
+    .filter((type) => typeCounts[type] > 0)
+    .map((type) => `${formatEventTypeLabel(type)}: ${typeCounts[type]}`);
+  return [
+    `Recent summary (Last chapter) for ${childName}:`,
+    windowLabel ? `- Window: ${windowLabel}` : null,
+    typeLines.length ? `- Events: ${typeLines.join(", ")}` : null,
+    "- Based on what you logged.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildLastSeedMessage(event: HomeEvent, childName: string): string {
+  const timeLabel = new Date(event.start).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const detail = event.amountLabel || event.detail;
+  return [
+    `Recent summary (Last) for ${childName}:`,
+    `- Event: ${event.title}${detail ? ` (${detail})` : ""}`,
+    `- Time: ${timeLabel}`,
+    "- Based on what you logged.",
+  ].join("\n");
+}
+
+function buildComingUpSeedMessage(week: number, childName: string): string {
+  return [
+    `What to expect next for ${childName}:`,
+    `- Age window: Week ${week}`,
+    "- Based on what you logged.",
+  ].join("\n");
+}
+
 function EditableField({
   label,
   value,
@@ -4022,18 +4360,32 @@ function EditableField({
 function formatAdjustedAge(dob: string, dueDate: string): string {
   const birth = parseDateToDate(dob);
   const due = parseDateToDate(dueDate);
-  if (!birth || !due) {
+  if (birth && due) {
+    const now = new Date();
+    const diffMs = now.getTime() - birth.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const years = Math.floor(diffDays / 365);
+    const days = diffDays % 365;
+    const adjustedDiffDays = Math.floor(
+      (now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    return `${years}y ${days}d (adjusted ${Math.max(adjustedDiffDays, 0)}d)`;
+  }
+  const anchor = birth ?? due;
+  if (!anchor) {
     return "—";
   }
   const now = new Date();
-  const diffMs = now.getTime() - birth.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const years = Math.floor(diffDays / 365);
-  const days = diffDays % 365;
-  const adjustedDiffDays = Math.floor(
-    (now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24),
+  const diffDays = Math.floor(
+    (now.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24),
   );
-  return `${years}y ${days}d (adjusted ${Math.max(adjustedDiffDays, 0)}d)`;
+  if (diffDays < 0) {
+    const weeks = Math.max(1, Math.ceil(Math.abs(diffDays) / 7));
+    return `Due in ${weeks}w`;
+  }
+  const weeks = Math.max(1, Math.floor(diffDays / 7));
+  const days = diffDays % 7;
+  return `${weeks}w ${days}d`;
 }
 
 function computeWeekFromDob(dateStr: string): number | null {

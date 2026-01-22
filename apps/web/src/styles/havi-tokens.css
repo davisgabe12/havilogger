@@ -1,7 +1,9 @@
 :root {
   /* Core */
   --havi-bg: #0C2B26;
-  --havi-fg: #F4F2ED;
+  --havi-fg: #EFE9E0;
+  --havi-fg-fog: #F3F0EA;
+  --havi-fg-oat: #E7DDCF;
   --havi-moss: #9EA993;
 
   /* Surfaces */
@@ -11,8 +13,8 @@
 --havi-surface-3: #225650;
 
   /* Text */
---havi-text: rgba(244,242,237,0.94);
---havi-text-muted: rgba(244,242,237,0.68);
+--havi-text: rgba(239,233,224,0.94);
+--havi-text-muted: rgba(239,233,224,0.68);
 
   /* Borders */
 --havi-border: rgba(244,242,237,0.14);

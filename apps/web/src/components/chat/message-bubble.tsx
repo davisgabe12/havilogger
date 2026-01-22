@@ -1,9 +1,9 @@
 import type React from "react";
-import { Copy } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
+import { CopyButton } from "@/components/ui/action-buttons";
 import { cn } from "@/lib/utils";
 
 import type { ChatEntry } from "./types";
@@ -203,15 +203,12 @@ export function MessageBubble({
 
   const copyAction = (
     <>
-      <button
-        type="button"
-        className={actionButtonBase}
+      <CopyButton
         onClick={() => onCopy(entry.text, entry.id)}
         aria-label="Copy message"
         title="Copy"
-      >
-        <Copy className="h-3 w-3" />
-      </button>
+        className={actionButtonBase}
+      />
     </>
   );
 

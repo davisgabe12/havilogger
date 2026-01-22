@@ -409,7 +409,7 @@ def test_pending_prompt_for_activity_and_milestone() -> None:
     assert any("crawling" in prompt.lower() or "milestones" in prompt.lower() for prompt in prompts)
 
 
-def test_prematurity_from_settings_birth_vs_due_date() -> None:
+def test_settings_rejects_birth_and_due_date() -> None:
     reset_state()
     seed_profile(DEFAULT_PROFILE)
     payload = {
@@ -429,13 +429,32 @@ def test_prematurity_from_settings_birth_vs_due_date() -> None:
         },
     }
     resp = client.put("/api/v1/settings", json=payload)
-    assert resp.status_code == 200
-    profile_id = get_primary_profile_id()
-    item = find_knowledge_item(profile_id, "child_prematurity")
-    assert item is not None
-    assert item.type == KnowledgeItemType.EXPLICIT
-    assert item.payload["source"] == "settings"
-    assert item.payload["weeks_early"] > 0
+    assert resp.status_code == 422
+    assert "birth_date" in resp.text or "due_date" in resp.text
+
+
+def test_settings_rejects_missing_birth_and_due_date() -> None:
+    reset_state()
+    seed_profile(DEFAULT_PROFILE)
+    payload = {
+        "caregiver": {
+            "first_name": "Alex",
+            "last_name": "Davis",
+            "email": "alex@example.com",
+            "phone": "(555) 555-1212",
+            "relationship": "Mom",
+        },
+        "child": {
+            "first_name": "Lev",
+            "last_name": "Davis",
+            "birth_date": "",
+            "due_date": "",
+            "gender": "boy",
+        },
+    }
+    resp = client.put("/api/v1/settings", json=payload)
+    assert resp.status_code == 422
+    assert "birth_date" in resp.text or "due_date" in resp.text
 
 
 def test_detect_places_of_interest_park() -> None:
@@ -577,7 +596,7 @@ def test_settings_sync_saves_birth_weight_knowledge() -> None:
             "first_name": "Lev",
             "last_name": "Davis",
             "birth_date": "2024-05-01",
-            "due_date": "2024-05-07",
+            "due_date": "",
             "timezone": "America/Los_Angeles",
             "gender": "boy",
             "birth_weight": 8.2,
