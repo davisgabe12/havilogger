@@ -2,6 +2,9 @@
 
 This document lists the test and lint commands that are defined in the repo and points to the main suites.
 
+For a plain-English, solo-developer testing strategy and phased rollout plan, see
+`docs/testing-strategy.md`.
+
 ## Backend (FastAPI, Python)
 
 - **Test command**
