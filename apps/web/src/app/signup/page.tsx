@@ -22,11 +22,11 @@ const stepContent = {
   },
   2: {
     title: "Family details",
-    description: "Add your partner and the people who matter most.",
+    description: "Build the home base. It keeps every update in the right place.",
   },
   3: {
-    title: "Care team",
-    description: "Invite caregivers or clinicians. You can always add more later.",
+    title: "Parent village",
+    description: "Bring in your parent village when you’re ready. It helps everyone stay aligned.",
   },
 } as const;
 
@@ -49,7 +49,6 @@ function ProgressBar({ value }: { value: number }) {
 
 export default function SignupPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [includeChild, setIncludeChild] = useState(true);
   const [careTeam, setCareTeam] = useState<CareTeamEntry[]>([
     { name: "", role: "", email: "" },
   ]);
@@ -129,79 +128,68 @@ export default function SignupPage() {
 
           {step === 2 && (
             <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="space-y-2 text-sm font-medium text-foreground">
-                  Family name
-                  <input className="havi-input" placeholder="Johnson family" />
-                </label>
-                <label className="space-y-2 text-sm font-medium text-foreground">
-                  Timezone
-                  <input className="havi-input" placeholder="Pacific Time (US)" />
-                </label>
-                <label className="space-y-2 text-sm font-medium text-foreground">
-                  Partner name
-                  <input className="havi-input" placeholder="Jordan Johnson" />
-                </label>
-                <label className="space-y-2 text-sm font-medium text-foreground">
-                  Partner email (optional)
-                  <input className="havi-input" placeholder="jordan@family.com" />
-                </label>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Family details
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    This keeps profiles, logs, and reminders tied to the right
+                    household.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Family name
+                    <input className="havi-input" placeholder="Johnson family" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Timezone
+                    <input className="havi-input" placeholder="Pacific Time (US)" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Partner name
+                    <input className="havi-input" placeholder="Jordan Johnson" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground">
+                    Partner email
+                    <input className="havi-input" placeholder="jordan@family.com" />
+                  </label>
+                </div>
               </div>
 
               <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      Add a child profile
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      You can add a child now and invite your partner next.
-                    </p>
-                  </div>
-                  <label className="inline-flex items-center gap-2 text-sm font-medium">
-                    <input
-                      checked={includeChild}
-                      className="h-4 w-4"
-                      onChange={(event) => setIncludeChild(event.target.checked)}
-                      type="checkbox"
-                    />
-                    Include child
-                  </label>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    Child profile
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Required so Havi can tailor routines, insights, and care
+                    plans to your child.
+                  </p>
                 </div>
 
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <label className="space-y-2 text-sm font-medium text-foreground">
                     Child name
-                    <input
-                      className="havi-input"
-                      disabled={!includeChild}
-                      placeholder={
-                        includeChild ? "Avery" : "No child added yet"
-                      }
-                    />
+                    <input className="havi-input" placeholder="Avery" />
                   </label>
                   <label className="space-y-2 text-sm font-medium text-foreground">
                     Birthday
                     <input
                       className="havi-input"
-                      disabled={!includeChild}
                       placeholder="MM / DD / YYYY"
                       type="text"
                     />
                   </label>
                   <label className="space-y-2 text-sm font-medium text-foreground">
                     Pronouns
-                    <input
-                      className="havi-input"
-                      disabled={!includeChild}
-                      placeholder="they / them"
-                    />
+                    <input className="havi-input" placeholder="they / them" />
                   </label>
                   <label className="space-y-2 text-sm font-medium text-foreground">
                     Notes (optional)
                     <input
                       className="havi-input"
-                      disabled={!includeChild}
                       placeholder="Allergies, routines, etc."
                     />
                   </label>
@@ -212,6 +200,11 @@ export default function SignupPage() {
 
           {step === 3 && (
             <div className="space-y-4">
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-4 text-sm text-muted-foreground">
+                Think of this as your parent village — partners, grandparents,
+                sitters, or clinicians who help you care. Invite anyone now, or
+                keep it for later.
+              </div>
               {careTeam.map((entry, index) => (
                 <div
                   className="rounded-lg border border-border/60 bg-background/60 p-4"
