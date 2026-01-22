@@ -40,6 +40,7 @@ from .context_builders import build_child_context
 from .context_pack import build_message_context
 from .db import (
     create_task,
+    ensure_primary_family_membership,
     fetch_primary_profiles,
     fetch_recent_actions,
     get_routine_metrics,
@@ -807,8 +808,11 @@ async def get_settings() -> SettingsResponse:
 
 @app.put("/api/v1/settings", response_model=SettingsResponse)
 async def update_settings(payload: SettingsPayload) -> SettingsResponse:
+    if not payload.child.birth_date and not payload.child.due_date:
+        raise HTTPException(status_code=400, detail="Birth date or due date is required.")
     update_user_profile(payload.caregiver.model_dump())
     update_child_profile(payload.child.model_dump())
+    ensure_primary_family_membership()
     caregiver_data, child_data = fetch_primary_profiles()
     profile_id = caregiver_data.get("id")
     child_id = child_data.get("id")

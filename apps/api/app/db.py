@@ -97,6 +97,39 @@ def initialize_db() -> None:
 
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS families (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS family_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                family_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT,
+                status TEXT DEFAULT 'active',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (family_id) REFERENCES families(id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS family_members_unique
+            ON family_members (family_id, user_id)
+            """
+        )
+
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS activity_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 created_at TEXT NOT NULL,
@@ -416,11 +449,11 @@ def ensure_default_profiles() -> None:
                 """,
                 (
                     "Baby",
-                    "Baby",
-                    "",
-                    "",
-                    "",
-                    "",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
                     "UTC",
                     now,
                     now,
@@ -490,6 +523,11 @@ def update_user_profile(data: dict) -> None:
 def update_child_profile(data: dict) -> None:
     ensure_default_profiles()
     now = datetime.utcnow().isoformat()
+
+    def _normalize(value: Any) -> Any:
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
     with sqlite3.connect(_DB_PATH) as conn:
         child_id = conn.execute("SELECT id FROM children ORDER BY id LIMIT 1").fetchone()[0]
         conn.execute(
@@ -499,33 +537,90 @@ def update_child_profile(data: dict) -> None:
                 last_name = ?,
                 birth_date = ?,
                 due_date = ?,
-                timezone = COALESCE(?, timezone),
-                gender = COALESCE(?, gender),
-                birth_weight = COALESCE(?, birth_weight),
-                birth_weight_unit = COALESCE(?, birth_weight_unit),
-                latest_weight = COALESCE(?, latest_weight),
-                latest_weight_date = COALESCE(?, latest_weight_date),
-                routine_eligible = COALESCE(?, routine_eligible),
+                timezone = ?,
+                gender = ?,
+                birth_weight = ?,
+                birth_weight_unit = ?,
+                latest_weight = ?,
+                latest_weight_date = ?,
+                routine_eligible = ?,
                 updated_at = ?
             WHERE id = ?
             """,
             (
-                data.get("first_name"),
-                data.get("last_name"),
-                data.get("birth_date"),
-                data.get("due_date"),
-                data.get("timezone"),
-                data.get("gender"),
-                data.get("birth_weight"),
-                data.get("birth_weight_unit"),
-                data.get("latest_weight"),
-                data.get("latest_weight_date"),
-                data.get("routine_eligible"),
+                _normalize(data.get("first_name")),
+                _normalize(data.get("last_name")),
+                _normalize(data.get("birth_date")),
+                _normalize(data.get("due_date")),
+                _normalize(data.get("timezone")),
+                _normalize(data.get("gender")),
+                _normalize(data.get("birth_weight")),
+                _normalize(data.get("birth_weight_unit")),
+                _normalize(data.get("latest_weight")),
+                _normalize(data.get("latest_weight_date")),
+                _normalize(data.get("routine_eligible")),
                 now,
                 child_id,
             ),
         )
         conn.commit()
+
+
+def has_conversation_sessions() -> bool:
+    with sqlite3.connect(_DB_PATH) as conn:
+        row = conn.execute("SELECT 1 FROM conversation_sessions LIMIT 1").fetchone()
+    return bool(row)
+
+
+def ensure_primary_family_membership() -> Optional[int]:
+    ensure_default_profiles()
+    now = datetime.utcnow().isoformat()
+    with sqlite3.connect(_DB_PATH) as conn:
+        if not has_conversation_sessions():
+            return None
+        user_row = conn.execute(
+            "SELECT id, first_name, last_name, relationship FROM users ORDER BY id LIMIT 1"
+        ).fetchone()
+        if not user_row:
+            return None
+        user_id, first_name, last_name, relationship = user_row
+        family_row = conn.execute(
+            "SELECT id, name FROM families ORDER BY id LIMIT 1"
+        ).fetchone()
+        if family_row:
+            family_id = family_row[0]
+        else:
+            if last_name:
+                family_name = f"{last_name} Family"
+            elif first_name:
+                family_name = f"{first_name} Family"
+            else:
+                family_name = "Family"
+            cursor = conn.execute(
+                """
+                INSERT INTO families (name, created_at, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (family_name, now, now),
+            )
+            family_id = cursor.lastrowid
+
+        member_row = conn.execute(
+            """
+            SELECT id FROM family_members WHERE family_id = ? AND user_id = ?
+            """,
+            (family_id, user_id),
+        ).fetchone()
+        if not member_row:
+            conn.execute(
+                """
+                INSERT INTO family_members (family_id, user_id, role, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'active', ?, ?)
+                """,
+                (family_id, user_id, relationship or "Parent", now, now),
+            )
+        conn.commit()
+    return family_id
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict:
