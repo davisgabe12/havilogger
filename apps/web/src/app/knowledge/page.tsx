@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import KnowledgeList from "@/components/knowledge/KnowledgeList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { supabase } from "@/lib/supabase/client";
 import { KnowledgeReviewItem } from "@/types/knowledge";
 
 const KNOWLEDGE_GROUPS = ["Care Plan", "Child Profile", "Preferences", "Activities", "Milestones"];
 
 export default function KnowledgePage() {
+  const router = useRouter();
   const [items, setItems] = useState<KnowledgeReviewItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +37,23 @@ export default function KnowledgePage() {
   }, []);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    let isMounted = true;
+    const checkSessionAndLoad = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!isMounted) return;
+      if (!data.session) {
+        router.replace("/login");
+        return;
+      }
+      await fetchItems();
+    };
+
+    void checkSessionAndLoad();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchItems, router]);
 
   const groups = useMemo(() => {
     const map: Record<string, KnowledgeReviewItem[]> = {};

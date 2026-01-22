@@ -21,6 +21,7 @@ import { type FeedbackRating } from "@/components/chat/message-feedback";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { MessageBubble, CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
+import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type ActionMetadata = {
@@ -458,6 +459,23 @@ export default function Home() {
   const [lastMessageDraft, setLastMessageDraft] = useState("");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!isMounted) return;
+      if (!data.session) {
+        router.replace("/login");
+      }
+    };
+
+    void checkSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
   const knowledgeToastTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
