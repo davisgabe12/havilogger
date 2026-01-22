@@ -2230,12 +2230,32 @@ export default function Home() {
       nextFieldErrors.childLatestWeightDate =
         "Enter a valid date in MM-DD-YYYY format.";
     }
+    if (!childDob && !childDueDate) {
+      if (birthStatus === "born") {
+        nextFieldErrors.childDob = "Date of birth is required.";
+      } else {
+        nextFieldErrors.childDueDate = "Due date is required.";
+      }
+    }
     if (Object.keys(nextFieldErrors).length) {
       setFieldErrors(nextFieldErrors);
       setSettingsSaving(false);
       return;
     }
     setFieldErrors({});
+    if (
+      (childDob !== childSnapshot.birth_date ||
+        childDueDate !== childSnapshot.due_date) &&
+      (childDob || childDueDate)
+    ) {
+      const confirmed = window.confirm(
+        "Update your child's birth or due date? This affects age-based guidance.",
+      );
+      if (!confirmed) {
+        setSettingsSaving(false);
+        return;
+      }
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/settings`, {
         method: "PUT",
@@ -3318,7 +3338,10 @@ export default function Home() {
                           variant={
                             birthStatus === "born" ? "default" : "outline"
                           }
-                          onClick={() => setBirthStatus("born")}
+                          onClick={() => {
+                            setBirthStatus("born");
+                            setChildDueDate("");
+                          }}
                         >
                           Born
                         </Button>
