@@ -22,6 +22,7 @@ import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { MessageBubble, CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
 import { cn } from "@/lib/utils";
+import { persistActiveFamilyId, resolveFamilyForCurrentUser } from "@/lib/family";
 
 type ActionMetadata = {
   amount_value?: number | null;
@@ -458,6 +459,31 @@ export default function Home() {
   const [lastMessageDraft, setLastMessageDraft] = useState("");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ensureFamily = async () => {
+      try {
+        const result = await resolveFamilyForCurrentUser();
+        if (cancelled) return;
+        if (result.status === "created" || result.status === "single") {
+          persistActiveFamilyId(result.familyId);
+          return;
+        }
+        if (result.status === "multiple") {
+          router.replace("/select-family");
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("Failed to resolve family membership", error);
+      }
+    };
+
+    void ensureFamily();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
   const knowledgeToastTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
