@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+
+import { supabase } from "@/lib/supabase/client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -14,6 +18,98 @@ import {
 } from "@/components/ui/card";
 
 const stepsTotal = 4;
+const SignupPage = (): JSX.Element => {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        router.replace("/");
+      }
+    };
+
+    void checkSession();
+  }, [router]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    setIsSubmitting(true);
+
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (signUpError) {
+      setError(signUpError.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (data.session) {
+      router.replace("/");
+      return;
+    }
+
+    setNotice("Check your email to confirm your account.");
+    setIsSubmitting(false);
+  };
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-12 text-slate-100">
+      <Card className="w-full max-w-md border-slate-800 bg-slate-900/70 text-slate-100">
+        <CardHeader>
+          <CardTitle>Create your account</CardTitle>
+          <CardDescription className="text-slate-400">
+            Step 1: Enter your email and password to get started.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <label className="block text-sm font-medium">
+              Email
+              <input
+                className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Password
+              <input
+                className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </label>
+            {error ? (
+              <p className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                {error}
+              </p>
+            ) : null}
+            {notice ? (
+              <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                {notice}
+              </p>
+            ) : null}
+            <Button className="w-full" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating account..." : "Continue"}
+            </Button>
+const stepsTotal = 5;
 
 const stepContent = {
   1: {
@@ -27,6 +123,11 @@ const stepContent = {
   3: {
     title: "Child profile",
     description: "Personalize care with the essentials about your child.",
+    description: "A few details so Havi can shape day-to-day care.",
+  },
+  4: {
+    title: "Parent village",
+    description: "Invite your village now, or keep it for later in settings.",
   },
 } as const;
 
@@ -52,6 +153,13 @@ export default function SignupPage() {
   const [careTeam, setCareTeam] = useState<CareTeamEntry[]>([
     { name: "", role: "", email: "" },
   ]);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [careTeam, setCareTeam] = useState<CareTeamEntry[]>([
+    { name: "", role: "", email: "" },
+  ]);
+  const [childDateType, setChildDateType] = useState<"birthday" | "due">(
+    "birthday"
+  );
 
   const progressValue = useMemo(() => (step / stepsTotal) * 100, [step]);
 
@@ -122,6 +230,13 @@ export default function SignupPage() {
               <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
                 Phone (optional)
                 <input className="havi-input" placeholder="(555) 555-5555" />
+                <input
+                  className="havi-input"
+                  placeholder="(555) 555-5555"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                />
               </label>
             </div>
           )}
@@ -156,6 +271,27 @@ export default function SignupPage() {
                     <input className="havi-input" placeholder="jordan@family.com" />
                   </label>
                 </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
+                  Family name
+                  <input className="havi-input" placeholder="Johnson family" />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-foreground">
+                  Timezone
+                  <input className="havi-input" placeholder="PST" />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-foreground">
+                  Partner first name
+                  <input className="havi-input" placeholder="Jordan" />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-foreground">
+                  Partner last name
+                  <input className="havi-input" placeholder="Johnson" />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
+                  Partner email
+                  <input className="havi-input" placeholder="jordan@family.com" />
+                </label>
               </div>
 
             </div>
@@ -181,6 +317,39 @@ export default function SignupPage() {
                   </label>
                   <label className="space-y-2 text-sm font-medium text-foreground">
                     Birthday
+                    Child first name
+                    <input className="havi-input" placeholder="Avery" />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-foreground md:col-span-2">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {childDateType === "birthday" ? "Birthday" : "Due date"}
+                      </span>
+                      <span className="flex rounded-md border border-border/60 bg-background/60 p-1 text-xs">
+                        <button
+                          className={`rounded-md px-3 py-1.5 transition ${
+                            childDateType === "birthday"
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                          type="button"
+                          onClick={() => setChildDateType("birthday")}
+                        >
+                          Birthday
+                        </button>
+                        <button
+                          className={`rounded-md px-3 py-1.5 transition ${
+                            childDateType === "due"
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                          type="button"
+                          onClick={() => setChildDateType("due")}
+                        >
+                          Due date
+                        </button>
+                      </span>
+                    </span>
                     <input
                       className="havi-input"
                       placeholder="MM / DD / YYYY"
@@ -201,6 +370,33 @@ export default function SignupPage() {
                 Your parent village can join later. Invite caregivers or
                 clinicians when you want everyone on the same page.
               </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-4 text-sm text-muted-foreground">
+                Think of this as your parent village — partners, grandparents,
+                sitters, or clinicians who help you care. Invite anyone now, or
+                set it up later in settings.
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-foreground">
+                  Add your parent village
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddCareTeam}
+                  disabled={careTeam.length >= 5}
+                >
+                  Add another
+                </Button>
+              </div>
+
               {careTeam.map((entry, index) => (
                 <div
                   className="rounded-lg border border-border/60 bg-background/60 p-4"
@@ -271,6 +467,9 @@ export default function SignupPage() {
                   Add another
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Add up to five care team members. You can always edit this later.
+              </p>
             </div>
           )}
         </CardContent>
@@ -278,12 +477,17 @@ export default function SignupPage() {
           <Button
             variant="ghost"
             onClick={() => setStep((prev) => (prev === 1 ? prev : (prev - 1) as 1 | 2 | 3))}
+            onClick={() =>
+              setStep((prev) =>
+                prev === 1 ? prev : (prev - 1) as 1 | 2 | 3 | 4
+              )
+            }
             disabled={step === 1}
           >
             Back
           </Button>
           <div className="flex flex-wrap gap-2">
-            {step === 3 ? (
+            {step === 4 ? (
               <>
                 <Button variant="ghost" asChild>
                   <Link href="/activate">Skip for now</Link>
@@ -294,6 +498,11 @@ export default function SignupPage() {
               </>
             ) : (
               <Button onClick={() => setStep((prev) => (prev + 1) as 1 | 2 | 3)}>
+              <Button
+                onClick={() =>
+                  setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4)
+                }
+              >
                 Continue
               </Button>
             )}
@@ -302,4 +511,80 @@ export default function SignupPage() {
       </Card>
     </div>
   );
+import Link from "next/link";
+
+import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function SignupPage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4 py-10">
+      <Card className="havi-card-shell w-full max-w-md">
+        <CardHeader className="space-y-3 text-center">
+          <div className="flex justify-center text-muted-foreground">
+            <HaviWordmark />
+          </div>
+          <div className="space-y-1">
+            <CardTitle className="text-xl">Create your HAVI account</CardTitle>
+            <CardDescription>Start a shared baby log for your family.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="signup-name">
+                Full name
+              </label>
+              <input
+                id="signup-name"
+                name="name"
+                type="text"
+                placeholder="Alex Johnson"
+                className="havi-input"
+                autoComplete="name"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="signup-email">
+                Email
+              </label>
+              <input
+                id="signup-email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                className="havi-input"
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="signup-password">
+                Password
+              </label>
+              <input
+                id="signup-password"
+                name="password"
+                type="password"
+                placeholder="Create a password"
+                className="havi-input"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button className="w-full sm:w-auto" type="submit">
+                Create account
+              </Button>
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link href="/login">Already have an account</Link>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
+  );
+};
+
+export default SignupPage;
 }

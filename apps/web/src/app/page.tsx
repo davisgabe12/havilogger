@@ -21,7 +21,9 @@ import { type FeedbackRating } from "@/components/chat/message-feedback";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { MessageBubble, CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type { ChatEntry } from "@/components/chat/types";
+import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { persistActiveFamilyId, resolveFamilyForCurrentUser } from "@/lib/family";
 
 type ActionMetadata = {
   amount_value?: number | null;
@@ -458,6 +460,44 @@ export default function Home() {
   const [lastMessageDraft, setLastMessageDraft] = useState("");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ensureFamily = async () => {
+      try {
+        const result = await resolveFamilyForCurrentUser();
+        if (cancelled) return;
+        if (result.status === "created" || result.status === "single") {
+          persistActiveFamilyId(result.familyId);
+          return;
+        }
+        if (result.status === "multiple") {
+          router.replace("/select-family");
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn("Failed to resolve family membership", error);
+      }
+    };
+
+    void ensureFamily();
+    return () => {
+      cancelled = true;
+    let isMounted = true;
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!isMounted) return;
+      if (!data.session) {
+        router.replace("/login");
+      }
+    };
+
+    void checkSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
   const knowledgeToastTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2230,12 +2270,32 @@ export default function Home() {
       nextFieldErrors.childLatestWeightDate =
         "Enter a valid date in MM-DD-YYYY format.";
     }
+    if (!childDob && !childDueDate) {
+      if (birthStatus === "born") {
+        nextFieldErrors.childDob = "Date of birth is required.";
+      } else {
+        nextFieldErrors.childDueDate = "Due date is required.";
+      }
+    }
     if (Object.keys(nextFieldErrors).length) {
       setFieldErrors(nextFieldErrors);
       setSettingsSaving(false);
       return;
     }
     setFieldErrors({});
+    if (
+      (childDob !== childSnapshot.birth_date ||
+        childDueDate !== childSnapshot.due_date) &&
+      (childDob || childDueDate)
+    ) {
+      const confirmed = window.confirm(
+        "Update your child's birth or due date? This affects age-based guidance.",
+      );
+      if (!confirmed) {
+        setSettingsSaving(false);
+        return;
+      }
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/settings`, {
         method: "PUT",
@@ -3318,7 +3378,10 @@ export default function Home() {
                           variant={
                             birthStatus === "born" ? "default" : "outline"
                           }
-                          onClick={() => setBirthStatus("born")}
+                          onClick={() => {
+                            setBirthStatus("born");
+                            setChildDueDate("");
+                          }}
                         >
                           Born
                         </Button>
