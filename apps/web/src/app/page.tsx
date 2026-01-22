@@ -1,5 +1,9 @@
-"use client";
+import type { Metadata } from "next";
+import Link from "next/link";
 
+import { MarketingLayout } from "@/components/marketing/MarketingLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -205,121 +209,51 @@ type ApiResponse = {
   intent?: string;
 };
 
-type ConversationMessage = {
-  id: number;
-  session_id: number;
-  role: "user" | "assistant" | "caregiver";
-  content: string;
-  intent?: string | null;
-  created_at: string;
+export const metadata: Metadata = {
+  title: "Havi | Another brain for your family",
+  description:
+    "Havi helps parents carry the mental load with calm, conversational support, shared memory, and Runway foresight.",
 };
 
-type MessageFeedbackEntry = {
-  message_id: number | string;
-  rating: FeedbackRating;
-  feedback_text?: string | null;
-};
-
-type SpeechRecognitionEventLike = {
-  results: Array<{
-    0: {
-      transcript: string;
-    };
-  }>;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart: () => void;
-  onerror: () => void;
-  onresult: (event: SpeechRecognitionEventLike) => void;
-  onend: () => void;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionGlobal = {
-  SpeechRecognition?: new () => SpeechRecognitionLike;
-  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-};
-
-type Panel =
-  | "home"
-  | "havi"
-  | "timeline"
-  | "tasks"
-  | "history"
-  | "knowledge"
-  | "integrations"
-  | "settings";
-
-const NAV_ITEMS: { id: Panel; label: string }[] = [
-  { id: "home", label: "Home" },
-  { id: "havi", label: "HAVI" },
-  { id: "timeline", label: "Timeline" },
-  { id: "tasks", label: "Tasks" },
-  { id: "history", label: "History" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "integrations", label: "Integrations" },
-  { id: "settings", label: "Settings" },
-];
-
-type ChipTemplate = {
-  id: string;
-  label: string;
-  text: string;
-  requiresHistory?: boolean;
-  onlyWhenNoHistory?: boolean;
-  requiresSymptom?: boolean;
-  requiresProfile?: boolean;
-  requiresRoutine?: boolean;
-};
-
-const chipLibrary: ChipTemplate[] = [
+const featureHighlights = [
   {
-    id: "diaper_now",
-    label: "Changed a dirty diaper",
-    text: "I just changed a dirty diaper for {child}—please log it.",
+    title: "Conversation-first support",
+    description:
+      "Ask questions by chat or voice and get calm guidance fast, without digging through tabs or threads.",
   },
   {
-    id: "bath_wrap",
-    label: "Finished bath routine",
-    text: "{child} just finished a bath and diaper change about 10 minutes ago.",
+    title: "Runway: a clear path ahead",
+    description:
+      "See what’s coming next and reduce guesswork with a simple, shared view of family growth.",
   },
   {
-    id: "feed_combo",
-    label: "Feed and diaper change 10 minutes ago",
-    text: "Finished a feed and diaper change for {child} about 10 minutes ago.",
-  },
-  {
-    id: "symptom_followup",
-    label: "Cough check-in",
-    text: "{child} has a cough—what should I watch for?",
-    requiresSymptom: true,
-  },
-  {
-    id: "milestones_today",
-    label: "What’s Ahead Today",
-    text: "Tell me about the next milestone for {child}.",
-    requiresProfile: true,
-  },
-  {
-    id: "week_intro",
-    label: "What happens in week {week}?",
-    text: "What development milestones are expected for week {week}?",
-    onlyWhenNoHistory: true,
-    requiresProfile: true,
-  },
-  {
-    id: "routine_setup",
-    label: "Routine setup",
-    text: "Can you help me build a routine for {child} based on recent days?",
-    requiresRoutine: true,
+    title: "Shared family memory",
+    description:
+      "Keep moments, decisions, and context in one place so partners and caregivers stay aligned.",
   },
 ];
 
+const whyHavi = [
+  {
+    title: "Too much to remember",
+    body: "Havi keeps moments, notes, and questions in one calm place, so nothing valuable disappears.",
+  },
+  {
+    title: "Advice everywhere. Clarity nowhere.",
+    body: "Havi helps you make sense of guidance in the context of your child and your situation.",
+  },
+  {
+    title: "Less logging. More living.",
+    body: "Capture information naturally through conversation and quick moments—then let Havi make it useful later.",
+  },
+];
+
+const quotes = [
+  "I’m not failing—I’m overloaded. Havi makes it feel manageable.",
+  "It’s like having another brain that actually remembers what happened.",
+  "We stopped arguing about who said what. We finally feel aligned.",
+  "At 3 a.m., I don’t need a blog post. I need a clear next step.",
+];
 type ConversationState =
   | "idle"
   | "sending"
@@ -2509,105 +2443,51 @@ export default function Home() {
     return null;
   }
 
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="hidden md:flex md:h-screen md:w-60 md:flex-col md:sticky md:top-0 border-r border-border/60 bg-card/95 p-3">
-        <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Menu
-        </div>
-        <nav className="flex flex-col gap-1 text-sm">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cn(
-                "w-full rounded-md px-3 py-2 text-left text-foreground/80 hover:bg-muted/40",
-                activePanel === item.id &&
-                  "bg-primary/15 text-foreground border border-border/60",
-              )}
-              onClick={() => {
-                setActivePanel(item.id);
-                setNavOpen(false);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 min-w-0 px-4 md:px-6 lg:px-8">
-        <div className="havi-app-shell" data-testid="app-frame">
-          <div className="relative">
-            <button
-              type="button"
-              className="text-left"
-              onClick={() => {
-                setActivePanel("havi");
-                setNavOpen(false);
-              }}
-              aria-label="Back to HAVI chat"
-            >
-              <h1 className="text-3xl font-bold text-muted-foreground">
-                <HaviWordmark />
-              </h1>
-            </button>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Log events, ask what&apos;s expected, or compare recent days—one
-              chat, zero friction.
+    <MarketingLayout>
+      <section className="border-b border-border/60">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-16 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-2xl space-y-6">
+            <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
+              Havi — another brain for your family
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" onClick={handleNewChat}>
-                New chat
+            <h1 className="text-3xl font-semibold leading-tight md:text-5xl">
+              Havi is another brain for your family—designed to help you be the parent
+              you want to be.
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Parenting isn’t hard because parents aren’t trying hard enough. It’s hard
+              because there’s too much to hold in your head—often on very little sleep.
+            </p>
+            <p className="text-base text-muted-foreground">
+              Havi helps carry the mental load. It learns as you live, not as you log,
+              bringing moments, questions, reminders, and insights into one calm place.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/signup">Get started</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/stories">Read stories</Link>
               </Button>
             </div>
-            {/* Mobile nav: hamburger + overlay sheet */}
-            <div className="mt-4 flex gap-2 md:hidden">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setNavOpen((prev) => !prev)}
-              >
-                <Menu className="mr-2 h-4 w-4" />
-                Menu
-              </Button>
-            </div>
-            {navOpen ? (
-              <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-lg border border-border/40 bg-card/95 p-3 text-sm shadow-lg md:hidden">
-                {NAV_ITEMS.map((item) => (
-                  <button
-                    key={item.id}
-                    className={cn(
-                      "w-full rounded-md px-2 py-1 text-left hover:bg-muted",
-                      activePanel === item.id && "bg-muted/60",
-                    )}
-                    onClick={() => {
-                      setActivePanel(item.id);
-                      setNavOpen(false);
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
-
-          {navOpen ? (
-            <button
-              type="button"
-              aria-label="Close navigation overlay"
-              className="fixed inset-0 z-10 cursor-default bg-black/40 md:hidden"
-              onClick={() => setNavOpen(false)}
-            />
-          ) : null}
-
-          {networkOffline ? (
-            <div className="rounded-md border border-amber-500/50 bg-amber-950/40 px-
-          3 py-2 text-sm text-amber-100">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-lg">Built for the mental load</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
               <p>
-                It looks like we’re offline. Please check your connection and
-                tap retry.
+                Havi remembers for you when sleep deprivation changes everything, and it
+                keeps care teams aligned without more meetings or message threads.
               </p>
+              <p>
+                The goal is simple: be present now, and prepared for what’s next—without
+                turning parenting into data entry.
+              </p>
+            </CardContent>
+          </Card>
               <div className="mt-2 flex gap-2">
                 <Button
                   size="sm"
@@ -4048,91 +3928,84 @@ export default function Home() {
             </div>
           </div>
         </div>
-      ) : null}
+      </section>
 
-      {settingsSuccess ? (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-          <div className="pointer-events-auto rounded-md border border-emerald-500/40 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-50 shadow-lg">
-            {settingsSuccess}
+      <section className="border-b border-border/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+          <div className="grid gap-6 md:grid-cols-3">
+            {featureHighlights.map((feature) => (
+              <Card key={feature.title} className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-lg">{feature.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  {feature.description}
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
-      ) : null}
-      {knowledgeToast ? (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-          <div className="pointer-events-auto rounded-md border border-primary/40 bg-primary/15 px-4 py-2 text-sm text-primary shadow-lg">
-            {knowledgeToast}
+      </section>
+
+      <section className="border-b border-border/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+          <div className="mb-10 max-w-2xl space-y-4">
+            <h2 className="text-2xl font-semibold md:text-3xl">Why Havi</h2>
+            <p className="text-base text-muted-foreground">
+              Built for real families. Designed to reduce the cognitive load of modern
+              parenting.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {whyHavi.map((item) => (
+              <div key={item.title} className="space-y-3 rounded-lg border border-border/60 p-6">
+                <h3 className="text-base font-semibold">{item.title}</h3>
+                <p className="text-sm text-muted-foreground">{item.body}</p>
+              </div>
+            ))}
           </div>
         </div>
-      ) : null}
-      {inviteOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-sm space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-base font-semibold">Invite a caregiver</p>
-                <p className="text-sm text-muted-foreground">
-                  Send a quick invite to join this care team.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-sm text-muted-foreground"
-                onClick={() => setInviteOpen(false)}
-                aria-label="Close invite dialog"
+      </section>
+
+      <section className="border-b border-border/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+          <div className="mb-10 max-w-2xl space-y-4">
+            <h2 className="text-2xl font-semibold md:text-3xl">What parents say</h2>
+            <p className="text-base text-muted-foreground">
+              Early reactions from parents who want a calmer, clearer way to keep up.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            {quotes.map((quote) => (
+              <blockquote
+                key={quote}
+                className="rounded-lg border border-border/60 p-6 text-sm text-muted-foreground"
               >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-2">
-              <div>
-                <p className="text-[11px] text-muted-foreground">Email</p>
-                <input
-                  className="mt-1 havi-input"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  type="email"
-                  placeholder="caregiver@example.com"
-                />
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground">Role</p>
-                <select
-                  className="mt-1 w-full havi-select"
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                >
-                  {["Parent", "Grandparent", "Nanny", "Relative", "Other"].map(
-                    (role) => (
-                      <option key={role}>{role}</option>
-                    ),
-                  )}
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setInviteOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  console.log("Invite caregiver", { inviteEmail, inviteRole });
-                  setInviteOpen(false);
-                  setInviteEmail("");
-                  setInviteRole("Parent");
-                }}
-              >
-                Send invite
-              </Button>
-            </div>
+                “{quote}”
+              </blockquote>
+            ))}
           </div>
         </div>
-      ) : null}
+      </section>
+
+      <section>
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-4 px-6 py-16 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-xl space-y-3">
+            <h2 className="text-2xl font-semibold md:text-3xl">
+              Ready for a calmer way to parent?
+            </h2>
+            <p className="text-base text-muted-foreground">
+              Havi is a family brain that learns as you live—helping you reduce mental
+              load and stay ready for what’s next.
+            </p>
           </div>
+          <Button asChild>
+            <Link href="/signup">Get started</Link>
+          </Button>
+        </div>
+      </section>
+    </MarketingLayout>
+  );
         </main>
       </div>
   );
