@@ -46,6 +46,12 @@ HaviLogger is a AI‑assisted parenting logger and assistant. It turns short, na
   - `restart.sh` – stop existing dev processes and start FastAPI + Next dev servers.
   - `stop.sh` – stop backend and frontend dev processes.
 
+## Skills
+
+- `SKILLS.md` – local Codex skill index for this repo.
+- Refresh with `scripts/update-skills-index.py`.
+- Or run `make skills-index`.
+
 ## Getting Started
 
 For detailed setup instructions, see:
