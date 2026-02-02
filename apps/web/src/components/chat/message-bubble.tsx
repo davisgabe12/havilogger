@@ -11,7 +11,7 @@ import type { ChatEntry } from "./types";
 export const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 function formatTimestamp(value: string, timezone?: string): string {
   const date = new Date(value);

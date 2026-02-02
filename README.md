@@ -75,9 +75,9 @@ Quick outline:
    - Option B (scripted, expects `.venv`):
      - From repo root: `./restart.sh`
 
-Once both services are running:
-
-- Open `http://localhost:3000` to use the Havi UI.
+- Once both services are running:
+- 
+- Open `http://localhost:3001` to use the Havi UI.
 - The chat panel sends requests to `POST /api/v1/activities` and displays structured responses.
 
 ## Testing

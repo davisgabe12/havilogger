@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
 const baseURL =
-  process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+  process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001";
 const shouldStartServers = !process.env.PLAYWRIGHT_BASE_URL;
 
 export default defineConfig({
@@ -27,14 +27,14 @@ export default defineConfig({
   webServer: shouldStartServers
     ? [
         {
-          command: "npm run dev -- --port 3000",
-          url: "http://localhost:3000",
+          command: "npm run dev -- --port 3001",
+          url: "http://localhost:3001",
           reuseExistingServer: true,
           timeout: 120_000,
         },
         {
-          command: "python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8001",
-          url: "http://localhost:8001/health",
+          command: "python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+          url: "http://localhost:8000/health",
           reuseExistingServer: true,
           timeout: 120_000,
           cwd: "../api",

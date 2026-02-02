@@ -8,6 +8,7 @@ Apply migrations in this exact order using the Supabase SQL editor:
 4) `docs/supabase/006_memory_v1.sql`
 5) `docs/supabase/007_share_links.sql`
 6) `docs/supabase/008_green_reconcile.sql`
+7) `docs/supabase/009_create_family_rpc.sql`
 
 ## How to apply (Supabase SQL editor)
 1) Open your Supabase project → **SQL Editor**.

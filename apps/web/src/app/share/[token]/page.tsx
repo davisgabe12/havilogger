@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 type SharedEntry = {
   id: string;

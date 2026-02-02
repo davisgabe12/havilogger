@@ -76,6 +76,29 @@ def resolve_child_id(
     return resolve_optional_uuid(candidate, "child_id")
 
 
+
+async def _describe_response(resp: httpx.Response) -> str:
+    try:
+        return resp.text or "<empty response>"
+    except Exception:
+        return "<unable to read response>"
+
+
+async def _raise_supabase_error(
+    resp: httpx.Response,
+    action: str,
+    *,
+    object_label: Optional[str] = None,
+) -> None:
+    detail = await _describe_response(resp)
+    label = f" ({object_label})" if object_label else ""
+    status = resp.status_code if resp.status_code >= 400 else 500
+    raise HTTPException(
+        status_code=status,
+        detail=f"Supabase {action} failed{label}: status={resp.status_code}, body={detail}",
+    )
+
+
 async def _verify_access_token(token: str) -> Dict[str, Any]:
     audience = os.getenv("SUPABASE_JWT_AUD", "authenticated")
     options = {"verify_aud": bool(audience)}
@@ -161,18 +184,25 @@ class SupabaseClient:
     async def select(self, table: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         resp = await self.request("GET", table, params=params)
         if resp.status_code >= 400:
-            raise HTTPException(status_code=500, detail="Supabase query failed.")
+            await _raise_supabase_error(resp, "select", object_label=f"table={table}")
         return resp.json()
 
-    async def insert(self, table: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def insert(
+        self,
+        table: str,
+        payload: Dict[str, Any],
+        *,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         resp = await self.request(
             "POST",
             table,
+            params=params,
             json=payload,
             headers={"Prefer": "return=representation"},
         )
         if resp.status_code >= 400:
-            raise HTTPException(status_code=500, detail="Supabase insert failed.")
+            await _raise_supabase_error(resp, "insert", object_label=f"table={table}")
         return resp.json() if resp.content else []
 
     async def upsert(
@@ -192,7 +222,7 @@ class SupabaseClient:
             },
         )
         if resp.status_code >= 400:
-            raise HTTPException(status_code=500, detail="Supabase upsert failed.")
+            await _raise_supabase_error(resp, "upsert", object_label=f"table={table}")
         return resp.json() if resp.content else []
 
     async def update(
@@ -209,25 +239,19 @@ class SupabaseClient:
             headers={"Prefer": "return=representation"},
         )
         if resp.status_code >= 400:
-            raise HTTPException(status_code=500, detail="Supabase update failed.")
+            await _raise_supabase_error(resp, "update", object_label=f"table={table}")
         return resp.json() if resp.content else []
 
     async def rpc(self, fn: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         resp = await self.request("POST", f"rpc/{fn}", json=payload)
         if resp.status_code >= 400:
-            detail = "Supabase RPC failed."
-            try:
-                data = resp.json()
-                detail = data.get("message") or data.get("error") or detail
-            except Exception:
-                pass
-            raise HTTPException(status_code=resp.status_code, detail=detail)
+            await _raise_supabase_error(resp, "rpc", object_label=f"fn={fn}")
         return resp.json() if resp.content else None
 
     async def delete(self, table: str, params: Dict[str, Any]) -> None:
         resp = await self.request("DELETE", table, params=params)
         if resp.status_code >= 400:
-            raise HTTPException(status_code=500, detail="Supabase delete failed.")
+            await _raise_supabase_error(resp, "delete", object_label=f"table={table}")
 
 
 @lru_cache
@@ -283,12 +307,18 @@ async def get_auth_context(
     )
 
     membership_family_ids = {row.get("family_id") for row in memberships}
+    primary_family_id = next(
+        (row.get("family_id") for row in memberships if row.get("is_primary")), None
+    )
+
     if family_id:
         resolved_family_id = _parse_uuid(family_id, "family_id")
         if resolved_family_id not in membership_family_ids:
             raise HTTPException(status_code=403, detail="Family access denied.")
     else:
-        if len(membership_family_ids) == 1:
+        if primary_family_id:
+            resolved_family_id = primary_family_id
+        elif len(membership_family_ids) == 1:
             resolved_family_id = next(iter(membership_family_ids))
         else:
             raise HTTPException(

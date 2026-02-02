@@ -1,3 +1,5 @@
+
+
 from __future__ import annotations
 
 import asyncio
@@ -7,6 +9,7 @@ import logging
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Literal
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -14,6 +17,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from dateparser.search import search_dates
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -27,7 +31,18 @@ from .supabase import (
     get_user_context,
     resolve_child_id,
     resolve_optional_uuid,
+    _supabase_config,
 )
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
+
+try:
+    _supabase_config()
+except RuntimeError as error:
+    raise RuntimeError(
+        "SUPABASE_URL and SUPABASE_ANON_KEY must be set before starting the API. "
+        "Check apps/api/.env.local or your environment."
+    ) from error
 from .inferences import CreateInferencePayload, Inference, InferenceStatus
 from .routes import events as events_routes
 from .routes import feedback as feedback_routes
@@ -61,6 +76,26 @@ def _format_compose_error(reason: Optional[str] = None) -> str:
     if len(raw) > 200:
         raw = raw[:197] + "..."
     return f"Error composing response [E_COMPOSE]: {raw}"
+
+
+def _extract_rpc_scalar_result(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        for item in value:
+            candidate = _extract_rpc_scalar_result(item)
+            if candidate is not None:
+                return candidate
+        return None
+    if isinstance(value, dict):
+        for item in value.values():
+            candidate = _extract_rpc_scalar_result(item)
+            if candidate is not None:
+                return candidate
+        return None
+    if isinstance(value, (int, float, str)):
+        return str(value)
+    return None
 
 
 def maybe_autotitle_session(
@@ -191,6 +226,20 @@ class CreateConversationMessagePayload(BaseModel):
     intent: Optional[str] = None
 
 
+class CreateMessagePayload(BaseModel):
+    role: str
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+    source: Optional[str] = None
+    child_id: Optional[str] = None
+
+
+class CreateChatMessagePayload(BaseModel):
+    payload: Dict[str, Any]
+    channel: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
 STAGE_TIPS = [
     (
         0,
@@ -265,14 +314,14 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
 )
 
 app.include_router(events_routes.router)
@@ -409,9 +458,11 @@ async def _insert_conversation_message(
     intent: Optional[str] = None,
 ) -> ConversationMessage:
     now_iso = _now_iso()
-    created = await auth.supabase.insert(
+    admin = get_admin_client()
+    created = await admin.insert(
         "conversation_messages",
         {
+            "family_id": auth.family_id,
             "session_id": session_id,
             "user_id": user_id,
             "role": role,
@@ -436,6 +487,7 @@ async def _list_conversation_messages(
         params={
             "select": "id,session_id,user_id,role,content,intent,created_at",
             "session_id": f"eq.{session_id}",
+            "family_id": f"eq.{auth.family_id}",
             "order": "created_at.asc",
             "limit": str(limit),
         },
@@ -1052,11 +1104,51 @@ async def post_message(
         session_id=session_uuid,
         role=payload.role,
         content=payload.content,
-        user_id=payload.user_id or auth.user_id,
+        user_id=auth.user_id,
         intent=payload.intent,
     )
     await _touch_conversation(auth, session_uuid, _now_iso())
     return message
+
+
+@app.post("/api/v1/messages")
+async def create_message(
+    payload: CreateMessagePayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict:
+    admin = get_admin_client()
+    now_iso = _now_iso()
+    data = payload.dict(exclude_none=True)
+    data.update(
+        {
+            "family_id": auth.family_id,
+            "created_at": now_iso,
+        }
+    )
+    result = await admin.insert("messages", data)
+    if not result:
+        raise HTTPException(status_code=500, detail="Unable to create message")
+    return {"id": result[0]["id"]}
+
+
+@app.post("/api/v1/chat_messages")
+async def create_chat_message(
+    payload: CreateChatMessagePayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict:
+    admin = get_admin_client()
+    now_iso = _now_iso()
+    data = {
+        "family_id": auth.family_id,
+        "payload": payload.payload,
+        "channel": payload.channel,
+        "metadata": payload.metadata,
+        "created_at": now_iso,
+    }
+    result = await admin.insert("chat_messages", data)
+    if not result:
+        raise HTTPException(status_code=500, detail="Unable to create chat message")
+    return {"id": result[0]["id"]}
 
 
 @app.get("/api/v1/conversations/{session_id}/messages", response_model=List[ConversationMessage])
@@ -1483,19 +1575,13 @@ async def create_family(
     user_ctx=Depends(get_user_context),
 ) -> dict:
     name = (payload.name or "").strip() or "Family"
-    created = await user_ctx.supabase.insert("families", {"name": name})
-    if not created:
-        raise HTTPException(status_code=500, detail="Unable to create family")
-    family_id = created[0].get("id")
-    await user_ctx.supabase.insert(
-        "family_members",
-        {
-            "family_id": family_id,
-            "user_id": user_ctx.user_id,
-            "role": "owner",
-            "is_primary": True,
-        },
+    result = await user_ctx.supabase.rpc(
+        "create_family_with_owner",
+        {"p_name": name},
     )
+    family_id = _extract_rpc_scalar_result(result)
+    if not family_id:
+        raise HTTPException(status_code=500, detail="Could not determine family id after creation.")
     return {"id": family_id, "name": name}
 
 
@@ -1576,7 +1662,7 @@ async def create_invite(
     )
     if not created:
         raise HTTPException(status_code=500, detail="Unable to create invite.")
-    base_url = os.getenv("HAVI_SITE_URL") or os.getenv("NEXT_PUBLIC_SITE_URL") or "http://localhost:3000"
+    base_url = os.getenv("HAVI_SITE_URL") or os.getenv("NEXT_PUBLIC_SITE_URL") or "http://localhost:3001"
     return {
         "token": token,
         "family_id": auth.family_id,

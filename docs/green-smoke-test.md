@@ -3,9 +3,9 @@
 Goal: verify auth + onboarding + /app load with Supabase-backed settings.
 
 ## Prereqs
-- API running on `http://127.0.0.1:8001`
-- Web running on `http://localhost:3000`
-- `apps/web/.env.local` has `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8001`
+- API running on `http://127.0.0.1:8000`
+- Web running on `http://localhost:3001`
+- `apps/web/.env.local` has `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000`
 - `SUPABASE_SERVICE_ROLE_KEY` set for the API process (required for invite acceptance).
 - Optional (only if Supabase email confirmation is enabled):
   - `GREEN_EXISTING_EMAIL` + `GREEN_EXISTING_PASSWORD` (confirmed user)
@@ -22,7 +22,7 @@ npm run green:doctor
 
 # Terminal 1
 cd apps/api
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8000
 
 # Terminal 2
 cd apps/web
@@ -38,7 +38,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001 npm run test:green
 Smoke test source: `apps/web/tests/smoke/green.spec.ts`
 
 ## Troubleshooting
-- If Playwright cannot bind to `localhost:3000` (EPERM/EADDRINUSE), stop any running dev server or set `PLAYWRIGHT_BASE_URL` to an already-running web server (this skips starting web/api servers) and rerun `npm run test:green`.
+- If Playwright cannot bind to `localhost:3001` (EPERM/EADDRINUSE), stop any running dev server or set `PLAYWRIGHT_BASE_URL` to an already-running web server (this skips starting web/api servers) and rerun `npm run test:green`.
 
 ## What the smoke test proves
 - Marketing `/` is unauthenticated and renders without app UI.
@@ -80,7 +80,7 @@ creates a tokenized `share_links` row and resolves shared content via the RPC.
 8) Signed out visiting `/app` → redirect to `/auth/sign-in`.
 
 ## API verification (devtools)
-- All API calls hit `http://127.0.0.1:8001/api/v1/*`
+- All API calls hit `http://127.0.0.1:8000/api/v1/*`
 - `/api/v1/settings` returns 200 when signed in
 - Request includes `Authorization: Bearer <jwt>`
 

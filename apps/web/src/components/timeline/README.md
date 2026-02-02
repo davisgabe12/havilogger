@@ -27,7 +27,7 @@ This keeps “log via chat → Timeline” on one code path.
 ## Verification
 
 1. Run `cd apps/web && npm run lint` and `npm test` to ensure the Timeline components and hooks stay healthy.
-2. Start the dev server (`npm run dev`), open `http://localhost:3000`, tap **Menu → Timeline**, and verify:
+2. Start the dev server (`npm run dev`), open `http://localhost:3001`, tap **Menu → Timeline**, and verify:
    - Date navigation (Prev/Next/Today) updates the list.
    - Child selector chip shows the current child name.
    - Filter chips hide/show events and Note/Custom/source pills appear where expected.

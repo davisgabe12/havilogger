@@ -48,7 +48,7 @@ function parseArgs() {
 
   const envPort = process.env.PORT || process.env.DEV_PORT;
   const host = hostFromFlag || process.env.HOST || '127.0.0.1';
-  const port = Number(portFromFlag || envPort) || 3000;
+const port = Number(portFromFlag || envPort) || 3001;
 
   return { port, host, forwardedArgs: cleanedArgs };
 }
