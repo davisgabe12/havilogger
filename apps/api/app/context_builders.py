@@ -17,7 +17,7 @@ TEMPERAMENT_TRAITS = [
 MILESTONE_FIELDS = ["gross_motor", "fine_motor", "language", "social"]
 
 
-def build_child_context(profile_id: Optional[int], child_id: Optional[int]) -> Dict[str, Any]:
+def build_child_context(profile_id: Optional[int], child_id: Optional[str]) -> Dict[str, Any]:
     """Gather active knowledge items and map them into structured child context."""
 
     def _empty_context() -> Dict[str, Any]:

@@ -9,9 +9,9 @@ import { KnowledgeReviewItem } from "@/types/knowledge";
 type Props = {
   item: KnowledgeReviewItem;
   variant: "pending" | "active";
-  onConfirm: (id: number) => Promise<void>;
-  onDismiss: (id: number) => Promise<void>;
-  onEdit: (id: number, payload: Record<string, unknown>, summary?: string) => Promise<void>;
+  onConfirm: (id: string) => Promise<void>;
+  onDismiss: (id: string) => Promise<void>;
+  onEdit: (id: string, payload: Record<string, unknown>, summary?: string) => Promise<void>;
 };
 
 function summarize(item: KnowledgeReviewItem): string {

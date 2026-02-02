@@ -6,9 +6,9 @@ import { KnowledgeReviewItem } from "@/types/knowledge";
 type Props = {
   group: string;
   items: KnowledgeReviewItem[];
-  onConfirm: (id: number) => Promise<void>;
-  onDismiss: (id: number) => Promise<void>;
-  onEdit: (id: number, payload: Record<string, unknown>, summary?: string) => Promise<void>;
+  onConfirm: (id: string) => Promise<void>;
+  onDismiss: (id: string) => Promise<void>;
+  onEdit: (id: string, payload: Record<string, unknown>, summary?: string) => Promise<void>;
 };
 
 export default function KnowledgeList({ group, items, onConfirm, onDismiss, onEdit }: Props) {

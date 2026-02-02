@@ -34,9 +34,9 @@ class InferenceStatus(str, Enum):
 # - prompt cadence: last_prompted_at is updated when we surface a prompt to avoid spamming.
 
 class Inference(BaseModel):
-    id: int
-    child_id: Optional[int]
-    user_id: Optional[int]
+    id: str
+    child_id: Optional[str]
+    user_id: Optional[str]
     inference_type: str
     payload: Dict[str, Any]
     confidence: float = 0.5
@@ -50,8 +50,8 @@ class Inference(BaseModel):
 
 
 class CreateInferencePayload(BaseModel):
-    child_id: Optional[int] = None
-    user_id: Optional[int] = None
+    child_id: Optional[str] = None
+    user_id: Optional[str] = None
     inference_type: str
     payload: Dict[str, Any] = Field(default_factory=dict)
     confidence: float = 0.5
@@ -130,7 +130,7 @@ def get_inference_by_dedupe_key(dedupe_key: str) -> Optional[Inference]:
 
 def list_inferences(
     *,
-    child_id: Optional[int] = None,
+    child_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
 ) -> List[Inference]:
@@ -196,7 +196,7 @@ def detect_knowledge_inferences(
     message: str,
     actions: List[Action],
     *,
-    child_id: Optional[int] = None,
+    child_id: Optional[str] = None,
     user_id: Optional[int] = None,
     profile_id: Optional[int] = None,
 ) -> List[Inference]:
@@ -326,7 +326,7 @@ def _persist_pending_knowledge(
     )
 
 
-def _dedupe_key(child_id: Optional[int], inference_type: str, payload: Dict[str, Any]) -> str:
+def _dedupe_key(child_id: Optional[str], inference_type: str, payload: Dict[str, Any]) -> str:
     payload_str = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
     return f"{child_id or 'none'}::{inference_type}::{payload_hash}"
@@ -346,7 +346,7 @@ def mark_inferences_prompted(dedupe_keys: List[str]) -> None:
 
 def update_inferences_status(
     *,
-    child_id: Optional[int],
+    child_id: Optional[str],
     inference_type: str,
     dedupe_key: Optional[str] = None,
     status: InferenceStatus,

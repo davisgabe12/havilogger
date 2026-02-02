@@ -76,7 +76,7 @@ export default function PricingPage() {
           </div>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Button asChild>
-              <Link href="/signup">Get started</Link>
+              <Link href="/auth/sign-up">Get started</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/stories">Read stories</Link>

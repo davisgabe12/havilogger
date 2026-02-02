@@ -1,75 +1,101 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from .conversations import get_session
-from .db import create_share_link, get_share_link, list_conversation_messages, session_has_messages
+from .supabase import AuthContext, get_auth_context, get_public_client, resolve_optional_uuid
 
 router = APIRouter()
 
 
 class ShareConversationRequest(BaseModel):
-    session_id: int = Field(..., alias="sessionId")
+    session_id: str = Field(..., alias="sessionId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class ShareMemoryRequest(BaseModel):
+    knowledge_item_id: str = Field(..., alias="knowledgeItemId")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 @router.post("/conversation")
-def create_share(payload: ShareConversationRequest) -> dict:
-    if not session_has_messages(payload.session_id):
-        raise HTTPException(status_code=404, detail="Session not found or has no messages.")
-
-    try:
-        get_session(payload.session_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found or has no messages.")
-
-    expires_at = (datetime.utcnow() + timedelta(days=7)).isoformat()
+async def create_share(
+    payload: ShareConversationRequest,
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict:
+    session_uuid = resolve_optional_uuid(payload.session_id, "session_id")
+    if not session_uuid:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+    session_rows = await auth.supabase.select(
+        "conversation_sessions",
+        params={
+            "select": "id,title,family_id",
+            "id": f"eq.{session_uuid}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    if not session_rows:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
     token = uuid4().hex
-    create_share_link(token, payload.session_id, expires_at=expires_at)
-    return {"token": token, "expires_at": expires_at}
+    await auth.supabase.insert(
+        "share_links",
+        {
+            "token": token,
+            "session_id": session_uuid,
+            "family_id": auth.family_id,
+            "created_by_user_id": auth.user_id,
+            "share_type": "conversation",
+        },
+    )
+    return {"token": token, "expires_at": None}
+
+
+@router.post("/memory")
+async def create_memory_share(
+    payload: ShareMemoryRequest,
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict:
+    memory_uuid = resolve_optional_uuid(payload.knowledge_item_id, "knowledge_item_id")
+    if not memory_uuid:
+        raise HTTPException(status_code=400, detail="Invalid knowledge_item_id")
+    rows = await auth.supabase.select(
+        "knowledge_items",
+        params={
+            "select": "id",
+            "id": f"eq.{memory_uuid}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Memory not found.")
+    token = uuid4().hex
+    await auth.supabase.insert(
+        "share_links",
+        {
+            "token": token,
+            "knowledge_item_id": memory_uuid,
+            "family_id": auth.family_id,
+            "created_by_user_id": auth.user_id,
+            "share_type": "memory",
+        },
+    )
+    return {"token": token, "expires_at": None}
 
 
 @router.get("/{token}")
-def fetch_share(token: str) -> dict:
-    link = get_share_link(token)
-    if not link:
-        raise HTTPException(status_code=404, detail="Share link not found")
-
-    expires_at = link.get("expires_at")
-    if expires_at:
-        try:
-            if datetime.fromisoformat(expires_at) < datetime.utcnow():
-                raise HTTPException(status_code=404, detail="Share link has expired")
-        except ValueError:
-            # If expiry is malformed, treat as non-expiring for now.
-            expires_at = None
-
-    session_id = link["session_id"]
+async def fetch_share(token: str) -> dict:
+    public = get_public_client()
     try:
-        session = get_session(session_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Share link not found")
-
-    messages = list_conversation_messages(session_id)
-    sanitized_messages = [
-        {
-            "id": msg["id"],
-            "role": msg["role"],
-            "text": msg["content"],
-            "created_at": msg["created_at"],
-        }
-        for msg in messages
-    ]
-
-    return {
-        "token": token,
-        "session_id": session_id,
-        "title": session.title,
-        "messages": sanitized_messages,
-        "expires_at": expires_at,
-    }
+        result = await public.rpc("public_share_by_token", {"p_token": token})
+    except HTTPException as exc:
+        if exc.status_code >= 400:
+            raise HTTPException(status_code=404, detail="Share link not found.") from exc
+        raise
+    if not result:
+        raise HTTPException(status_code=404, detail="Share link not found.")
+    return result

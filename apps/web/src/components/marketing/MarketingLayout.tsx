@@ -44,10 +44,10 @@ export function MarketingLayout({ children }: MarketingLayoutProps) {
           </nav>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/login">Sign in</Link>
+              <Link href="/auth/sign-in">Sign in</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link href="/signup">Get started</Link>
+              <Link href="/auth/sign-up">Get started</Link>
             </Button>
             <Button
               variant="ghost"

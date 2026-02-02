@@ -409,7 +409,7 @@ def test_pending_prompt_for_activity_and_milestone() -> None:
     assert any("crawling" in prompt.lower() or "milestones" in prompt.lower() for prompt in prompts)
 
 
-def test_settings_rejects_birth_and_due_date() -> None:
+def test_settings_allows_birth_and_due_date() -> None:
     reset_state()
     seed_profile(DEFAULT_PROFILE)
     payload = {
@@ -429,8 +429,10 @@ def test_settings_rejects_birth_and_due_date() -> None:
         },
     }
     resp = client.put("/api/v1/settings", json=payload)
-    assert resp.status_code == 422
-    assert "birth_date" in resp.text or "due_date" in resp.text
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["child"]["birth_date"] == "2024-06-01"
+    assert data["child"]["due_date"] == "2024-06-29"
 
 
 def test_settings_rejects_missing_birth_and_due_date() -> None:

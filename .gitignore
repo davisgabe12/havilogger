@@ -8,6 +8,8 @@ pnpm-debug.log*
 out
 apps/web/.next
 apps/web/node_modules
+apps/web/test-results
+apps/web/playwright-report
 
 # Python
 __pycache__/

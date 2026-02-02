@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivitySquare, Droplets, Milk, Moon, Ruler } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api";
 import { mockTimelineEvents } from "./timeline-data";
 import {
   TimelineEvent,
@@ -40,7 +41,7 @@ const TYPE_ICONS: Record<TimelineEventType, React.ElementType> = {
 };
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
 
 type TimelinePanelProps = {
   childName?: string;
@@ -96,7 +97,7 @@ type TimelineApiEvent = {
   has_note?: boolean;
   is_custom?: boolean;
   source?: string;
-  origin_message_id?: string | number;
+  origin_message_id?: string;
 };
 
 function mapApiEvent(event: TimelineApiEvent): TimelineEvent {
@@ -155,8 +156,9 @@ function useTimelineEvents(
           end: dayEnd!.toISOString(),
         });
         params.append("child_id", childId as string);
-        const response = await fetch(`${API_BASE_URL}/events?${params}`, {
+        const response = await apiFetch(`${API_BASE_URL}/events?${params}`, {
           signal: controller.signal,
+          childId,
         });
         if (!response.ok) {
           throw new Error("Failed to load events");
@@ -219,12 +221,25 @@ export function TimelinePanel({
         hour: "numeric",
         minute: "2-digit",
         timeZone: timezone ?? undefined,
+        timeZoneName: "short",
       });
     } catch {
       return new Intl.DateTimeFormat(undefined, {
         hour: "numeric",
         minute: "2-digit",
       });
+    }
+  }, [timezone]);
+
+  const timezoneLabel = useMemo(() => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone ?? undefined,
+        timeZoneName: "short",
+      }).formatToParts(new Date());
+      return parts.find((part) => part.type === "timeZoneName")?.value ?? timezone ?? "";
+    } catch {
+      return timezone ?? "";
     }
   }, [timezone]);
 
@@ -356,6 +371,7 @@ export function TimelinePanel({
               return (
                 <div
                   key={event.id}
+                  data-testid="timeline-event"
                   className="flex flex-col gap-2 rounded-lg border border-border/40 bg-background/70 px-3 py-2"
                 >
                   <div className="flex items-start gap-3">
@@ -364,10 +380,10 @@ export function TimelinePanel({
                     </div>
                     <div className="flex-1 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium text-foreground">
+                        <span className="font-medium text-foreground" data-testid="timeline-event-title">
                           {event.title}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground" data-testid="timeline-event-time">
                           {formatRange(event)}
                         </span>
                       </div>
@@ -395,6 +411,7 @@ export function TimelinePanel({
                         <button
                           type="button"
                           className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                          data-testid="timeline-event-open"
                           onClick={() => {
                             if (event.originMessageId && onOpenInChat) {
                               onOpenInChat(event.originMessageId);
@@ -416,13 +433,14 @@ export function TimelinePanel({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-testid="timeline-panel">
       <div className="max-h-[520px] overflow-auto pr-1 md:max-h-[620px]">
         <div className="sticky top-0 z-20 space-y-2 bg-card/85 backdrop-blur px-1 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Child</span>
             <select
               className="havi-select text-xs"
+              data-testid="timeline-child-select"
               value={effectiveChildId ?? ""}
               onChange={(event) => {
                 const nextId = event.target.value || null;
@@ -436,6 +454,11 @@ export function TimelinePanel({
                 </option>
               ))}
             </select>
+            {timezoneLabel ? (
+              <span className="text-xs text-muted-foreground" data-testid="timeline-timezone">
+                Times shown in {timezoneLabel}
+              </span>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((filter) => (

@@ -145,7 +145,7 @@ export default function CompetitorsPage() {
 
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Button asChild>
-              <Link href="/signup">Get started</Link>
+              <Link href="/auth/sign-up">Get started</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/solutions">Explore solutions</Link>

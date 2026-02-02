@@ -28,7 +28,7 @@ export default function ChatAndVoicePage() {
             </ul>
             <div className="flex flex-wrap gap-3">
               <Button asChild>
-                <Link href="/signup">Get started</Link>
+                <Link href="/auth/sign-up">Get started</Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/solutions">Back to solutions</Link>

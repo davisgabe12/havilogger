@@ -11,12 +11,21 @@ import type { ChatEntry } from "./types";
 export const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
 
-function formatTimestamp(value: string): string {
+function formatTimestamp(value: string, timezone?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: timezone ?? undefined,
+      timeZoneName: "short",
+    }).format(date);
+  } catch {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
 }
 
 function getInitials(name: string): string {
@@ -39,7 +48,8 @@ type MessageBubbleProps = {
     string,
     { rating: FeedbackRating; comment: string }
   >;
-  conversationId?: number | null;
+  conversationId?: string | null;
+  timezone?: string | null;
 };
 
 export function MessageBubble({
@@ -51,6 +61,7 @@ export function MessageBubble({
   highlightedMessageId,
   feedbackByMessageId,
   conversationId,
+  timezone,
 }: MessageBubbleProps) {
   const createdAt = entry.createdAt ?? new Date().toISOString();
   const senderType =
@@ -193,8 +204,7 @@ export function MessageBubble({
           HAVI
         </span>
       ) : isCaregiver ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-
-          full bg-primary/10 text-[11px] font-semibold text-primary">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
           {getInitials(entry.senderName ?? "Caregiver")}
         </span>
       ) : null}
@@ -214,7 +224,7 @@ export function MessageBubble({
 
   if (isSelf) {
     return (
-      <div className="flex w-full justify-end">
+      <div className="flex w-full justify-end" data-testid="chat-message" data-sender="self">
         <div
           data-message-id={entry.messageId ?? undefined}
           data-testid="message-bubble"
@@ -231,7 +241,7 @@ export function MessageBubble({
                 className="rounded px-1"
                 onClick={() => onToggleTimestamp(entry.id)}
               >
-                {isPinned ? "Hide time" : formatTimestamp(createdAt)}
+                {isPinned ? "Hide time" : formatTimestamp(createdAt, timezone ?? undefined)}
               </button>
             </div>
           ) : null}
@@ -241,7 +251,7 @@ export function MessageBubble({
   }
 
   return (
-    <div className="flex w-full items-start gap-2">
+    <div className="flex w-full items-start gap-2" data-testid="chat-message" data-sender={senderType}>
       {gutter}
       <div
         className="flex flex-col"
@@ -273,7 +283,7 @@ export function MessageBubble({
                 className="rounded px-1"
                 onClick={() => onToggleTimestamp(entry.id)}
               >
-                {isPinned ? "Hide time" : formatTimestamp(createdAt)}
+                {isPinned ? "Hide time" : formatTimestamp(createdAt, timezone ?? undefined)}
               </button>
               {entry.senderName ? (
                 <span className="inline-flex items-center gap-1 rounded bg-background/60 px-2 py-1 text-[10px] uppercase">

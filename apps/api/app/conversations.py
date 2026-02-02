@@ -24,9 +24,9 @@ class ConversationIntent(str):
 
 
 class ConversationMessage(BaseModel):
-    id: int
-    session_id: int
-    user_id: Optional[int]
+    id: str
+    session_id: str
+    user_id: Optional[str]
     role: str
     content: str
     intent: Optional[str] = None
@@ -34,9 +34,9 @@ class ConversationMessage(BaseModel):
 
 
 class ConversationSession(BaseModel):
-    id: int
-    user_id: Optional[int]
-    child_id: Optional[int]
+    id: str
+    user_id: Optional[str]
+    child_id: Optional[str]
     title: str
     last_message_at: datetime
     created_at: datetime
@@ -47,10 +47,10 @@ class ConversationSession(BaseModel):
 
 
 class CreateMessagePayload(BaseModel):
-    session_id: int
+    session_id: str
     role: str
     content: str
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     intent: Optional[str] = None
 
 
@@ -85,7 +85,7 @@ def _row_to_message(row) -> ConversationMessage:
     )
 
 
-def create_session(*, user_id: Optional[int], child_id: Optional[int], title: Optional[str] = None) -> ConversationSession:
+def create_session(*, user_id: Optional[int], child_id: Optional[str], title: Optional[str] = None) -> ConversationSession:
     now = _now_iso()
     with get_connection() as conn:
         cursor = conn.execute(
@@ -122,7 +122,7 @@ def get_session(session_id: int) -> ConversationSession:
 def list_sessions(
     *,
     user_id: Optional[int] = None,
-    child_id: Optional[int] = None,
+    child_id: Optional[str] = None,
     limit: int = 20,
 ) -> List[ConversationSession]:
     query = "SELECT * FROM conversation_sessions"
@@ -271,7 +271,7 @@ def generate_conversation_title(message: str, *, child_name: Optional[str] = Non
     return _sentence_case(" ".join(selection))
 
 
-def ensure_unique_title(*, base_title: str, child_id: Optional[int]) -> str:
+def ensure_unique_title(*, base_title: str, child_id: Optional[str]) -> str:
     base_title = base_title.strip() or "New chat"
     if child_id is None:
         return base_title

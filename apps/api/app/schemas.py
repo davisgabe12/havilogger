@@ -79,8 +79,8 @@ class ChatRequest(BaseModel):
     timezone: Optional[str] = Field(
         default=None, description="Client-reported timezone (IANA name or city)."
     )
-    child_id: Optional[int] = Field(default=None, description="Target child id for the message.")
-    conversation_id: Optional[int] = Field(default=None, description="Conversation id for the message.")
+    child_id: Optional[str] = Field(default=None, description="Target child id for the message.")
+    conversation_id: Optional[str] = Field(default=None, description="Conversation id for the message.")
     source: Optional[str] = Field(
         default=None,
         description="Where the message originated (chat, chip, manual, import).",
@@ -94,16 +94,16 @@ class ChatResponse(BaseModel):
     latency_ms: int
     assistant_message: str = Field(default="")
     question_category: str = Field(default="generic")
-    conversation_id: Optional[int] = None
-    user_message_id: Optional[int] = None
-    assistant_message_id: Optional[int] = None
+    conversation_id: Optional[str] = None
+    user_message_id: Optional[str] = None
+    assistant_message_id: Optional[str] = None
     intent: Optional[str] = Field(default=None, description="Router-derived primary intent")
     ui_nudges: Optional[List[str]] = Field(default=None, description="Optional UI nudges for surfacing outside the main message")
 
 
 class LoadingMetricsPayload(BaseModel):
-    session_id: Optional[int] = None
-    message_id: Optional[int] = None
+    session_id: Optional[str] = None
+    message_id: Optional[str] = None
     thinking_short_ms: Optional[int] = None
     thinking_rich_ms: Optional[int] = None
     error_type: Optional[str] = None
@@ -119,19 +119,27 @@ class KnowledgeItemStatus(str, Enum):
     ACTIVE = "active"
     PENDING = "pending"
     REJECTED = "rejected"
+    ARCHIVED = "archived"
 
 
 class KnowledgeItem(BaseModel):
-    id: int
-    profile_id: int
+    id: str
+    family_id: Optional[str] = None
+    user_id: Optional[str] = None
+    subject_id: Optional[str] = None
     key: str
     type: KnowledgeItemType
     status: KnowledgeItemStatus
     payload: Dict[str, Any] = Field(default_factory=dict)
+    confidence: Optional[str] = None
+    qualifier: Optional[str] = None
+    age_range_weeks: Optional[str] = None
+    activated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     last_prompted_at: Optional[datetime] = None
-    last_prompted_session_id: Optional[int] = None
+    last_prompted_session_id: Optional[str] = None
 
 
 class TaskStatus(str, Enum):
@@ -140,9 +148,9 @@ class TaskStatus(str, Enum):
 
 
 class Task(BaseModel):
-    id: int
-    user_id: Optional[int] = None
-    child_id: Optional[int] = None
+    id: str
+    user_id: Optional[str] = None
+    child_id: Optional[str] = None
     title: str
     status: TaskStatus
     due_at: Optional[datetime] = None
@@ -154,5 +162,5 @@ class Task(BaseModel):
     is_recurring: Optional[bool] = None
     recurrence_rule: Optional[str] = None
     created_at: datetime
-    created_by_user_id: Optional[int] = None
-    assigned_to_user_id: Optional[int] = None
+    created_by_user_id: Optional[str] = None
+    assigned_to_user_id: Optional[str] = None

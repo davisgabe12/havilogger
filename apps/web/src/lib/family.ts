@@ -1,6 +1,10 @@
 import { supabase } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api";
 
-export const ACTIVE_FAMILY_STORAGE_KEY = "havi_active_family_id";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
+
+export const ACTIVE_FAMILY_COOKIE_NAME = "havi_active_family_id";
 
 type FamilyMembership = {
   family_id: string;
@@ -25,7 +29,14 @@ const buildFamilyName = (user: { user_metadata?: Record<string, unknown> }): str
 
 export const persistActiveFamilyId = (familyId: string): void => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACTIVE_FAMILY_STORAGE_KEY, familyId);
+  void fetch("/api/active-family", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ familyId }),
+  });
 };
 
 export const resolveFamilyForCurrentUser = async (): Promise<FamilyResolution> => {
@@ -46,28 +57,32 @@ export const resolveFamilyForCurrentUser = async (): Promise<FamilyResolution> =
   }
 
   if (!memberships || memberships.length === 0) {
-    const { data: family, error: familyError } = await supabase
-      .from("families")
-      .insert({ name: buildFamilyName(user) })
-      .select("id")
-      .single();
-
-    if (familyError || !family) {
-      throw familyError ?? new Error("Unable to create family");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      throw new Error("Unable to create family without a session.");
     }
 
-    const { error: memberError } = await supabase.from("family_members").insert({
-      family_id: family.id,
-      user_id: user.id,
-      role: "owner",
-      is_primary: true,
+    const response = await apiFetch(`${API_BASE_URL}/api/v1/families`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: buildFamilyName(user) }),
     });
 
-    if (memberError) {
-      throw memberError;
+    if (!response.ok) {
+      throw new Error("Unable to create family");
     }
 
-    return { status: "created", familyId: family.id };
+    const payload = (await response.json().catch(() => null)) as
+      | { id?: string }
+      | null;
+    if (!payload?.id) {
+      throw new Error("Unable to create family");
+    }
+
+    return { status: "created", familyId: payload.id };
   }
 
   if (memberships.length === 1) {

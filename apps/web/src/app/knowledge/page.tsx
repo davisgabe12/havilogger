@@ -7,6 +7,7 @@ import KnowledgeList from "@/components/knowledge/KnowledgeList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { KnowledgeReviewItem } from "@/types/knowledge";
 
@@ -22,7 +23,7 @@ export default function KnowledgePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/knowledge/review");
+      const res = await apiFetch("/api/v1/knowledge/review");
       if (!res.ok) {
         throw new Error("Unable to load knowledge");
       }
@@ -42,7 +43,7 @@ export default function KnowledgePage() {
       const { data } = await supabase.auth.getSession();
       if (!isMounted) return;
       if (!data.session) {
-        router.replace("/login");
+        router.replace("/auth/sign-in");
         return;
       }
       await fetchItems();
@@ -67,18 +68,22 @@ export default function KnowledgePage() {
     return map;
   }, [items]);
 
-  const handleConfirm = async (id: number) => {
-    await fetch(`/api/v1/knowledge/${id}/confirm`, { method: "POST" });
+  const handleConfirm = async (id: string) => {
+    await apiFetch(`/api/v1/knowledge/${id}/confirm`, { method: "POST" });
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleDismiss = async (id: number) => {
-    await fetch(`/api/v1/knowledge/${id}/reject`, { method: "POST" });
+  const handleDismiss = async (id: string) => {
+    await apiFetch(`/api/v1/knowledge/${id}/reject`, { method: "POST" });
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleEdit = async (id: number, payload: Record<string, unknown>, summary?: string) => {
-    await fetch(`/api/v1/knowledge/${id}/edit`, {
+  const handleEdit = async (
+    id: string,
+    payload: Record<string, unknown>,
+    summary?: string,
+  ) => {
+    await apiFetch(`/api/v1/knowledge/${id}/edit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ payload, summary }),

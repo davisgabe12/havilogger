@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..db import acknowledge_reminder, get_task, list_due_reminders
 from ..schemas import Task, TaskStatus
+from ..supabase import AuthContext, get_auth_context, resolve_child_id, resolve_optional_uuid
 
 router = APIRouter(prefix="/api/v1", tags=["reminders"])
 
@@ -18,26 +18,73 @@ class ReminderAckPayload(BaseModel):
 
 @router.get("/reminders/due", response_model=List[Task])
 async def list_due_reminders_endpoint(
-    child_id: Optional[int] = Query(None, description="Optional child id"),
+    child_id: Optional[str] = Query(None, description="Optional child id"),
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
 ) -> List[Task]:
-    return list_due_reminders(child_id=child_id)
+    resolved_child_id = resolve_child_id(child_id_header, child_id)
+    params = {
+        "select": (
+            "id,child_id,title,status,due_at,remind_at,completed_at,reminder_channel,"
+            "last_reminded_at,snooze_count,is_recurring,recurrence_rule,created_at,"
+            "created_by_user_id,assigned_to_user_id"
+        ),
+        "family_id": f"eq.{auth.family_id}",
+        "status": f"eq.{TaskStatus.OPEN.value}",
+        "remind_at": f"lte.{datetime.utcnow().isoformat()}",
+        "order": "remind_at.asc",
+    }
+    if resolved_child_id:
+        params["child_id"] = f"eq.{resolved_child_id}"
+    rows = await auth.supabase.select("tasks", params=params)
+    for row in rows:
+        row["user_id"] = row.get("created_by_user_id")
+    return [Task.model_validate(row) for row in rows]
 
 
 @router.post("/reminders/{task_id}/ack", response_model=Task)
-async def acknowledge_reminder_endpoint(task_id: int, payload: ReminderAckPayload) -> Task:
-    task = get_task(task_id)
-    if task.status != TaskStatus.OPEN:
+async def acknowledge_reminder_endpoint(
+    task_id: str,
+    payload: ReminderAckPayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Task:
+    task_uuid = resolve_optional_uuid(task_id, "task_id")
+    if not task_uuid:
+        raise HTTPException(status_code=400, detail="Invalid task_id")
+    tasks = await auth.supabase.select(
+        "tasks",
+        params={
+            "select": (
+                "id,child_id,title,status,due_at,remind_at,completed_at,reminder_channel,"
+                "last_reminded_at,snooze_count,is_recurring,recurrence_rule,created_at,"
+                "created_by_user_id,assigned_to_user_id"
+            ),
+            "id": f"eq.{task_uuid}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    if not tasks:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = tasks[0]
+    if task.get("status") != TaskStatus.OPEN.value:
         raise HTTPException(status_code=400, detail="Reminder can only be acknowledged for open tasks")
     now = datetime.utcnow()
     snooze_minutes = payload.snooze_minutes
     remind_at = None
-    snooze_count = task.snooze_count or 0
+    snooze_count = task.get("snooze_count") or 0
     if snooze_minutes:
         remind_at = (now + timedelta(minutes=snooze_minutes)).isoformat()
         snooze_count += 1
-    return acknowledge_reminder(
-        task_id,
-        remind_at=remind_at,
-        snooze_count=snooze_count,
-        last_reminded_at=now.isoformat(),
+    updated = await auth.supabase.update(
+        "tasks",
+        {
+            "remind_at": remind_at,
+            "snooze_count": snooze_count,
+            "last_reminded_at": now.isoformat(),
+        },
+        params={"id": f"eq.{task_uuid}", "family_id": f"eq.{auth.family_id}"},
     )
+    row = (updated or tasks)[0]
+    row["user_id"] = row.get("created_by_user_id")
+    return Task.model_validate(row)

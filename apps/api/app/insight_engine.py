@@ -25,7 +25,7 @@ STAGE_GUIDANCE = {
 }
 
 
-def _fetch_actions(child_id: int, start: datetime, end: datetime) -> List[dict]:
+def _fetch_actions(child_id: str, start: datetime, end: datetime) -> List[dict]:
     actions: List[dict] = []
     with get_connection() as conn:
         cursor = conn.execute(
@@ -54,7 +54,7 @@ def summaries_from_actions(actions: List[dict]) -> Dict[str, float]:
     return totals
 
 
-def compare_metrics(child_id: int, days: int = 1, baseline_days: int = 1) -> Dict[str, Dict]:
+def compare_metrics(child_id: str, days: int = 1, baseline_days: int = 1) -> Dict[str, Dict]:
     now = datetime.now()
     window_start = now - timedelta(days=days)
     baseline_start = window_start - timedelta(days=baseline_days)
@@ -111,7 +111,7 @@ def expected_ranges(stage: str, observed: Dict[str, float] | None = None) -> Dic
     return guidance
 
 
-def compare_and_expected(child_id: int, stage: str, days: int = 1, baseline_days: int = 1) -> Dict:
+def compare_and_expected(child_id: str, stage: str, days: int = 1, baseline_days: int = 1) -> Dict:
     compare = compare_metrics(child_id, days=days, baseline_days=baseline_days)
     expected = expected_ranges(stage, observed=compare.get("current"))
     return {

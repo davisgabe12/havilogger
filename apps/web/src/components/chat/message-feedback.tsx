@@ -4,11 +4,12 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
 export type FeedbackRating = "up" | "down" | null;
 
 type MessageFeedbackProps = {
-  conversationId: number | null;
+  conversationId: string | null;
   messageId: string | null | undefined;
   apiBaseUrl: string;
   initialRating?: FeedbackRating;
@@ -78,7 +79,7 @@ export function MessageFeedback({
       }
       setStatus("saving");
       try {
-        const res = await fetch(`${apiBaseUrl}/api/v1/messages/feedback`, {
+        const res = await apiFetch(`${apiBaseUrl}/api/v1/messages/feedback`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

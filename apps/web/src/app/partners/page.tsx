@@ -30,7 +30,7 @@ export default function PartnersPage() {
             </ul>
             <div className="flex flex-wrap gap-3">
               <Button asChild>
-                <Link href="/signup">Get started</Link>
+                <Link href="/auth/sign-up">Get started</Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/resources">Explore resources</Link>

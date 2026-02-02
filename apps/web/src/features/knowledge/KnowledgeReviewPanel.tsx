@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { apiFetch } from "../../lib/api";
 import { KnowledgeReviewItem } from "../../types/knowledge";
 
 type KnowledgeApiResponse = KnowledgeReviewItem[];
@@ -13,7 +14,7 @@ export default function KnowledgeReviewPanel() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const resp = await fetch("/api/v1/knowledge/review");
+      const resp = await apiFetch("/api/v1/knowledge/review");
       if (resp.ok) {
         const data: KnowledgeApiResponse = await resp.json();
         setItems(data);
@@ -30,16 +31,17 @@ export default function KnowledgeReviewPanel() {
   const grouped = useMemo(() => {
     const map: Record<string, KnowledgeReviewItem[]> = {};
     items.forEach((item) => {
-      if (!map[item.group]) {
-        map[item.group] = [];
+      const key = item.group ?? "Other";
+      if (!map[key]) {
+        map[key] = [];
       }
-      map[item.group].push(item);
+      map[key].push(item);
     });
     return map;
   }, [items]);
 
   const handleConfirm = async (item: KnowledgeReviewItem) => {
-    const resp = await fetch(`/api/v1/knowledge/${item.id}/confirm`, {
+    const resp = await apiFetch(`/api/v1/knowledge/${item.id}/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ importance: item.importance }),
@@ -51,7 +53,7 @@ export default function KnowledgeReviewPanel() {
   };
 
   const handleReject = async (item: KnowledgeReviewItem) => {
-    const resp = await fetch(`/api/v1/knowledge/${item.id}/reject`, {
+    const resp = await apiFetch(`/api/v1/knowledge/${item.id}/reject`, {
       method: "POST",
     });
     if (resp.ok) {
@@ -86,7 +88,7 @@ export default function KnowledgeReviewPanel() {
     if (item.key === "manual_memory") {
       patchPayload.text = next;
     }
-    const resp = await fetch(`/api/v1/knowledge/${item.id}/edit`, {
+    const resp = await apiFetch(`/api/v1/knowledge/${item.id}/edit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ payload: patchPayload }),

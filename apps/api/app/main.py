@@ -1,80 +1,34 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import re
 import time
-from typing import Any, Callable, Dict, List, Optional
-from collections import Counter
+from typing import Any, Callable, Dict, List, Optional, Tuple, Literal
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from dateparser.search import search_dates
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from .config import CONFIG
-from .conversations import (
-    ConversationIntent,
-    ConversationMessage,
-    ConversationSession,
-    CreateMessagePayload,
-    append_message,
-    catch_up_mode_should_end,
-    create_session,
-    count_messages,
-    ensure_unique_title,
-    generate_conversation_title,
-    get_last_assistant_message,
-    get_session,
-    list_messages,
-    list_sessions,
-    set_catch_up_mode,
-    touch_catch_up_mode,
-    update_session_title,
+from .conversations import ConversationMessage, ConversationSession
+from .supabase import (
+    AuthContext,
+    get_admin_client,
+    get_auth_context,
+    get_user_context,
+    resolve_child_id,
+    resolve_optional_uuid,
 )
-from .context_builders import build_child_context
-from .context_pack import build_message_context
-from .db import (
-    create_task,
-    ensure_primary_family_membership,
-    fetch_primary_profiles,
-    fetch_recent_actions,
-    get_routine_metrics,
-    initialize_db,
-    insert_timeline_event,
-    list_knowledge_items,
-    persist_log,
-    set_explicit_knowledge,
-    update_child_profile,
-    update_user_profile,
-    upsert_routine_metrics,
-    mark_knowledge_prompted,
-)
-from .insight_engine import compare_metrics, expected_ranges
-from .metrics import record_loading_metric
-from .inferences import (
-    CreateInferencePayload,
-    Inference,
-    InferenceStatus,
-    create_inference,
-    detect_knowledge_inferences,
-    list_inferences,
-    mark_inferences_prompted,
-    update_inference_status,
-    update_inferences_status,
-)
-from .openai_client import generate_actions
-from .knowledge_guidance import (
-    apply_activity_suggestions,
-    apply_milestone_context,
-    apply_temperament_adjustments,
-)
-from .knowledge_utils import knowledge_pending_prompts, filter_pending_for_prompt
-from .router import classify_intent
+from .inferences import CreateInferencePayload, Inference, InferenceStatus
 from .routes import events as events_routes
 from .routes import feedback as feedback_routes
 from .routes import knowledge as knowledge_routes
@@ -83,11 +37,13 @@ from .routes import tasks as task_routes
 from . import share as share_routes
 from .schemas import (
     Action,
+    ActionMetadata,
     ChatRequest,
     ChatResponse,
     CoreActionType,
     KnowledgeItem,
     KnowledgeItemStatus,
+    KnowledgeItemType,
     LoadingMetricsPayload,
 )
 
@@ -110,7 +66,7 @@ def _format_compose_error(reason: Optional[str] = None) -> str:
 def maybe_autotitle_session(
     session: ConversationSession,
     *,
-    child_id: Optional[int],
+    child_id: Optional[str],
     child_name: Optional[str],
     message: str,
     existing_message_count: int,
@@ -160,7 +116,7 @@ class CaregiverProfile(BaseModel):
 
 
 class ChildProfile(BaseModel):
-    id: Optional[int] = None
+    id: Optional[str] = None
     first_name: Optional[str] = ""
     last_name: Optional[str] = ""
     birth_date: Optional[str] = ""
@@ -177,8 +133,11 @@ class ChildProfile(BaseModel):
     def validate_birth_or_due_date(self) -> "ChildProfile":
         birth_date = (self.birth_date or "").strip()
         due_date = (self.due_date or "").strip()
-        if bool(birth_date) == bool(due_date):
-            raise ValueError("Child must have exactly one of birth_date or due_date.")
+        if not birth_date and not due_date and self.id is None:
+            return self
+        # Both dates are allowed; only reject when neither is set to avoid 500s.
+        if not birth_date and not due_date:
+            raise ValueError("Child must have a birth_date or due_date.")
         return self
 
 
@@ -190,6 +149,35 @@ class SettingsPayload(BaseModel):
 class SettingsResponse(BaseModel):
     caregiver: CaregiverProfile
     child: ChildProfile
+    children: List[ChildProfile] = Field(default_factory=list)
+
+
+class CreateFamilyPayload(BaseModel):
+    name: str
+
+
+class CreateChildPayload(BaseModel):
+    first_name: Optional[str] = ""
+    last_name: Optional[str] = ""
+    birth_date: Optional[str] = ""
+    due_date: Optional[str] = ""
+    timezone: Optional[str] = ""
+    gender: Optional[str] = ""
+    birth_weight: Optional[float] = None
+    birth_weight_unit: Optional[str] = None
+
+
+class InviteCreatePayload(BaseModel):
+    email: str
+    role: Optional[str] = None
+
+
+class InviteAcceptPayload(BaseModel):
+    token: str
+
+
+class InferenceResolvePayload(BaseModel):
+    action: Literal["confirm_general", "confirm_sometimes", "reject"]
 
 
 class RenameConversationPayload(BaseModel):
@@ -199,7 +187,7 @@ class RenameConversationPayload(BaseModel):
 class CreateConversationMessagePayload(BaseModel):
     role: str
     content: str
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     intent: Optional[str] = None
 
 
@@ -268,8 +256,6 @@ FEED_KEYWORDS = {
     "combo": ["both breast and bottle", "combo", "both"],
 }
 
-initialize_db()
-
 app = FastAPI(
     title="HaviLogger API",
     version="0.1.0",
@@ -302,413 +288,392 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/api/v1/activities", response_model=ChatResponse)
-async def capture_activity(payload: ChatRequest) -> ChatResponse:
-    start = time.perf_counter()
-    if payload.child_id is None:
-        raise HTTPException(status_code=400, detail="child_id is required for activities.")
-    if payload.conversation_id is None:
-        raise HTTPException(status_code=400, detail="conversation_id is required for activities.")
-    logger.info(
-        "child-scoped request",
-        extra={"method": "POST", "path": "/api/v1/activities", "child_id": payload.child_id},
-    )
-    caregiver_data, child_data = fetch_primary_profiles()
-    profile_id = caregiver_data.get("id")
-    active_knowledge: List[KnowledgeItem] = []
-    pending_knowledge: List[KnowledgeItem] = []
-    if profile_id is not None:
-        active_knowledge = list_knowledge_items(profile_id, status=KnowledgeItemStatus.ACTIVE)
-        pending_knowledge = list_knowledge_items(profile_id, status=KnowledgeItemStatus.PENDING)
-    child_id = payload.child_id
-    child_context = build_child_context(profile_id, child_id)
-    resolved_timezone, timezone_prompt = resolve_timezone(payload.timezone, child_data)
-    child_data["timezone"] = resolved_timezone
-    normalized_message, typo_corrections = normalize_parental_typos(payload.message)
-    intent_result = classify_intent(normalized_message)
-    symptom_tags = message_symptom_tags(normalized_message)
-    question_category = classify_question_category(normalized_message, symptom_tags)
-    try:
-        session = get_session(payload.conversation_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    prefixed_notes: List[str] = []
-    analysis_message = normalized_message
-    last_assistant_message = get_last_assistant_message(session.id)
-    existing_message_count = count_messages(session.id)
-    save_target = detect_memory_save_target(analysis_message)
-    if save_target:
-        memory_response = handle_memory_command(
-            target=save_target,
-            profile_id=profile_id,
-            session=session,
-            payload=payload,
-            pending_knowledge=pending_knowledge,
-            question_category=question_category,
-            start=start,
-            last_assistant_message=last_assistant_message,
-        )
-        if memory_response:
-            session = maybe_autotitle_session(
-                session,
-                child_id=child_id,
-                child_name=child_data.get("first_name"),
-                message=payload.message,
-                existing_message_count=existing_message_count,
-            )
-            return memory_response
-    routine_acceptance = detect_routine_acceptance(analysis_message)
-    routine_accept_message: Optional[str] = None
-    if routine_acceptance:
-        upsert_routine_metrics(child_id=child_id, accepted_delta=1)
-        routine_accept_message = (
-            "Happy to do it—I’ll synthesize a routine using Moms on Call, Happiest Baby, and APA guidance."
-        )
+def _now_iso() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
 
-    if catch_up_mode_should_end(session):
-        set_catch_up_mode(session.id, False)
-        session = get_session(session.id)
-        prefixed_notes.append("All set—we’re out of catch-up mode.")
 
-    if detect_catch_up_entry(analysis_message):
-        set_catch_up_mode(session.id, True)
-        session = get_session(session.id)
-        assistant_message = build_catch_up_entry_message(describe_last_event(resolved_timezone))
-        user_message_obj = append_message(
-            CreateMessagePayload(
-                session_id=session.id,
-                role="user",
-                content=payload.message,
-                intent="log",
-            )
-        )
-        session = maybe_autotitle_session(
-            session,
-            child_id=child_id,
-            child_name=child_data.get("first_name"),
-            message=payload.message,
-            existing_message_count=existing_message_count,
-        )
-        assistant_message_obj = append_message(
-            CreateMessagePayload(
-                session_id=session.id,
-                role="assistant",
-                content=assistant_message,
-                intent="log",
-            )
-        )
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        return ChatResponse(
-            actions=[],
-            raw_message=payload.message,
-            model=CONFIG.openai_model,
-            latency_ms=latency_ms,
-            assistant_message=assistant_message,
-            question_category=question_category,
-            conversation_id=session.id,
-            user_message_id=user_message_obj.id,
-            assistant_message_id=assistant_message_obj.id,
-            intent=intent_result.intent,
-        )
+def _session_from_row(row: Dict[str, Any]) -> ConversationSession:
+    now_iso = _now_iso()
+    data = {
+        "id": row.get("id"),
+        "user_id": row.get("user_id"),
+        "child_id": row.get("child_id"),
+        "title": row.get("title") or "New chat",
+        "last_message_at": row.get("last_message_at") or row.get("created_at") or now_iso,
+        "created_at": row.get("created_at") or now_iso,
+        "updated_at": row.get("updated_at") or row.get("created_at") or now_iso,
+        "catch_up_mode": bool(row.get("catch_up_mode") or False),
+        "catch_up_started_at": row.get("catch_up_started_at"),
+        "catch_up_last_message_at": row.get("catch_up_last_message_at"),
+    }
+    return ConversationSession.model_validate(data)
 
-    exit_phrase = session.catch_up_mode and detect_catch_up_exit(analysis_message)
-    unrelated_exit = session.catch_up_mode and is_unrelated_question(analysis_message)
-    if exit_phrase and not message_describes_event(analysis_message):
-        set_catch_up_mode(session.id, False)
-        session = get_session(session.id)
-        assistant_message = "All set—we’re out of catch-up mode."
-        user_message_obj = append_message(
-            CreateMessagePayload(
-                session_id=session.id,
-                role="user",
-                content=payload.message,
-                intent="log",
-            )
-        )
-        session = maybe_autotitle_session(
-            session,
-            child_id=child_id,
-            child_name=child_data.get("first_name"),
-            message=payload.message,
-            existing_message_count=existing_message_count,
-        )
-        assistant_message_obj = append_message(
-            CreateMessagePayload(
-                session_id=session.id,
-                role="assistant",
-                content=assistant_message,
-                intent="log",
-            )
-        )
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        return ChatResponse(
-            actions=[],
-            raw_message=payload.message,
-            model=CONFIG.openai_model,
-            latency_ms=latency_ms,
-            assistant_message=assistant_message,
-            question_category=question_category,
-            conversation_id=session.id,
-            user_message_id=user_message_obj.id,
-            assistant_message_id=assistant_message_obj.id,
-            intent=intent_result.intent,
-        )
 
-    if unrelated_exit:
-        set_catch_up_mode(session.id, False)
-        session = get_session(session.id)
-        prefixed_notes.append("All set—we’re out of catch-up mode.")
+def _message_from_row(row: Dict[str, Any]) -> ConversationMessage:
+    now_iso = _now_iso()
+    data = {
+        "id": row.get("id"),
+        "session_id": row.get("session_id"),
+        "user_id": row.get("user_id"),
+        "role": row.get("role"),
+        "content": row.get("content"),
+        "intent": row.get("intent"),
+        "created_at": row.get("created_at") or now_iso,
+    }
+    return ConversationMessage.model_validate(data)
 
-    if intent_result.intent == "task_request":
-        task_title = extract_task_title(payload.message)
-        due_at = extract_task_due_at(payload.message, resolved_timezone)
-        remind_at = extract_task_remind_at(payload.message, resolved_timezone)
-        if due_at and remind_at is None:
-            remind_at = due_at
-        owner_id = profile_id if profile_id is not None else 1
-        created_task = create_task(
-            title=task_title,
-            user_id=owner_id,
-            child_id=child_id,
-            due_at=due_at,
-            remind_at=remind_at,
-        )
-        user_message_obj = append_message(
-            CreateMessagePayload(
-                session_id=session.id,
-                role="user",
-                content=payload.message,
-                intent="task_request",
-            )
-        )
-        session = maybe_autotitle_session(
-            session,
-            child_id=child_id,
-            child_name=child_data.get("first_name"),
-            message=payload.message,
-            existing_message_count=existing_message_count,
-        )
-        assistant_message = f"Task added: {created_task.title}."
-        assistant_message_obj = append_message(
-            CreateMessagePayload(
-                session_id=session.id,
-                role="assistant",
-                content=assistant_message,
-                intent="task_request",
-            )
-        )
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        return ChatResponse(
-            actions=[],
-            raw_message=payload.message,
-            model=CONFIG.openai_model,
-            latency_ms=latency_ms,
-            assistant_message=assistant_message,
-            question_category=question_category,
-            intent=intent_result.intent,
-            conversation_id=session.id,
-            user_message_id=user_message_obj.id,
-            assistant_message_id=assistant_message_obj.id,
-        )
 
-    user_message = append_message(
-        CreateMessagePayload(
-            session_id=session.id,
-            role="user",
-            content=payload.message,
-            intent="log",
-        )
-    )
-    context_pack = build_message_context(session.id, max_messages=50, budget_tokens=2000)
-
-    try:
-        actions: List[Action] = await asyncio.to_thread(
-            generate_actions,
-            analysis_message,
-            knowledge_context=child_context,
-            context_messages=context_pack["messages"],
-        )
-    except RuntimeError as exc:  # Raised when OpenAI client fails
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    normalize_action_timestamps(actions, resolved_timezone, payload.message)
-
-    apply_blowout_classification(actions, analysis_message)
-
-    recent_actions_for_context = recent_action_models(24)
-    feed_pattern = determine_feed_pattern(recent_actions_for_context)
-    inferred_feed_method = infer_feed_method_from_message(analysis_message)
-    annotate_feed_method(actions, inferred_feed_method)
-    routine_ready = evaluate_routine_similarity(recent_actions_for_context, resolved_timezone)
-    if bool(child_data.get("routine_eligible")) != routine_ready:
-        update_child_profile({"routine_eligible": routine_ready})
-        child_data["routine_eligible"] = routine_ready
-    routine_prompt_text = maybe_offer_routine_prompt(
-        child_id=child_id,
-        routine_ready=routine_ready,
-        symptom_tags=symptom_tags,
-        catch_up_mode=session.catch_up_mode,
-        recent_message=analysis_message,
-        actions_logged_count=len(actions),
-    )
-
-    persist_log(
-        input_text=payload.message,
-        actions={"actions": [action.model_dump(mode="json") for action in actions]},
-    )
-
-    session = maybe_autotitle_session(
-        session,
-        child_id=child_id,
-        child_name=child_data.get("first_name"),
-        message=payload.message,
-        existing_message_count=existing_message_count,
-    )
-
-    message_source = (payload.source or "chat").lower()
-    record_timeline_events(
-        actions,
-        child_id=child_id,
-        source=message_source,
-        origin_message_id=user_message.id,
-        input_text=payload.message,
-        child_timezone=resolved_timezone or "America/Los_Angeles",
-    )
-
-    if session.catch_up_mode:
-        touch_catch_up_mode(session.id)
-
-    thin_context = len(recent_actions_for_context) == 0
-    night_events = count_recent_night_events(recent_actions_for_context, resolved_timezone)
-    message_feed = message_mentions_feed(analysis_message)
-    needs_feed_follow_up = False
-    feed_follow_up_text: Optional[str] = None
-    if message_feed:
-        if inferred_feed_method and feed_pattern and inferred_feed_method != feed_pattern:
-            needs_feed_follow_up = True
-        elif not inferred_feed_method and not feed_pattern:
-            needs_feed_follow_up = True
-        elif not inferred_feed_method and feed_pattern:
-            annotate_feed_method(actions, feed_pattern)
-    if needs_feed_follow_up:
-        feed_follow_up_text = "Logged it. Was this breast, bottle, or combo? I can track patterns more accurately once I know."
-
-    autocorrect_note = None
-    if typo_corrections:
-        swaps = ", ".join(f"“{orig}”→“{replacement}”" for orig, replacement in typo_corrections)
-        autocorrect_note = f"I assumed {swaps}. If that's off, let me know and I’ll fix it."
-
-    knowledge_inferences = detect_knowledge_inferences(
-        message=analysis_message,
-        actions=actions,
-        child_id=child_id,
-        user_id=None,
-        profile_id=caregiver_data.get("id"),
-    )
-    if knowledge_inferences:
-        logger.info(
-            "created knowledge inferences",
-            extra={"count": len(knowledge_inferences)},
-        )
-    if profile_id is not None:
-        pending_knowledge = list_knowledge_items(profile_id, status=KnowledgeItemStatus.PENDING)
-    pending_inference_lookup = {}
-    pending_inferences = list_inferences(child_id=child_id, status=InferenceStatus.PENDING.value)
-    related_keys = {inf.dedupe_key for inf in knowledge_inferences if inf.dedupe_key}
-    intent_tag = intent_result.intent
-    intent_relevant_for_prompts = intent_tag in {"saving", "logging"} or intent_result.confidence >= 0.7
-    for inf in pending_inferences:
-        if inf.dedupe_key:
-            pending_inference_lookup[inf.dedupe_key] = {
-                "confidence": inf.confidence,
-                "status": inf.status,
-                "last_prompted_at": inf.last_prompted_at,
-                "related_to_message": intent_relevant_for_prompts and inf.dedupe_key in related_keys,
-            }
-    pending_prompt_items = filter_pending_for_prompt(
-        pending_knowledge,
-        session_id=session.id,
-        inference_lookup=pending_inference_lookup,
-        max_prompts=1,
-    )
-    pending_prompt_texts = knowledge_pending_prompts(pending_prompt_items)
-    if pending_prompt_texts:
-        mark_knowledge_prompted([item.id for item in pending_prompt_items], session_id=session.id)
-        dedupe_keys = [
-            (item.payload or {}).get("_dedupe_key") for item in pending_prompt_items if item.payload
-        ]
-        mark_inferences_prompted([key for key in dedupe_keys if key])
-
-    question_only = not actions and ("?" in analysis_message or question_category in {"sleep", "routine", "health"})
-
-    assistant_message, ui_nudges = build_assistant_message(
-        actions,
-        analysis_message,
-        child_data=child_data,
-        context={
-            "timezone_prompt": timezone_prompt,
-            "symptom_tags": symptom_tags,
-            "question_category": question_category,
-            "feed_follow_up": feed_follow_up_text,
-            "thin_context": thin_context,
-            "night_events": night_events,
-            "catch_up_exit_note": " ".join(prefixed_notes) if prefixed_notes else None,
-            "in_catch_up_mode": session.catch_up_mode,
-            "recent_actions": recent_actions_for_context,
-            "routine_prompt": routine_prompt_text,
-            "routine_accept_message": routine_accept_message,
-            "autocorrect_note": autocorrect_note,
-            "question_only": question_only,
-            "knowledge": active_knowledge,
-            "pending_knowledge": pending_knowledge,
-            "pending_prompts": pending_prompt_texts,
-            "intent": intent_result.intent,
+async def _get_conversation_session(auth: AuthContext, session_id: str) -> ConversationSession:
+    rows = await auth.supabase.select(
+        "conversation_sessions",
+        params={
+            "select": (
+                "id,user_id,child_id,title,last_message_at,created_at,updated_at,"
+                "catch_up_mode,catch_up_started_at,catch_up_last_message_at"
+            ),
+            "id": f"eq.{session_id}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
         },
     )
-    if not assistant_message or not str(assistant_message).strip():
-        assistant_message = _format_compose_error("empty response")
+    if not rows:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return _session_from_row(rows[0])
 
-    guidance_context = {
-        **child_context,
-        "latest_message_lower": analysis_message.lower(),
-        "question_category": question_category,
-    }
-    # For logging, keep the message minimal and skip post-processing that can add knowledge prompts.
-    if intent_result.intent != "logging":
-        try:
-            assistant_message = apply_temperament_adjustments(assistant_message, guidance_context)
-            assistant_message = apply_activity_suggestions(assistant_message, guidance_context)
-            assistant_message = apply_milestone_context(assistant_message, guidance_context)
-        except Exception as exc:
-            logger.exception("Error in guidance post-processing", exc_info=exc)
-            assistant_message = _format_compose_error(str(exc))
 
-    assistant_message_obj = append_message(
-        CreateMessagePayload(
-            session_id=session.id,
-            role="assistant",
-            content=assistant_message,
-            intent="log",
-        )
+async def _create_conversation_session(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    title: str = "New chat",
+) -> ConversationSession:
+    now_iso = _now_iso()
+    created = await auth.supabase.insert(
+        "conversation_sessions",
+        {
+            "family_id": auth.family_id,
+            "child_id": child_id,
+            "user_id": auth.user_id,
+            "title": title,
+            "last_message_at": now_iso,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        },
+    )
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to create conversation")
+    return _session_from_row(created[0])
+
+
+async def _list_conversation_sessions(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    limit: int = 20,
+) -> List[ConversationSession]:
+    rows = await auth.supabase.select(
+        "conversation_sessions",
+        params={
+            "select": (
+                "id,user_id,child_id,title,last_message_at,created_at,updated_at,"
+                "catch_up_mode,catch_up_started_at,catch_up_last_message_at"
+            ),
+            "family_id": f"eq.{auth.family_id}",
+            "child_id": f"eq.{child_id}",
+            "order": "last_message_at.desc",
+            "limit": str(limit),
+        },
+    )
+    return [_session_from_row(row) for row in rows]
+
+
+async def _touch_conversation(
+    auth: AuthContext,
+    session_id: str,
+    timestamp_iso: str,
+) -> None:
+    await auth.supabase.update(
+        "conversation_sessions",
+        {"last_message_at": timestamp_iso, "updated_at": timestamp_iso},
+        params={"id": f"eq.{session_id}", "family_id": f"eq.{auth.family_id}"},
     )
 
-    maybe_record_sibling_inference(payload.message)
 
+async def _insert_conversation_message(
+    auth: AuthContext,
+    *,
+    session_id: str,
+    role: str,
+    content: str,
+    user_id: Optional[str],
+    intent: Optional[str] = None,
+) -> ConversationMessage:
+    now_iso = _now_iso()
+    created = await auth.supabase.insert(
+        "conversation_messages",
+        {
+            "session_id": session_id,
+            "user_id": user_id,
+            "role": role,
+            "content": content,
+            "intent": intent,
+            "created_at": now_iso,
+        },
+    )
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to create message")
+    return _message_from_row(created[0])
+
+
+async def _list_conversation_messages(
+    auth: AuthContext,
+    *,
+    session_id: str,
+    limit: int = 100,
+) -> List[ConversationMessage]:
+    rows = await auth.supabase.select(
+        "conversation_messages",
+        params={
+            "select": "id,session_id,user_id,role,content,intent,created_at",
+            "session_id": f"eq.{session_id}",
+            "order": "created_at.asc",
+            "limit": str(limit),
+        },
+    )
+    return [_message_from_row(row) for row in rows]
+
+
+async def _insert_timeline_event(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    event_type: str,
+    title: str,
+    detail: Optional[str],
+    amount_label: Optional[str],
+    start_iso: str,
+    end_iso: Optional[str],
+    source: Optional[str],
+    origin_message_id: Optional[str],
+    has_note: bool = False,
+    is_custom: bool = False,
+) -> Optional[Dict[str, Any]]:
+    title = title.strip()
+    if not title or not event_type:
+        return None
+    created = await auth.supabase.insert(
+        "timeline_events",
+        {
+            "family_id": auth.family_id,
+            "child_id": child_id,
+            "type": event_type,
+            "title": title,
+            "detail": detail,
+            "amount_label": amount_label,
+            "start": start_iso,
+            "end": end_iso,
+            "has_note": has_note,
+            "is_custom": is_custom,
+            "source": source,
+            "origin_message_id": origin_message_id,
+        },
+    )
+    return created[0] if created else None
+
+
+@app.post("/api/v1/activities", response_model=ChatResponse)
+async def capture_activity(
+    payload: ChatRequest,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> ChatResponse:
+    start = time.perf_counter()
+    child_id = resolve_child_id(child_id_header, payload.child_id, required=True)
+    if not child_id:
+        raise HTTPException(status_code=400, detail="child_id is required for activities.")
+    logger.info(
+        "child-scoped request",
+        extra={"method": "POST", "path": "/api/v1/activities", "child_id": child_id},
+    )
+    conversation_id = (
+        resolve_optional_uuid(payload.conversation_id, "conversation_id")
+        if payload.conversation_id
+        else None
+    )
+    if conversation_id:
+        await _get_conversation_session(auth, conversation_id)
+    else:
+        conversation = await _create_conversation_session(auth, child_id=child_id)
+        conversation_id = conversation.id
+
+    child_rows = await auth.supabase.select(
+        "children",
+        params={
+            "select": "id,first_name,name,timezone,birth_date,due_date",
+            "id": f"eq.{child_id}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    child_row = child_rows[0] if child_rows else {}
+    timezone_value = child_row.get("timezone") or payload.timezone
+    symptom_tags = message_symptom_tags(payload.message)
+    question_category = classify_question_category(payload.message, symptom_tags)
+    is_question = _is_question(payload.message)
+    user_intent = "question" if is_question else "log"
+
+    user_message = await _insert_conversation_message(
+        auth,
+        session_id=conversation_id,
+        role="user",
+        content=payload.message,
+        user_id=auth.user_id,
+        intent=user_intent,
+    )
+    memory_target = detect_memory_save_target(payload.message)
+    if memory_target:
+        now_iso = _now_iso()
+        summary_text = _strip_memory_prefix(payload.message)
+        age_weeks = _child_age_weeks(child_row) if child_row else None
+        age_range = _age_range_weeks(age_weeks)
+        created = await auth.supabase.insert(
+            "knowledge_items",
+            {
+                "family_id": auth.family_id,
+                "user_id": auth.user_id,
+                "subject_id": child_id,
+                "key": "manual_memory",
+                "type": KnowledgeItemType.EXPLICIT.value,
+                "status": KnowledgeItemStatus.ACTIVE.value,
+                "payload": {"summary": summary_text},
+                "confidence": "medium",
+                "age_range_weeks": age_range,
+                "activated_at": now_iso,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            },
+        )
+        if not created:
+            raise HTTPException(status_code=500, detail="Unable to save memory.")
+        assistant_text = "Got it — I’ll remember that."
+        assistant_message = await _insert_conversation_message(
+            auth,
+            session_id=conversation_id,
+            role="assistant",
+            content=assistant_text,
+            user_id=auth.user_id,
+            intent="memory",
+        )
+        await _touch_conversation(auth, conversation_id, now_iso)
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        return ChatResponse(
+            actions=[],
+            raw_message=payload.message,
+            model="havi-local",
+            latency_ms=latency_ms,
+            assistant_message=assistant_text,
+            question_category=question_category,
+            conversation_id=conversation_id,
+            user_message_id=user_message.id,
+            assistant_message_id=assistant_message.id,
+            intent="memory",
+        )
+    actions: List[Action] = []
+    assistant_text: str
+    intent = "log"
+
+    if not is_question:
+        segments = _split_message_into_events(payload.message)
+        actions = [
+            _action_from_segment(segment, timezone_value)
+            for segment in segments
+            if segment
+        ]
+        for action in actions:
+            event_type = _timeline_type_for_action(action)
+            if not event_type:
+                continue
+            event_start = action.timestamp
+            if event_start.tzinfo is None:
+                event_start = event_start.replace(tzinfo=timezone.utc)
+            start_iso = event_start.astimezone(timezone.utc).isoformat()
+            end_iso = None
+            if action.action_type == CoreActionType.SLEEP and action.metadata.duration_minutes:
+                end_iso = (
+                    event_start
+                    + timedelta(minutes=action.metadata.duration_minutes)
+                ).astimezone(timezone.utc).isoformat()
+            await _insert_timeline_event(
+                auth,
+                child_id=child_id,
+                event_type=event_type,
+                title=_timeline_title_for_action(action),
+                detail=_timeline_detail_for_action(action),
+                amount_label=_timeline_amount_label(action),
+                start_iso=start_iso,
+                end_iso=end_iso,
+                source=payload.source or "chat",
+                origin_message_id=user_message.id,
+                has_note=bool(action.note),
+                is_custom=not action.is_core_action,
+            )
+        if actions:
+            await auth.supabase.insert(
+                "activity_logs",
+                {
+                    "family_id": auth.family_id,
+                    "child_id": child_id,
+                    "user_id": auth.user_id,
+                    "actions_json": [action.model_dump(mode="json") for action in actions],
+                    "source": payload.source or "chat",
+                },
+            )
+        inference = _detect_memory_inference(payload.message)
+        if inference:
+            inference_type, inference_payload, confidence = inference
+            await _maybe_create_inference(
+                auth,
+                child_id=child_id,
+                inference_type=inference_type,
+                payload=inference_payload,
+                confidence=confidence,
+                source="chat",
+            )
+        assistant_text = (
+            summarize_actions(actions, child_row, {"symptom_tags": symptom_tags})
+            or "Got it — I logged that."
+        )
+    else:
+        assistant_text = _build_question_response(
+            payload.message,
+            child_row=child_row,
+            category=question_category,
+        )
+        intent = "question"
+
+    assistant_message = await _insert_conversation_message(
+        auth,
+        session_id=conversation_id,
+        role="assistant",
+        content=assistant_text,
+        user_id=auth.user_id,
+        intent=intent,
+    )
+
+    await _touch_conversation(auth, conversation_id, _now_iso())
     latency_ms = int((time.perf_counter() - start) * 1000)
     return ChatResponse(
         actions=actions,
         raw_message=payload.message,
-        model=CONFIG.openai_model,
+        model="havi-local",
         latency_ms=latency_ms,
-        assistant_message=assistant_message,
+        assistant_message=assistant_text,
         question_category=question_category,
-        intent=intent_result.intent,
-        conversation_id=session.id,
+        conversation_id=conversation_id,
         user_message_id=user_message.id,
-        assistant_message_id=assistant_message_obj.id,
-        ui_nudges=ui_nudges or None,
+        assistant_message_id=assistant_message.id,
+        intent=intent,
     )
-
 
 @app.get("/")
 async def root() -> dict:
@@ -716,135 +681,1140 @@ async def root() -> dict:
 
 
 @app.post("/api/v1/inferences", response_model=Inference)
-async def record_inference(payload: CreateInferencePayload) -> Inference:
-    if payload.child_id is None:
+async def record_inference(
+    payload: CreateInferencePayload,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> Inference:
+    child_id = resolve_child_id(child_id_header, payload.child_id, required=True)
+    if not child_id:
         raise HTTPException(status_code=400, detail="child_id is required for inferences.")
     logger.info(
         "child-scoped request",
-        extra={"method": "POST", "path": "/api/v1/inferences", "child_id": payload.child_id},
+        extra={"method": "POST", "path": "/api/v1/inferences", "child_id": child_id},
     )
-    return create_inference(payload)
+    dedupe_key = _dedupe_key_for_inference(child_id, payload.inference_type, payload.payload)
+    existing = await auth.supabase.select(
+        "inferences",
+        params={
+            "select": (
+                "id,child_id,user_id,inference_type,payload,confidence,status,source,created_at,"
+                "updated_at,expires_at,dedupe_key,last_prompted_at"
+            ),
+            "dedupe_key": f"eq.{dedupe_key}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    if existing:
+        return Inference.model_validate(existing[0])
+
+    child_rows = await auth.supabase.select(
+        "children",
+        params={
+            "select": "birth_date,due_date",
+            "id": f"eq.{child_id}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    age_weeks = _child_age_weeks(child_rows[0]) if child_rows else None
+    dtu = get_dtu(age_weeks)
+    expires_at = (
+        payload.expires_at.isoformat()
+        if payload.expires_at
+        else (datetime.now(tz=timezone.utc) + timedelta(days=_inference_expiry_days(dtu))).isoformat()
+    )
+
+    created = await auth.supabase.insert(
+        "inferences",
+        {
+            "family_id": auth.family_id,
+            "child_id": child_id,
+            "user_id": auth.user_id,
+            "inference_type": payload.inference_type,
+            "payload": payload.payload,
+            "confidence": payload.confidence,
+            "status": InferenceStatus.PENDING.value,
+            "source": payload.source,
+            "expires_at": expires_at,
+            "dedupe_key": dedupe_key,
+        },
+    )
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to create inference")
+    return Inference.model_validate(created[0])
+
+
+async def _maybe_create_inference(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    inference_type: str,
+    payload: Dict[str, Any],
+    confidence: float,
+    source: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    dedupe_key = _dedupe_key_for_inference(child_id, inference_type, payload)
+    existing = await auth.supabase.select(
+        "inferences",
+        params={
+            "select": (
+                "id,child_id,user_id,inference_type,payload,confidence,status,source,created_at,"
+                "updated_at,expires_at,dedupe_key,last_prompted_at"
+            ),
+            "dedupe_key": f"eq.{dedupe_key}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    if existing:
+        if existing[0].get("status") == InferenceStatus.REJECTED.value:
+            return None
+        return existing[0]
+
+    child_rows = await auth.supabase.select(
+        "children",
+        params={
+            "select": "birth_date,due_date",
+            "id": f"eq.{child_id}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    age_weeks = _child_age_weeks(child_rows[0]) if child_rows else None
+    dtu = get_dtu(age_weeks)
+    expires_at = (
+        datetime.now(tz=timezone.utc) + timedelta(days=_inference_expiry_days(dtu))
+    ).isoformat()
+
+    created = await auth.supabase.insert(
+        "inferences",
+        {
+            "family_id": auth.family_id,
+            "child_id": child_id,
+            "user_id": auth.user_id,
+            "inference_type": inference_type,
+            "payload": payload,
+            "confidence": confidence,
+            "status": InferenceStatus.PENDING.value,
+            "source": source,
+            "expires_at": expires_at,
+            "dedupe_key": dedupe_key,
+        },
+    )
+    return created[0] if created else None
 
 
 @app.get("/api/v1/inferences", response_model=List[Inference])
-async def fetch_inferences(child_id: Optional[int] = None, status: Optional[str] = None) -> List[Inference]:
-    if child_id is None:
+async def fetch_inferences(
+    child_id: Optional[str] = None,
+    status: Optional[str] = None,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> List[Inference]:
+    resolved_child_id = resolve_child_id(child_id_header, child_id, required=True)
+    if not resolved_child_id:
         raise HTTPException(status_code=400, detail="child_id is required for inferences.")
     logger.info(
         "child-scoped request",
-        extra={"method": "GET", "path": "/api/v1/inferences", "child_id": child_id},
+        extra={"method": "GET", "path": "/api/v1/inferences", "child_id": resolved_child_id},
     )
-    return list_inferences(child_id=child_id, status=status)
+    now_iso = _now_iso()
+    params = {
+        "select": (
+            "id,child_id,user_id,inference_type,payload,confidence,status,source,created_at,"
+            "updated_at,expires_at,dedupe_key,last_prompted_at"
+        ),
+        "family_id": f"eq.{auth.family_id}",
+        "child_id": f"eq.{resolved_child_id}",
+        "order": "created_at.desc",
+        "or": f"(expires_at.is.null,expires_at.gt.{now_iso})",
+    }
+    requested_status = status or InferenceStatus.PENDING.value
+    params["status"] = f"eq.{requested_status}"
+
+    child_rows = await auth.supabase.select(
+        "children",
+        params={
+            "select": "birth_date,due_date",
+            "id": f"eq.{resolved_child_id}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    age_weeks = _child_age_weeks(child_rows[0]) if child_rows else None
+    dtu = get_dtu(age_weeks)
+    min_confidence = _inference_min_confidence(dtu)
+
+    rows = await auth.supabase.select("inferences", params=params)
+    filtered = [row for row in rows if (row.get("confidence") or 0) >= min_confidence]
+    return [Inference.model_validate(row) for row in filtered]
+
+
+async def _create_knowledge_from_inference(
+    auth: AuthContext,
+    inference_row: Dict[str, Any],
+    *,
+    confidence: str,
+    qualifier: Optional[str],
+) -> Dict[str, Any]:
+    child_id = inference_row.get("child_id")
+    child_rows = []
+    if child_id:
+        child_rows = await auth.supabase.select(
+            "children",
+            params={
+                "select": "birth_date,due_date",
+                "id": f"eq.{child_id}",
+                "family_id": f"eq.{auth.family_id}",
+                "limit": "1",
+            },
+        )
+    age_weeks = _child_age_weeks(child_rows[0]) if child_rows else None
+    age_range = _age_range_weeks(age_weeks)
+    payload = inference_row.get("payload") or {}
+    if isinstance(payload, dict):
+        payload = {**payload, "source_inference_id": inference_row.get("id")}
+    now_iso = _now_iso()
+    created = await auth.supabase.insert(
+        "knowledge_items",
+        {
+            "family_id": auth.family_id,
+            "user_id": auth.user_id,
+            "subject_id": child_id,
+            "key": inference_row.get("inference_type") or "memory",
+            "type": KnowledgeItemType.INFERRED.value,
+            "status": KnowledgeItemStatus.ACTIVE.value,
+            "payload": payload,
+            "confidence": confidence,
+            "qualifier": qualifier,
+            "age_range_weeks": age_range,
+            "activated_at": now_iso,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        },
+    )
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to save memory.")
+    return created[0]
 
 
 @app.post("/api/v1/inferences/{inference_id}/status", response_model=Inference)
-async def change_inference_status(inference_id: int, status: InferenceStatus) -> Inference:
-    return update_inference_status(inference_id, status=status)
+async def change_inference_status(
+    inference_id: str,
+    status: InferenceStatus,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Inference:
+    inference_uuid = resolve_optional_uuid(inference_id, "inference_id")
+    if not inference_uuid:
+        raise HTTPException(status_code=400, detail="Invalid inference_id")
+    updated = await auth.supabase.update(
+        "inferences",
+        {
+            "status": status.value,
+            "updated_at": _now_iso(),
+        },
+        params={"id": f"eq.{inference_uuid}", "family_id": f"eq.{auth.family_id}"},
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Inference not found")
+    return Inference.model_validate(updated[0])
+
+
+@app.post("/api/v1/inferences/{inference_id}/resolve")
+async def resolve_inference(
+    inference_id: str,
+    payload: InferenceResolvePayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    inference_uuid = resolve_optional_uuid(inference_id, "inference_id")
+    if not inference_uuid:
+        raise HTTPException(status_code=400, detail="Invalid inference_id")
+    rows = await auth.supabase.select(
+        "inferences",
+        params={
+            "select": (
+                "id,child_id,user_id,inference_type,payload,confidence,status,source,created_at,"
+                "updated_at,expires_at,dedupe_key,last_prompted_at"
+            ),
+            "id": f"eq.{inference_uuid}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Inference not found")
+    inference_row = rows[0]
+
+    action = payload.action
+    if action == "reject":
+        updated = await auth.supabase.update(
+            "inferences",
+            {"status": InferenceStatus.REJECTED.value, "updated_at": _now_iso()},
+            params={"id": f"eq.{inference_uuid}", "family_id": f"eq.{auth.family_id}"},
+        )
+        return updated[0] if updated else inference_row
+
+    confidence = "medium" if action == "confirm_general" else "low"
+    qualifier = None if action == "confirm_general" else "sometimes"
+    await _create_knowledge_from_inference(
+        auth,
+        inference_row,
+        confidence=confidence,
+        qualifier=qualifier,
+    )
+    updated = await auth.supabase.update(
+        "inferences",
+        {"status": InferenceStatus.CONFIRMED.value, "updated_at": _now_iso()},
+        params={"id": f"eq.{inference_uuid}", "family_id": f"eq.{auth.family_id}"},
+    )
+    return updated[0] if updated else inference_row
 
 
 @app.post("/api/v1/conversations", response_model=ConversationSession)
-async def create_conversation(user_id: Optional[int] = None, child_id: Optional[int] = None) -> ConversationSession:
-    if child_id is None:
+async def create_conversation(
+    child_id: Optional[str] = None,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> ConversationSession:
+    resolved_child_id = resolve_child_id(child_id_header, child_id, required=True)
+    if not resolved_child_id:
         raise HTTPException(status_code=400, detail="child_id is required for conversations.")
     logger.info(
         "child-scoped request",
-        extra={"method": "POST", "path": "/api/v1/conversations", "child_id": child_id},
+        extra={"method": "POST", "path": "/api/v1/conversations", "child_id": resolved_child_id},
     )
-    return create_session(user_id=user_id, child_id=child_id)
+    return await _create_conversation_session(auth, child_id=resolved_child_id)
 
 
 @app.get("/api/v1/conversations", response_model=List[ConversationSession])
-async def fetch_conversations(user_id: Optional[int] = None, child_id: Optional[int] = None) -> List[ConversationSession]:
-    if child_id is None:
+async def fetch_conversations(
+    child_id: Optional[str] = None,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> List[ConversationSession]:
+    resolved_child_id = resolve_child_id(child_id_header, child_id, required=True)
+    if not resolved_child_id:
         raise HTTPException(status_code=400, detail="child_id is required for conversations.")
     logger.info(
         "child-scoped request",
-        extra={"method": "GET", "path": "/api/v1/conversations", "child_id": child_id},
+        extra={"method": "GET", "path": "/api/v1/conversations", "child_id": resolved_child_id},
     )
-    return list_sessions(user_id=user_id, child_id=child_id)
+    return await _list_conversation_sessions(auth, child_id=resolved_child_id)
 
 
 @app.get("/api/v1/conversations/{session_id}", response_model=ConversationSession)
-async def fetch_conversation(session_id: int) -> ConversationSession:
-    return get_session(session_id)
+async def fetch_conversation(
+    session_id: str,
+    auth: AuthContext = Depends(get_auth_context),
+) -> ConversationSession:
+    session_uuid = resolve_optional_uuid(session_id, "conversation_id")
+    if not session_uuid:
+        raise HTTPException(status_code=400, detail="Invalid conversation id")
+    return await _get_conversation_session(auth, session_uuid)
 
 
 @app.patch("/api/v1/conversations/{session_id}", response_model=ConversationSession)
-async def rename_conversation(session_id: int, payload: RenameConversationPayload) -> ConversationSession:
+async def rename_conversation(
+    session_id: str,
+    payload: RenameConversationPayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> ConversationSession:
     title = payload.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="title cannot be empty")
-    return update_session_title(session_id, title)
+    session_uuid = resolve_optional_uuid(session_id, "conversation_id")
+    if not session_uuid:
+        raise HTTPException(status_code=400, detail="Invalid conversation id")
+    updated = await auth.supabase.update(
+        "conversation_sessions",
+        {"title": title, "updated_at": _now_iso()},
+        params={"id": f"eq.{session_uuid}", "family_id": f"eq.{auth.family_id}"},
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return _session_from_row(updated[0])
 
 
 @app.post("/api/v1/conversations/{session_id}/messages", response_model=ConversationMessage)
-async def post_message(session_id: int, payload: CreateConversationMessagePayload) -> ConversationMessage:
-    return append_message(
-        CreateMessagePayload(
-            session_id=session_id,
-            role=payload.role,
-            content=payload.content,
-            user_id=payload.user_id,
-            intent=payload.intent,
-        )
+async def post_message(
+    session_id: str,
+    payload: CreateConversationMessagePayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> ConversationMessage:
+    session_uuid = resolve_optional_uuid(session_id, "conversation_id")
+    if not session_uuid:
+        raise HTTPException(status_code=400, detail="Invalid conversation id")
+    await _get_conversation_session(auth, session_uuid)
+    message = await _insert_conversation_message(
+        auth,
+        session_id=session_uuid,
+        role=payload.role,
+        content=payload.content,
+        user_id=payload.user_id or auth.user_id,
+        intent=payload.intent,
     )
+    await _touch_conversation(auth, session_uuid, _now_iso())
+    return message
 
 
 @app.get("/api/v1/conversations/{session_id}/messages", response_model=List[ConversationMessage])
-async def fetch_messages(session_id: int) -> List[ConversationMessage]:
-    return list_messages(session_id)
+async def fetch_messages(
+    session_id: str,
+    auth: AuthContext = Depends(get_auth_context),
+) -> List[ConversationMessage]:
+    session_uuid = resolve_optional_uuid(session_id, "conversation_id")
+    if not session_uuid:
+        raise HTTPException(status_code=400, detail="Invalid conversation id")
+    await _get_conversation_session(auth, session_uuid)
+    return await _list_conversation_messages(auth, session_id=session_uuid)
 
 
 @app.post("/api/v1/metrics/loading")
-async def ingest_loading_metrics(payload: LoadingMetricsPayload) -> dict:
-    record_loading_metric(
-        session_id=payload.session_id,
-        message_id=payload.message_id,
-        thinking_short_ms=payload.thinking_short_ms,
-        thinking_rich_ms=payload.thinking_rich_ms,
-        error_type=payload.error_type,
-        retry_count=payload.retry_count,
-    )
+async def ingest_loading_metrics(
+    payload: LoadingMetricsPayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict:
+    session_id = resolve_optional_uuid(payload.session_id, "session_id")
+    message_id = resolve_optional_uuid(payload.message_id, "message_id")
+    if session_id:
+        await auth.supabase.insert(
+            "loading_metrics",
+            {
+                "session_id": session_id,
+                "message_id": message_id,
+                "thinking_short_ms": payload.thinking_short_ms,
+                "thinking_rich_ms": payload.thinking_rich_ms,
+                "error_type": payload.error_type,
+                "retry_count": payload.retry_count,
+            },
+        )
     return {"status": "ok"}
 
 
+def _normalize_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed if trimmed else None
+
+
+def _normalize_gender(value: Optional[str]) -> Optional[str]:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return None
+    return normalized.lower()
+
+
+def _parse_iso_date(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _child_age_weeks(child_row: Dict[str, Any]) -> Optional[int]:
+    birth_date = _parse_iso_date(child_row.get("birth_date"))
+    due_date = _parse_iso_date(child_row.get("due_date"))
+    base = birth_date or due_date
+    if not base:
+        return None
+    delta_days = (datetime.now(tz=timezone.utc) - base).days
+    return max(0, delta_days // 7)
+
+
+def get_dtu(child_age_weeks: Optional[int]) -> str:
+    if child_age_weeks is None:
+        return "unknown"
+    if child_age_weeks <= 4:
+        return "newborn"
+    if child_age_weeks <= 26:
+        return "infant"
+    return "older"
+
+
+def _inference_expiry_days(dtu: str) -> int:
+    if dtu == "newborn":
+        return 14
+    if dtu == "infant":
+        return 30
+    return 90
+
+
+def _inference_min_confidence(dtu: str) -> float:
+    if dtu == "newborn":
+        return 0.45
+    if dtu == "infant":
+        return 0.5
+    return 0.55
+
+
+def _age_range_weeks(child_age_weeks: Optional[int]) -> Optional[str]:
+    if child_age_weeks is None:
+        return None
+    start = max(0, child_age_weeks)
+    end = start + 1
+    return f"[{start},{end}]"
+
+
+def _dedupe_key_for_inference(
+    child_id: Optional[str],
+    inference_type: str,
+    payload: Dict[str, Any],
+) -> str:
+    base = json.dumps(
+        {"child_id": child_id, "type": inference_type, "payload": payload},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+def _split_message_into_events(message: str) -> List[str]:
+    if not message:
+        return []
+    parts = re.split(r"\s+(?:and|then)\s+|;|\n", message)
+    cleaned = [part.strip() for part in parts if part and part.strip()]
+    return cleaned or [message.strip()]
+
+
+_AMOUNT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(oz|ounce|ounces|ml|milliliters?)\b", re.IGNORECASE)
+_HOUR_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b", re.IGNORECASE)
+_MIN_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(m|min|mins|minute|minutes)\b", re.IGNORECASE)
+
+
+def _extract_amount_from_text(message: str) -> tuple[Optional[float], Optional[str]]:
+    match = _AMOUNT_RE.search(message)
+    if not match:
+        return None, None
+    value = float(match.group(1))
+    unit = match.group(2).lower()
+    unit = "oz" if unit.startswith("o") else "ml"
+    return value, unit
+
+
+def _extract_duration_minutes(message: str) -> Optional[float]:
+    match = _HOUR_RE.search(message)
+    if match:
+        return float(match.group(1)) * 60.0
+    match = _MIN_RE.search(message)
+    if match:
+        return float(match.group(1))
+    return None
+
+
+def _infer_diaper_action_type(message: str) -> CoreActionType:
+    lower = message.lower()
+    has_poop = "poop" in lower or "bm" in lower
+    has_pee = "pee" in lower or "wet" in lower
+    if has_poop and has_pee:
+        return CoreActionType.DIAPER_PEE_AND_POOP
+    if has_poop:
+        return CoreActionType.DIAPER_POOP
+    if has_pee:
+        return CoreActionType.DIAPER_PEE
+    return CoreActionType.DIAPER_PEE_AND_POOP
+
+
+def _action_from_segment(segment: str, timezone_value: Optional[str]) -> Action:
+    lower = segment.lower()
+    timestamp_iso = extract_event_start(segment, timezone_value)
+    try:
+        timestamp = datetime.fromisoformat(timestamp_iso)
+    except ValueError:
+        timestamp = datetime.now(tz=timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    metadata = ActionMetadata()
+    action_type: CoreActionType
+
+    if any(word in lower for word in ["sleep", "nap", "slept", "woke"]):
+        action_type = CoreActionType.SLEEP
+        metadata.duration_minutes = _extract_duration_minutes(segment)
+    elif any(word in lower for word in ["diaper", "poop", "pee", "wet"]):
+        action_type = _infer_diaper_action_type(segment)
+    elif "bath" in lower:
+        action_type = CoreActionType.BATH
+    elif "med" in lower:
+        action_type = CoreActionType.MEDICATION
+    else:
+        action_type = CoreActionType.ACTIVITY
+        amount_value, amount_unit = _extract_amount_from_text(segment)
+        if amount_value is not None:
+            metadata.amount_value = amount_value
+            metadata.amount_unit = amount_unit or "oz"
+        method = infer_feed_method_from_message(segment)
+        if method:
+            extra = dict(metadata.extra or {})
+            extra["feed_method"] = method
+            metadata.extra = extra
+
+    return Action(
+        action_type=action_type,
+        timestamp=timestamp,
+        note=segment,
+        metadata=metadata,
+        is_core_action=True,
+    )
+
+
+def _is_question(message: str) -> bool:
+    lowered = message.strip().lower()
+    if lowered.endswith("?"):
+        return True
+    return "what is normal" in lowered or lowered.startswith("what is")
+
+
+def _detect_memory_inference(
+    message: str,
+) -> Optional[tuple[str, Dict[str, Any], float]]:
+    lower = message.lower()
+    if any(term in lower for term in ["likes", "love", "prefers", "soothes", "calms"]):
+        return ("preference_note", {"summary": message}, 0.55)
+    if any(term in lower for term in ["routine", "schedule", "bedtime"]):
+        return ("routine_note", {"summary": message}, 0.55)
+    if "allergy" in lower or "allergic" in lower:
+        return ("allergy_watch", {"summary": message}, 0.6)
+    if "sleep" in lower and any(term in lower for term in ["always", "usually"]):
+        return ("sleep_note", {"note": message}, 0.5)
+    return None
+
+
+def _build_question_response(
+    message: str,
+    *,
+    child_row: Dict[str, Any],
+    category: str,
+) -> str:
+    child_name = child_row.get("first_name") or child_row.get("name") or "your child"
+    weeks = _child_age_weeks(child_row)
+    age_label = f"{weeks} weeks" if weeks is not None else "this stage"
+    wake_window = estimate_wake_window_label(weeks)
+    feed_spacing = estimate_feed_spacing_label(weeks)
+    if category == "sleep":
+        return (
+            f"For {child_name} around {age_label}, wake windows typically sit around "
+            f"{wake_window}. If naps feel short or bedtime is rocky, I can help adjust."
+        )
+    if category == "routine":
+        return (
+            f"For {child_name} around {age_label}, a gentle routine is feeds about "
+            f"{feed_spacing} with wake windows near {wake_window}. Want help mapping today?"
+        )
+    if category == "health":
+        return (
+            f"For {child_name} around {age_label}, keep an eye on hydration and comfort. "
+            "If anything feels urgent or out of character, call your pediatrician."
+        )
+    return (
+        f"For {child_name} around {age_label}, it’s common to see {wake_window} wake windows "
+        f"and feeds about {feed_spacing}. If you want, share more and I can tailor guidance."
+    )
+
+
+def _normalize_caregiver_payload(caregiver: CaregiverProfile) -> Dict[str, Any]:
+    data = caregiver.model_dump()
+    return {
+        "first_name": _normalize_text(data.get("first_name")),
+        "last_name": _normalize_text(data.get("last_name")),
+        "email": _normalize_text(data.get("email")),
+        "phone": _normalize_text(data.get("phone")),
+        "relationship": _normalize_text(data.get("relationship")),
+    }
+
+
+async def _fetch_supabase_settings(auth: AuthContext) -> tuple[dict, List[dict]]:
+    caregiver = next(
+        (
+            row
+            for row in auth.memberships
+            if row.get("family_id") == auth.family_id and row.get("user_id") == auth.user_id
+        ),
+        {},
+    )
+    children = await auth.supabase.select(
+        "children",
+        params={
+            "select": (
+                "id,name,first_name,last_name,birth_date,due_date,gender,birth_weight,"
+                "birth_weight_unit,latest_weight,latest_weight_date,timezone,routine_eligible"
+            ),
+            "family_id": f"eq.{auth.family_id}",
+            "order": "created_at.asc",
+        },
+    )
+    return caregiver, children
+
+
+async def _upsert_child_profile(
+    auth: AuthContext,
+    payload: ChildProfile,
+    birth_date: Optional[str],
+    due_date: Optional[str],
+    gender: Optional[str],
+) -> None:
+    child_payload: Dict[str, Any] = {
+        "first_name": _normalize_text(payload.first_name),
+        "last_name": _normalize_text(payload.last_name),
+        "birth_date": birth_date,
+        "due_date": due_date,
+        "gender": gender,
+        "birth_weight": payload.birth_weight,
+        "birth_weight_unit": _normalize_text(payload.birth_weight_unit),
+        "latest_weight": payload.latest_weight,
+        "latest_weight_date": _normalize_text(payload.latest_weight_date),
+        "timezone": _normalize_text(payload.timezone),
+    }
+    name_parts = [part for part in [child_payload["first_name"], child_payload["last_name"]] if part]
+    if name_parts:
+        child_payload["name"] = " ".join(name_parts)
+
+    child_id = _normalize_text(payload.id)
+    if child_id:
+        updated = await auth.supabase.update(
+            "children",
+            child_payload,
+            params={
+                "id": f"eq.{child_id}",
+                "family_id": f"eq.{auth.family_id}",
+            },
+        )
+        if updated:
+            return
+
+    existing_children = await auth.supabase.select(
+        "children",
+        params={
+            "select": "id",
+            "family_id": f"eq.{auth.family_id}",
+            "order": "created_at.asc",
+            "limit": "1",
+        },
+    )
+    if existing_children:
+        await auth.supabase.update(
+            "children",
+            child_payload,
+            params={
+                "id": f"eq.{existing_children[0]['id']}",
+                "family_id": f"eq.{auth.family_id}",
+            },
+        )
+        return
+
+    await auth.supabase.insert(
+        "children",
+        {
+            **child_payload,
+            "family_id": auth.family_id,
+        },
+    )
+
+
 @app.get("/api/v1/settings", response_model=SettingsResponse)
-async def get_settings() -> SettingsResponse:
-    caregiver_data, child_data = fetch_primary_profiles()
-    return _build_settings_response(caregiver_data, child_data)
+async def get_settings(
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> SettingsResponse:
+    caregiver_data, children_data = await _fetch_supabase_settings(auth)
+    selected_child_id = resolve_optional_uuid(child_id_header, "child_id") if child_id_header else None
+    return _build_settings_response(caregiver_data, children_data, selected_child_id)
 
 
 @app.put("/api/v1/settings", response_model=SettingsResponse)
-async def update_settings(payload: SettingsPayload) -> SettingsResponse:
+async def update_settings(
+    payload: SettingsPayload,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> SettingsResponse:
     if not payload.child.birth_date and not payload.child.due_date:
         raise HTTPException(status_code=400, detail="Birth date or due date is required.")
-    update_user_profile(payload.caregiver.model_dump())
-    update_child_profile(payload.child.model_dump())
-    ensure_primary_family_membership()
-    caregiver_data, child_data = fetch_primary_profiles()
-    profile_id = caregiver_data.get("id")
-    child_id = child_data.get("id")
-    _sync_child_knowledge(profile_id, child_id, payload.child)
-    return _build_settings_response(caregiver_data, child_data)
+
+    birth_date = _normalize_text(payload.child.birth_date)
+    due_date = _normalize_text(payload.child.due_date)
+    gender = _normalize_gender(payload.child.gender)
+    birth_weight = payload.child.birth_weight
+
+    if birth_date:
+        if not gender:
+            raise HTTPException(status_code=400, detail="Gender is required for a birth date.")
+        if birth_weight is None:
+            raise HTTPException(status_code=400, detail="Birth weight is required for a birth date.")
+    elif due_date and not gender:
+        raise HTTPException(status_code=400, detail="Gender is required for a due date.")
+    if gender and gender not in {"boy", "girl", "unknown"}:
+        raise HTTPException(status_code=400, detail="Gender must be boy, girl, or unknown.")
+
+    caregiver_payload = _normalize_caregiver_payload(payload.caregiver)
+    if caregiver_payload:
+        await auth.supabase.update(
+            "family_members",
+            caregiver_payload,
+            params={
+                "family_id": f"eq.{auth.family_id}",
+                "user_id": f"eq.{auth.user_id}",
+            },
+        )
+
+    await _upsert_child_profile(
+        auth=auth,
+        payload=payload.child,
+        birth_date=birth_date,
+        due_date=due_date,
+        gender=gender,
+    )
+
+    caregiver_data, children_data = await _fetch_supabase_settings(auth)
+    selected_child_id = resolve_optional_uuid(payload.child.id, "child_id") if payload.child.id else None
+    if not selected_child_id and child_id_header:
+        selected_child_id = resolve_optional_uuid(child_id_header, "child_id")
+    return _build_settings_response(caregiver_data, children_data, selected_child_id)
+
+
+@app.post("/api/v1/families")
+async def create_family(
+    payload: CreateFamilyPayload,
+    user_ctx=Depends(get_user_context),
+) -> dict:
+    name = (payload.name or "").strip() or "Family"
+    created = await user_ctx.supabase.insert("families", {"name": name})
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to create family")
+    family_id = created[0].get("id")
+    await user_ctx.supabase.insert(
+        "family_members",
+        {
+            "family_id": family_id,
+            "user_id": user_ctx.user_id,
+            "role": "owner",
+            "is_primary": True,
+        },
+    )
+    return {"id": family_id, "name": name}
+
+
+@app.post("/api/v1/children", response_model=ChildProfile)
+async def create_child(
+    payload: CreateChildPayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> ChildProfile:
+    birth_date = _normalize_text(payload.birth_date)
+    due_date = _normalize_text(payload.due_date)
+    gender = _normalize_gender(payload.gender)
+
+    if not birth_date and not due_date:
+        raise HTTPException(status_code=400, detail="Birth date or due date is required.")
+    if birth_date:
+        if not gender:
+            raise HTTPException(status_code=400, detail="Gender is required for a birth date.")
+        if payload.birth_weight is None:
+            raise HTTPException(status_code=400, detail="Birth weight is required for a birth date.")
+    elif due_date and not gender:
+        raise HTTPException(status_code=400, detail="Gender is required for a due date.")
+    if gender and gender not in {"boy", "girl", "unknown"}:
+        raise HTTPException(status_code=400, detail="Gender must be boy, girl, or unknown.")
+
+    child_payload: Dict[str, Any] = {
+        "family_id": auth.family_id,
+        "first_name": _normalize_text(payload.first_name),
+        "last_name": _normalize_text(payload.last_name),
+        "birth_date": birth_date,
+        "due_date": due_date,
+        "gender": gender,
+        "birth_weight": payload.birth_weight,
+        "birth_weight_unit": _normalize_text(payload.birth_weight_unit),
+        "timezone": _normalize_text(payload.timezone),
+    }
+    name_parts = [part for part in [child_payload["first_name"], child_payload["last_name"]] if part]
+    if name_parts:
+        child_payload["name"] = " ".join(name_parts)
+
+    created = await auth.supabase.insert("children", child_payload)
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to create child")
+    row = created[0]
+    child_first_name = row.get("first_name") or row.get("name") or ""
+    return ChildProfile(
+        id=row.get("id"),
+        first_name=child_first_name,
+        last_name=(row.get("last_name") or ""),
+        birth_date=(row.get("birth_date") or ""),
+        due_date=(row.get("due_date") or ""),
+        gender=(row.get("gender") or ""),
+        birth_weight=row.get("birth_weight"),
+        birth_weight_unit=(row.get("birth_weight_unit") or None),
+        latest_weight=row.get("latest_weight"),
+        latest_weight_date=(row.get("latest_weight_date") or ""),
+        timezone=(row.get("timezone") or ""),
+        routine_eligible=bool(row.get("routine_eligible")),
+    )
+
+
+@app.post("/api/v1/invites")
+async def create_invite(
+    payload: InviteCreatePayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict:
+    email = (payload.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required.")
+    token = uuid4().hex
+    created = await auth.supabase.insert(
+        "family_invites",
+        {
+            "family_id": auth.family_id,
+            "email": email,
+            "role": payload.role or "member",
+            "token": token,
+        },
+    )
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to create invite.")
+    base_url = os.getenv("HAVI_SITE_URL") or os.getenv("NEXT_PUBLIC_SITE_URL") or "http://localhost:3000"
+    return {
+        "token": token,
+        "family_id": auth.family_id,
+        "email": email,
+        "invite_url": f"{base_url.rstrip('/')}/app/invite?token={token}",
+    }
+
+
+@app.post("/api/v1/invites/accept")
+async def accept_invite(
+    payload: InviteAcceptPayload,
+    user_ctx=Depends(get_user_context),
+) -> dict:
+    token = (payload.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Invite token is required.")
+    admin = get_admin_client()
+    invites = await admin.select(
+        "family_invites",
+        params={
+            "select": "id,family_id,email,role,accepted_at",
+            "token": f"eq.{token}",
+            "limit": "1",
+        },
+    )
+    if not invites:
+        raise HTTPException(status_code=404, detail="Invite not found.")
+    invite = invites[0]
+    if invite.get("accepted_at"):
+        return {"status": "already_accepted", "family_id": invite.get("family_id")}
+    invite_email = (invite.get("email") or "").lower()
+    user_email = (user_ctx.user_email or "").lower()
+    if invite_email and user_email and invite_email != user_email:
+        raise HTTPException(status_code=403, detail="Invite does not match this account.")
+
+    await admin.upsert(
+        "family_members",
+        {
+            "family_id": invite.get("family_id"),
+            "user_id": user_ctx.user_id,
+            "role": invite.get("role") or "member",
+            "is_primary": False,
+        },
+        on_conflict="family_id,user_id",
+    )
+    await admin.update(
+        "family_invites",
+        {
+            "accepted_at": _now_iso(),
+            "accepted_by_user_id": user_ctx.user_id,
+        },
+        params={"id": f"eq.{invite.get('id')}"},
+    )
+    return {"status": "accepted", "family_id": invite.get("family_id")}
+
+STAGE_GUIDANCE = {
+    "newborn_week_1": {
+        "sleep_hours": (14, 18),
+        "poop_per_day": (4, 8),
+        "feed_per_day": (8, 12),
+        "notes": "Newborn tummies are adjusting—expect frequent yellow seedy diapers and 2-3h feeds.",
+    },
+    "month_3": {
+        "sleep_hours": (14, 17),
+        "poop_per_day": (1, 3),
+        "feed_per_day": (5, 7),
+        "notes": "Three-month-olds often stretch nights but still wake 1-2 times; daytime poops may slow down.",
+    },
+}
+
+
+async def _fetch_activity_actions(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    start: datetime,
+    end: datetime,
+) -> List[Dict[str, Any]]:
+    rows = await auth.supabase.select(
+        "activity_logs",
+        params={
+            "select": "actions_json,created_at",
+            "family_id": f"eq.{auth.family_id}",
+            "child_id": f"eq.{child_id}",
+            "order": "created_at.desc",
+            "limit": "500",
+        },
+    )
+    actions: List[Dict[str, Any]] = []
+    for row in rows:
+        created_at = _parse_iso_date(row.get("created_at"))
+        if created_at and (created_at < start or created_at > end):
+            continue
+        payload = row.get("actions_json")
+        if isinstance(payload, list):
+            actions.extend(payload)
+        elif isinstance(payload, dict):
+            candidate = payload.get("actions") or payload.get("items") or []
+            if isinstance(candidate, list):
+                actions.extend(candidate)
+    return actions
+
+
+def _summaries_from_actions(actions: List[Dict[str, Any]]) -> Dict[str, float]:
+    totals = defaultdict(float)
+    for action in actions:
+        atype = action.get("action_type")
+        if not atype:
+            continue
+        metadata = action.get("metadata") or {}
+        totals[f"count_{atype}"] += 1
+        if atype == "sleep" and metadata.get("duration_minutes"):
+            totals["sleep_minutes"] += float(metadata.get("duration_minutes", 0))
+        if atype == "activity" and metadata.get("amount_value"):
+            totals["feed_oz"] += float(metadata.get("amount_value", 0))
+    return dict(totals)
+
+
+async def _compare_metrics(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    days: int = 1,
+    baseline_days: int = 1,
+) -> Dict[str, Any]:
+    now = datetime.now(tz=timezone.utc)
+    window_start = now - timedelta(days=days)
+    baseline_start = window_start - timedelta(days=baseline_days)
+    current_actions = await _fetch_activity_actions(
+        auth,
+        child_id=child_id,
+        start=window_start,
+        end=now,
+    )
+    baseline_actions = await _fetch_activity_actions(
+        auth,
+        child_id=child_id,
+        start=baseline_start,
+        end=window_start,
+    )
+    current_summary = _summaries_from_actions(current_actions)
+    baseline_summary = _summaries_from_actions(baseline_actions)
+    deltas: Dict[str, Dict[str, float]] = {}
+    for key in set(current_summary) | set(baseline_summary):
+        current_value = current_summary.get(key, 0.0)
+        baseline_value = baseline_summary.get(key, 0.0)
+        deltas[key] = {
+            "current": current_value,
+            "baseline": baseline_value,
+            "delta": current_value - baseline_value,
+        }
+    return {
+        "window_days": days,
+        "baseline_days": baseline_days,
+        "current": current_summary,
+        "baseline": baseline_summary,
+        "metrics": deltas,
+    }
+
+
+def _expected_ranges(stage: str, observed: Dict[str, float] | None = None) -> Dict[str, Any]:
+    stage_data = STAGE_GUIDANCE.get(stage, {})
+    guidance = {
+        "stage": stage,
+        "ranges": stage_data,
+        "notes": stage_data.get("notes", "") if stage_data else "",
+        "observed": observed or {},
+        "risks": [],
+        "options": [],
+    }
+    if observed and stage_data:
+        sleep_hours = observed.get("sleep_minutes", 0) / 60
+        feed_count = observed.get("count_activity", 0)
+        poop_count = observed.get("count_dirty_diaper_poop", 0) + observed.get(
+            "count_dirty_diaper_pee_and_poop", 0
+        )
+        if sleep_hours < stage_data.get("sleep_hours", (0, 0))[0]:
+            guidance["risks"].append(
+                "Sleep trending short; watch wake windows and bedtime routine."
+            )
+        if feed_count < stage_data.get("feed_per_day", (0, 0))[0]:
+            guidance["options"].append(
+                "Consider offering an extra daytime feed or earlier top-off."
+            )
+        if poop_count < stage_data.get("poop_per_day", (0, 0))[0]:
+            guidance["options"].append(
+                "If stools slow down, offer tummy time or consult pediatrician if discomfort appears."
+            )
+    return guidance
 
 
 @app.get("/api/v1/insights/compare")
-async def compare_insight(child_id: int, days: int = 1, baseline_days: int = 1) -> dict:
+async def compare_insight(
+    child_id: Optional[str] = None,
+    days: int = 1,
+    baseline_days: int = 1,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> dict:
+    resolved_child_id = resolve_child_id(child_id_header, child_id, required=True)
+    if not resolved_child_id:
+        raise HTTPException(status_code=400, detail="child_id is required.")
     logger.info(
         "child-scoped request",
-        extra={"method": "GET", "path": "/api/v1/insights/compare", "child_id": child_id},
+        extra={
+            "method": "GET",
+            "path": "/api/v1/insights/compare",
+            "child_id": resolved_child_id,
+        },
     )
-    return compare_metrics(child_id, days=days, baseline_days=baseline_days)
+    return await _compare_metrics(
+        auth,
+        child_id=resolved_child_id,
+        days=days,
+        baseline_days=baseline_days,
+    )
 
 
 @app.get("/api/v1/insights/expected")
-async def expected_insight(child_id: int, stage: str) -> dict:
+async def expected_insight(
+    child_id: Optional[str] = None,
+    stage: str = "",
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> dict:
+    resolved_child_id = resolve_child_id(child_id_header, child_id, required=True)
+    if not resolved_child_id:
+        raise HTTPException(status_code=400, detail="child_id is required.")
     logger.info(
         "child-scoped request",
-        extra={"method": "GET", "path": "/api/v1/insights/expected", "child_id": child_id},
+        extra={
+            "method": "GET",
+            "path": "/api/v1/insights/expected",
+            "child_id": resolved_child_id,
+        },
     )
     # For now, expected ranges just use stage presets without live observations.
-    return expected_ranges(stage)
+    return _expected_ranges(stage)
 
 
 def maybe_record_sibling_inference(message: str) -> None:
@@ -1135,6 +2105,27 @@ def extract_task_remind_at(
     return parsed_dt.astimezone(timezone.utc).isoformat()
 
 
+def extract_event_start(
+    message: str,
+    timezone_value: Optional[str],
+    base_time: Optional[datetime] = None,
+) -> str:
+    """Parse a natural language time and return an ISO timestamp in UTC."""
+    tz_name = timezone_value or "America/Los_Angeles"
+    tzinfo = None
+    try:
+        tzinfo = ZoneInfo(tz_name)
+    except Exception:
+        tzinfo = timezone.utc
+    base = base_time or datetime.now(tzinfo)
+    parsed_dt = _parse_natural_datetime(message, tz_name, base)
+    if parsed_dt:
+        if parsed_dt.tzinfo is None:
+            parsed_dt = parsed_dt.replace(tzinfo=tzinfo)
+        return parsed_dt.astimezone(timezone.utc).isoformat()
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
 def detect_catch_up_entry(message: str) -> bool:
     lower = message.lower()
     return any(phrase in lower for phrase in CATCH_UP_ENTRY_PHRASES)
@@ -1290,6 +2281,10 @@ def normalize_parental_typos(message: str) -> tuple[str, List[tuple[str, str]]]:
 SAVE_THAT_PHRASES = ["save that", "remember that"]
 SAVE_THIS_PHRASES = ["save this", "remember this"]
 SAVE_GENERIC_PHRASES = ["save to memory", "save to knowledge", "remember to save"]
+_SAVE_PREFIX_RE = re.compile(
+    r"^(save (this|that)|remember (this|that)|save to memory|save to knowledge|remember to save)\s*[:,-]?\s*",
+    re.IGNORECASE,
+)
 
 
 def detect_memory_save_target(message: str) -> Optional[str]:
@@ -1299,6 +2294,11 @@ def detect_memory_save_target(message: str) -> Optional[str]:
     if any(phrase in lower for phrase in SAVE_THIS_PHRASES + SAVE_GENERIC_PHRASES):
         return "user"
     return None
+
+
+def _strip_memory_prefix(message: str) -> str:
+    cleaned = _SAVE_PREFIX_RE.sub("", message or "").strip()
+    return cleaned or (message or "").strip()
 
 
 def _select_memory_text(target: str, user_message: str, assistant_message: Optional[str]) -> Optional[str]:
@@ -1641,7 +2641,11 @@ def maybe_offer_routine_prompt(
     )
 
 
-def _build_settings_response(caregiver_data: dict, child_data: dict) -> SettingsResponse:
+def _build_settings_response(
+    caregiver_data: dict,
+    children_data: List[dict],
+    selected_child_id: Optional[str] = None,
+) -> SettingsResponse:
     caregiver = CaregiverProfile(
         first_name=(caregiver_data.get("first_name") or ""),
         last_name=(caregiver_data.get("last_name") or ""),
@@ -1649,19 +2653,38 @@ def _build_settings_response(caregiver_data: dict, child_data: dict) -> Settings
         phone=(caregiver_data.get("phone") or ""),
         relationship=(caregiver_data.get("relationship") or ""),
     )
-    child = ChildProfile(
-        id=child_data.get("id"),
-        first_name=(child_data.get("first_name") or ""),
-        last_name=(child_data.get("last_name") or ""),
-        birth_date=(child_data.get("birth_date") or ""),
-        due_date=(child_data.get("due_date") or ""),
+
+    child_profiles: List[ChildProfile] = []
+    for row in children_data:
+        child_first_name = row.get("first_name") or row.get("name") or ""
+        child_profiles.append(
+            ChildProfile(
+                id=row.get("id"),
+                first_name=child_first_name,
+                last_name=(row.get("last_name") or ""),
+                birth_date=(row.get("birth_date") or ""),
+                due_date=(row.get("due_date") or ""),
+                gender=(row.get("gender") or ""),
+                birth_weight=row.get("birth_weight"),
+                birth_weight_unit=(row.get("birth_weight_unit") or None),
+                latest_weight=row.get("latest_weight"),
+                latest_weight_date=(row.get("latest_weight_date") or ""),
+                timezone=(row.get("timezone") or ""),
+                routine_eligible=bool(row.get("routine_eligible")),
+            )
+        )
+
+    selected_child = next(
+        (child for child in child_profiles if child.id == selected_child_id),
+        child_profiles[0] if child_profiles else ChildProfile(),
     )
-    return SettingsResponse(caregiver=caregiver, child=child)
+
+    return SettingsResponse(caregiver=caregiver, child=selected_child, children=child_profiles)
 
 
 def _sync_child_knowledge(
     profile_id: Optional[int],
-    child_id: Optional[int],
+    child_id: Optional[str],
     child: ChildProfile,
 ) -> None:
     if profile_id is None:
@@ -1712,7 +2735,7 @@ KNOWLEDGE_INFERENCE_MAP: dict[str, List[str]] = {
 }
 
 
-def _reject_related_inferences(child_id: Optional[int], knowledge_key: str) -> None:
+def _reject_related_inferences(child_id: Optional[str], knowledge_key: str) -> None:
     if child_id is None:
         return
     inference_types = KNOWLEDGE_INFERENCE_MAP.get(knowledge_key, [knowledge_key])
@@ -1968,7 +2991,8 @@ def _timeline_type_for_action(action: Action) -> Optional[str]:
     if action.action_type == CoreActionType.GROWTH:
         return "growth"
     if action.action_type == CoreActionType.ACTIVITY:
-        if action.metadata.amount_value:
+        extra = action.metadata.extra or {}
+        if action.metadata.amount_value is not None or extra.get("feed_method"):
             return "bottle"
         return "activity"
     if action.action_type in {CoreActionType.BATH, CoreActionType.MEDICATION}:

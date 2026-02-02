@@ -1,20 +1,23 @@
-export type KnowledgeStatus = "pending" | "active" | "rejected";
+export type KnowledgeStatus = "pending" | "active" | "rejected" | "archived";
 export type KnowledgeType = "explicit" | "inferred";
 
 export interface KnowledgeReviewItem {
-  id: number;
+  id: string;
   key: string;
-  group: string;
-  groups: string[];
+  label?: string;
   type: KnowledgeType;
   status: KnowledgeStatus;
-  label: string;
-  summary: string;
-  importance: string;
-  confidence: number;
-  dismiss_count: number;
-  payload: Record<string, unknown>;
+  group?: string;
+  importance?: string;
+  summary?: string;
+  relevant_date?: string | null;
   suggested_prompt?: string | null;
+  confidence?: string | null;
+  qualifier?: string | null;
+  payload: Record<string, unknown>;
   created_at: string;
-  relevant_date: string | null;
+  updated_at?: string;
+  activated_at?: string | null;
+  expires_at?: string | null;
+  subject_id?: string | null;
 }
