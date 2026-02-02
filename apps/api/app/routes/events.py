@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 
 import logging
@@ -69,8 +68,8 @@ async def list_events(
                 title=row["title"],
                 detail=row.get("detail"),
                 amount_label=row.get("amount_label"),
-                start=datetime.fromisoformat(row["start"]),
-                end=datetime.fromisoformat(row["end"]) if row.get("end") else None,
+                start=row["start"],
+                end=row.get("end"),
                 has_note=bool(row.get("has_note")),
                 is_custom=bool(row.get("is_custom")),
                 source=row.get("source"),
