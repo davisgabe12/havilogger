@@ -9,6 +9,7 @@ Apply migrations in this exact order using the Supabase SQL editor:
 5) `docs/supabase/007_share_links.sql`
 6) `docs/supabase/008_green_reconcile.sql`
 7) `docs/supabase/009_create_family_rpc.sql`
+8) `docs/supabase/010_green_schema_fixes.sql`
 
 ## How to apply (Supabase SQL editor)
 1) Open your Supabase project → **SQL Editor**.
@@ -18,5 +19,7 @@ Apply migrations in this exact order using the Supabase SQL editor:
 5) Paste the contents of the fourth file (`006_memory_v1.sql`) and run it.
 6) Paste the contents of the fifth file (`007_share_links.sql`) and run it.
 7) Paste the contents of the sixth file (`008_green_reconcile.sql`) and run it.
+8) Paste the contents of the seventh file (`009_create_family_rpc.sql`) and run it.
+9) Paste the contents of the eighth file (`010_green_schema_fixes.sql`) and run it.
 
 These migrations are idempotent (`create if not exists`) and safe to re-run.
