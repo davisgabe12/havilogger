@@ -73,7 +73,12 @@ def resolve_child_id(
     candidate = header_value or query_value
     if required:
         return _parse_uuid(candidate, "child_id")
-    return resolve_optional_uuid(candidate, "child_id")
+    if not candidate:
+        return None
+    try:
+        return str(UUID(candidate))
+    except ValueError:
+        return None
 
 
 
@@ -102,7 +107,6 @@ async def _raise_supabase_error(
 async def _verify_access_token(token: str) -> Dict[str, Any]:
     audience = os.getenv("SUPABASE_JWT_AUD", "authenticated")
     options = {"verify_aud": bool(audience)}
-
     try:
         signing_key = _jwks_client().get_signing_key_from_jwt(token)
         return jwt.decode(
