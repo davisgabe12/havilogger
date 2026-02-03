@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Literal
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -26,7 +27,6 @@ from .config import CONFIG
 from .conversations import ConversationMessage, ConversationSession
 from .supabase import (
     AuthContext,
-    get_admin_client,
     get_auth_context,
     get_user_context,
     resolve_child_id,
@@ -50,6 +50,7 @@ from .routes import knowledge as knowledge_routes
 from .routes import reminders as reminder_routes
 from .routes import tasks as task_routes
 from . import share as share_routes
+from .router import classify_intent
 from .schemas import (
     Action,
     ActionMetadata,
@@ -325,10 +326,13 @@ app.add_middleware(
 )
 
 app.include_router(events_routes.router)
+app.include_router(events_routes.legacy_router)
 app.include_router(feedback_routes.router)
 app.include_router(knowledge_routes.router)
 app.include_router(reminder_routes.router)
+app.include_router(reminder_routes.legacy_router)
 app.include_router(task_routes.router)
+app.include_router(task_routes.legacy_router)
 app.include_router(share_routes.router, prefix="/api/v1/share", tags=["share"])
 
 
@@ -370,6 +374,44 @@ def _message_from_row(row: Dict[str, Any]) -> ConversationMessage:
         "created_at": row.get("created_at") or now_iso,
     }
     return ConversationMessage.model_validate(data)
+
+
+@dataclass
+class ContextBundle:
+    family_id: str
+    child_id: str
+    session_id: str
+    messages: List[ConversationMessage]
+    has_prior_messages: bool
+
+
+async def _build_context_bundle(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    session_id: str,
+    limit: int = 50,
+) -> ContextBundle:
+    session = await _get_conversation_session(auth, session_id)
+    if session.child_id != child_id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    rows = await auth.supabase.select(
+        "conversation_messages",
+        params={
+            "select": "id,session_id,user_id,role,content,intent,created_at",
+            "session_id": f"eq.{session_id}",
+            "order": "created_at.asc",
+            "limit": str(limit),
+        },
+    )
+    messages = [_message_from_row(row) for row in rows]
+    return ContextBundle(
+        family_id=auth.family_id,
+        child_id=child_id,
+        session_id=session_id,
+        messages=messages,
+        has_prior_messages=bool(messages),
+    )
 
 
 async def _get_conversation_session(auth: AuthContext, session_id: str) -> ConversationSession:
@@ -458,11 +500,9 @@ async def _insert_conversation_message(
     intent: Optional[str] = None,
 ) -> ConversationMessage:
     now_iso = _now_iso()
-    admin = get_admin_client()
-    created = await admin.insert(
+    created = await auth.supabase.insert(
         "conversation_messages",
         {
-            "family_id": auth.family_id,
             "session_id": session_id,
             "user_id": user_id,
             "role": role,
@@ -487,7 +527,6 @@ async def _list_conversation_messages(
         params={
             "select": "id,session_id,user_id,role,content,intent,created_at",
             "session_id": f"eq.{session_id}",
-            "family_id": f"eq.{auth.family_id}",
             "order": "created_at.asc",
             "limit": str(limit),
         },
@@ -552,11 +591,25 @@ async def capture_activity(
         if payload.conversation_id
         else None
     )
-    if conversation_id:
-        await _get_conversation_session(auth, conversation_id)
-    else:
+    if not conversation_id:
         conversation = await _create_conversation_session(auth, child_id=child_id)
         conversation_id = conversation.id
+
+    context_bundle = await _build_context_bundle(
+        auth,
+        child_id=child_id,
+        session_id=conversation_id,
+    )
+    logger.info(
+        "conversation context",
+        extra={
+            "method": "POST",
+            "path": "/api/v1/activities",
+            "child_id": child_id,
+            "session_id": conversation_id,
+            "has_prior_messages": context_bundle.has_prior_messages,
+        },
+    )
 
     child_rows = await auth.supabase.select(
         "children",
@@ -572,7 +625,12 @@ async def capture_activity(
     symptom_tags = message_symptom_tags(payload.message)
     question_category = classify_question_category(payload.message, symptom_tags)
     is_question = _is_question(payload.message)
-    user_intent = "question" if is_question else "log"
+    intent_result = classify_intent(payload.message)
+    user_intent = (
+        "task"
+        if intent_result.intent == "task_request"
+        else ("question" if is_question else "log")
+    )
 
     user_message = await _insert_conversation_message(
         auth,
@@ -629,6 +687,50 @@ async def capture_activity(
             user_message_id=user_message.id,
             assistant_message_id=assistant_message.id,
             intent="memory",
+        )
+    if intent_result.intent == "task_request":
+        now_iso = _now_iso()
+        task_title = extract_task_title(payload.message)
+        task_due_at = extract_task_due_at(payload.message, timezone_value)
+        task_remind_at = extract_task_remind_at(payload.message, timezone_value)
+        created_task = await auth.supabase.insert(
+            "tasks",
+            {
+                "family_id": auth.family_id,
+                "child_id": child_id,
+                "title": task_title,
+                "status": "open",
+                "due_at": task_due_at,
+                "remind_at": task_remind_at,
+                "created_by_user_id": auth.user_id,
+                "assigned_to_user_id": auth.user_id,
+                "created_at": now_iso,
+            },
+        )
+        if not created_task:
+            raise HTTPException(status_code=500, detail="Unable to create task.")
+        assistant_text = f"Got it — I added “{task_title}” to your tasks."
+        assistant_message = await _insert_conversation_message(
+            auth,
+            session_id=conversation_id,
+            role="assistant",
+            content=assistant_text,
+            user_id=auth.user_id,
+            intent="task",
+        )
+        await _touch_conversation(auth, conversation_id, now_iso)
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        return ChatResponse(
+            actions=[],
+            raw_message=payload.message,
+            model="havi-local",
+            latency_ms=latency_ms,
+            assistant_message=assistant_text,
+            question_category=question_category,
+            conversation_id=conversation_id,
+            user_message_id=user_message.id,
+            assistant_message_id=assistant_message.id,
+            intent="task",
         )
     actions: List[Action] = []
     assistant_text: str
@@ -1116,19 +1218,7 @@ async def create_message(
     payload: CreateMessagePayload,
     auth: AuthContext = Depends(get_auth_context),
 ) -> dict:
-    admin = get_admin_client()
-    now_iso = _now_iso()
-    data = payload.dict(exclude_none=True)
-    data.update(
-        {
-            "family_id": auth.family_id,
-            "created_at": now_iso,
-        }
-    )
-    result = await admin.insert("messages", data)
-    if not result:
-        raise HTTPException(status_code=500, detail="Unable to create message")
-    return {"id": result[0]["id"]}
+    raise HTTPException(status_code=410, detail="Legacy messages endpoint disabled.")
 
 
 @app.post("/api/v1/chat_messages")
@@ -1136,19 +1226,7 @@ async def create_chat_message(
     payload: CreateChatMessagePayload,
     auth: AuthContext = Depends(get_auth_context),
 ) -> dict:
-    admin = get_admin_client()
-    now_iso = _now_iso()
-    data = {
-        "family_id": auth.family_id,
-        "payload": payload.payload,
-        "channel": payload.channel,
-        "metadata": payload.metadata,
-        "created_at": now_iso,
-    }
-    result = await admin.insert("chat_messages", data)
-    if not result:
-        raise HTTPException(status_code=500, detail="Unable to create chat message")
-    return {"id": result[0]["id"]}
+    raise HTTPException(status_code=410, detail="Legacy chat_messages endpoint disabled.")
 
 
 @app.get("/api/v1/conversations/{session_id}/messages", response_model=List[ConversationMessage])
@@ -1679,8 +1757,7 @@ async def accept_invite(
     token = (payload.token or "").strip()
     if not token:
         raise HTTPException(status_code=400, detail="Invite token is required.")
-    admin = get_admin_client()
-    invites = await admin.select(
+    invites = await user_ctx.supabase.select(
         "family_invites",
         params={
             "select": "id,family_id,email,role,accepted_at",
@@ -1698,7 +1775,7 @@ async def accept_invite(
     if invite_email and user_email and invite_email != user_email:
         raise HTTPException(status_code=403, detail="Invite does not match this account.")
 
-    await admin.upsert(
+    await user_ctx.supabase.upsert(
         "family_members",
         {
             "family_id": invite.get("family_id"),
@@ -1708,7 +1785,7 @@ async def accept_invite(
         },
         on_conflict="family_id,user_id",
     )
-    await admin.update(
+    await user_ctx.supabase.update(
         "family_invites",
         {
             "accepted_at": _now_iso(),
