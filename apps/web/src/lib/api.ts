@@ -55,6 +55,15 @@ export const apiFetch = async (
     headers.set("X-Havi-Child-Id", options.childId);
   }
 
+  if (process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+    // eslint-disable-next-line no-console
+    console.info("[apiFetch] auth", {
+      tokenPresent: Boolean(token),
+      familyIdPresent: Boolean(familyId),
+      childIdPresent: Boolean(options.childId),
+    });
+  }
+
   let response = await fetch(input, { ...options, headers });
 
   if (response.status === 401 && token) {

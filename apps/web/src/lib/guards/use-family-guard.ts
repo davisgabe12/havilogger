@@ -67,13 +67,31 @@ export const useFamilyGuard = (options?: {
   useEffect(() => {
     let isMounted = true;
     const debugEnabled = process.env.NEXT_PUBLIC_DEBUG_GUARD === "1";
+    const maxAttempts = 2;
+    const retryDelayMs = 600;
+    const failOpenTimeoutMs = 8000;
     const log = (...args: unknown[]) => {
       if (!debugEnabled) return;
       // eslint-disable-next-line no-console
       console.info("[family-guard]", ...args);
     };
 
-    const runGuard = async () => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const clearFailOpenTimer = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const failOpen = (message: string) => {
+      clearFailOpenTimer();
+      if (isMounted) {
+        setState({ status: "ready", error: message });
+      }
+    };
+
+    const runGuard = async (attempt: number) => {
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
       const session = sessionData?.session ?? null;
@@ -83,6 +101,7 @@ export const useFamilyGuard = (options?: {
       });
       if (!session || sessionError) {
         if (allowUnauthed) {
+          clearFailOpenTimer();
           if (isMounted) {
             setState({ status: "ready", error: null });
           }
@@ -92,6 +111,7 @@ export const useFamilyGuard = (options?: {
         if (isMounted) {
           setState({ status: "redirecting", error: null });
         }
+        clearFailOpenTimer();
         return;
       }
 
@@ -113,11 +133,15 @@ export const useFamilyGuard = (options?: {
           message: membershipsError.message,
           details: membershipsError.details,
           code: membershipsError.code,
+          attempt,
         });
-        router.replace("/app/onboarding/family");
-        if (isMounted) {
-          setState({ status: "redirecting", error: null });
+        if (attempt + 1 < maxAttempts) {
+          setTimeout(() => {
+            if (isMounted) void runGuard(attempt + 1);
+          }, retryDelayMs);
+          return;
         }
+        failOpen("We couldn’t verify your family yet. Some data may be missing.");
         return;
       }
 
@@ -141,6 +165,7 @@ export const useFamilyGuard = (options?: {
         if (isMounted) {
           setState({ status: "redirecting", error: null });
         }
+        clearFailOpenTimer();
         return;
       }
 
@@ -150,6 +175,7 @@ export const useFamilyGuard = (options?: {
         if (isMounted) {
           setState({ status: "redirecting", error: null });
         }
+        clearFailOpenTimer();
         return;
       }
 
@@ -157,12 +183,13 @@ export const useFamilyGuard = (options?: {
       if (initialDecision.type === "autoSelect") {
         const ok = await setActiveFamilyId(initialDecision.familyId);
         if (!ok) {
-          if (isMounted) {
-            setState({
-              status: "error",
-              error: "We couldn’t select your family. Please try again.",
-            });
+          if (attempt + 1 < maxAttempts) {
+            setTimeout(() => {
+              if (isMounted) void runGuard(attempt + 1);
+            }, retryDelayMs);
+            return;
           }
+          failOpen("We couldn’t select your family. Some data may be missing.");
           return;
         }
         resolvedFamilyId = initialDecision.familyId;
@@ -175,6 +202,7 @@ export const useFamilyGuard = (options?: {
         if (isMounted) {
           setState({ status: "redirecting", error: null });
         }
+        clearFailOpenTimer();
         return;
       }
 
@@ -191,12 +219,13 @@ export const useFamilyGuard = (options?: {
       });
 
       if (childError) {
-        if (isMounted) {
-          setState({
-            status: "error",
-            error: "We couldn’t load your child profile. Try again in a moment.",
-          });
+        if (attempt + 1 < maxAttempts) {
+          setTimeout(() => {
+            if (isMounted) void runGuard(attempt + 1);
+          }, retryDelayMs);
+          return;
         }
+        failOpen("We couldn’t load your child profile. Some data may be missing.");
         return;
       }
 
@@ -212,18 +241,25 @@ export const useFamilyGuard = (options?: {
         if (isMounted) {
           setState({ status: "redirecting", error: null });
         }
+        clearFailOpenTimer();
         return;
       }
 
       if (isMounted) {
+        clearFailOpenTimer();
         setState({ status: "ready", error: null });
       }
     };
 
-    void runGuard();
+    timeoutId = setTimeout(() => {
+      failOpen("We couldn’t verify your family yet. Some data may be missing.");
+    }, failOpenTimeoutMs);
+
+    void runGuard(0);
 
     return () => {
       isMounted = false;
+      clearFailOpenTimer();
     };
   }, [allowUnauthed, router]);
 

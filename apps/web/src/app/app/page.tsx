@@ -3114,10 +3114,6 @@ export default function Home() {
     };
   }, []);
 
-  if (guard.status === "error" && guard.error) {
-    return <GuardError message={guard.error} />;
-  }
-
   if (guard.status !== "ready" || !hydrated) {
     return <GuardLoading />;
   }
@@ -3166,6 +3162,14 @@ export default function Home() {
             </Button>
             <span className="text-sm font-semibold">HAVI</span>
           </div>
+          {guard.error ? (
+            <div
+              className="mb-4 rounded-md border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-sm text-amber-50"
+              data-testid="guard-warning"
+            >
+              {guard.error}
+            </div>
+          ) : null}
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>Active child</span>
             <select
@@ -4491,6 +4495,7 @@ export default function Home() {
                         variant="outline"
                         className="hidden md:inline-flex"
                         onClick={() => setShowChildForm((prev) => !prev)}
+                        data-testid="settings-child-edit"
                       >
                         {showChildForm ? "Close" : "Edit"}
                       </Button>
@@ -4519,6 +4524,7 @@ export default function Home() {
                           size="sm"
                           className="px-2 text-xs underline md:hidden"
                           onClick={() => setShowChildForm((prev) => !prev)}
+                          data-testid="settings-child-edit"
                         >
                           {showChildForm ? "Close" : "Edit"}
                         </Button>
@@ -4564,6 +4570,7 @@ export default function Home() {
                           onClick={() => {
                             setBirthStatus("born");
                           }}
+                          data-testid="settings-child-born"
                         >
                           Born
                         </Button>
@@ -4575,6 +4582,7 @@ export default function Home() {
                           onClick={() => {
                             setBirthStatus("expected");
                           }}
+                          data-testid="settings-child-expected"
                         >
                           Expected
                         </Button>
@@ -4586,6 +4594,7 @@ export default function Home() {
                             value={childDob}
                             onChange={(val) => setChildDob(val)}
                             placeholder="MM-DD-YYYY"
+                            testId="settings-child-dob"
                           />
                           {fieldErrors.childDob ? (
                             <p className="text-xs text-destructive">
@@ -4600,6 +4609,7 @@ export default function Home() {
                             value={childDueDate}
                             onChange={(val) => setChildDueDate(val)}
                             placeholder="MM-DD-YYYY"
+                            testId="settings-child-due-date"
                           />
                           {fieldErrors.childDueDate ? (
                             <p className="text-xs text-destructive">
@@ -4619,6 +4629,7 @@ export default function Home() {
                             onChange={(event) =>
                               setChildGender(event.target.value)
                             }
+                            data-testid="settings-child-gender"
                           >
                             <option value="">Select</option>
                             <option value="unknown">Unknown</option>
@@ -4637,6 +4648,7 @@ export default function Home() {
                             value={childBirthWeight}
                             onChange={(val) => setChildBirthWeight(val)}
                             placeholder="e.g., 7.5"
+                            testId="settings-child-birth-weight"
                           />
                           {fieldErrors.childBirthWeight ? (
                             <p className="text-xs text-destructive">
@@ -5054,7 +5066,10 @@ export default function Home() {
       ) : null}
 
       {showSignupPrompt && activePanel !== "settings" ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          data-testid="setup-required-modal"
+        >
           <div className="w-full max-w-md space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
             <div className="space-y-1">
               <p className="text-base font-semibold">
@@ -5070,7 +5085,11 @@ export default function Home() {
               </p>
             ) : null}
             <div className="flex justify-end gap-2">
-              <Button size="sm" onClick={openSignupPanel}>
+              <Button
+                size="sm"
+                onClick={openSignupPanel}
+                data-testid="finish-setup"
+              >
                 Finish setup
               </Button>
             </div>

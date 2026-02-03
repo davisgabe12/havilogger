@@ -78,6 +78,13 @@
   --chart-4: var(--havi-chart-4);
   --chart-5: var(--havi-chart-5);
 
-  /* Sidebar and other non-core surfaces remain as previously defined in globals.css
-     and can be migrated to HAVI-specific tokens in a future pass. */
+  /* Sidebar surfaces */
+  --sidebar: var(--havi-sidebar-bg);
+  --sidebar-foreground: var(--havi-text);
+  --sidebar-primary: var(--havi-primary-bg);
+  --sidebar-primary-foreground: var(--havi-primary-fg);
+  --sidebar-accent: var(--havi-secondary-bg);
+  --sidebar-accent-foreground: var(--havi-text);
+  --sidebar-border: var(--havi-border);
+  --sidebar-ring: var(--havi-ring);
 }
