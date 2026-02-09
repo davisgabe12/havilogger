@@ -69,6 +69,7 @@ export const useFamilyGuard = (options?: {
     const debugEnabled = process.env.NEXT_PUBLIC_DEBUG_GUARD === "1";
     const maxAttempts = 2;
     const retryDelayMs = 600;
+    const sessionRetryDelayMs = 250;
     const failOpenTimeoutMs = 8000;
     const log = (...args: unknown[]) => {
       if (!debugEnabled) return;
@@ -94,7 +95,12 @@ export const useFamilyGuard = (options?: {
     const runGuard = async (attempt: number) => {
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
-      const session = sessionData?.session ?? null;
+      let session = sessionData?.session ?? null;
+      if (!session) {
+        await new Promise((resolve) => setTimeout(resolve, sessionRetryDelayMs));
+        const retry = await supabase.auth.getSession();
+        session = retry.data?.session ?? null;
+      }
       log("session", {
         hasSession: Boolean(session),
         error: sessionError?.message ?? null,

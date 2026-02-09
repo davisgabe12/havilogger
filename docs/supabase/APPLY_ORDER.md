@@ -10,6 +10,7 @@ Apply migrations in this exact order using the Supabase SQL editor:
 6) `docs/supabase/008_green_reconcile.sql`
 7) `docs/supabase/009_create_family_rpc.sql`
 8) `docs/supabase/010_green_schema_fixes.sql`
+9) `docs/supabase/011_family_invites_policies.sql`
 
 ## How to apply (Supabase SQL editor)
 1) Open your Supabase project → **SQL Editor**.
@@ -21,5 +22,6 @@ Apply migrations in this exact order using the Supabase SQL editor:
 7) Paste the contents of the sixth file (`008_green_reconcile.sql`) and run it.
 8) Paste the contents of the seventh file (`009_create_family_rpc.sql`) and run it.
 9) Paste the contents of the eighth file (`010_green_schema_fixes.sql`) and run it.
+10) Paste the contents of the ninth file (`011_family_invites_policies.sql`) and run it.
 
 These migrations are idempotent (`create if not exists`) and safe to re-run.

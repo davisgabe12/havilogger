@@ -1,3 +1,5 @@
+from datetime import datetime
+from datetime import datetime
 from typing import List, Optional
 
 import logging
@@ -7,7 +9,8 @@ from pydantic import BaseModel
 
 from ..supabase import AuthContext, get_auth_context, resolve_child_id
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1")
+legacy_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
@@ -86,3 +89,21 @@ async def list_events(
         },
     )  # TODO: tone down once Timeline is stable
     return events
+
+
+@legacy_router.get("/events", response_model=List[EventOut])
+async def legacy_list_events(
+    child_id: Optional[str] = Query(None, description="Child identifier"),
+    start: datetime = Query(..., description="Start of range"),
+    end: datetime = Query(..., description="End of range"),
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> List[EventOut]:
+    logger.warning("legacy route hit: /events")
+    return await list_events(
+        child_id=child_id,
+        start=start,
+        end=end,
+        auth=auth,
+        child_id_header=child_id_header,
+    )

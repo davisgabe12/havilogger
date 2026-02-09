@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
+import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
@@ -8,6 +9,8 @@ from ..schemas import Task, TaskStatus
 from ..supabase import AuthContext, get_auth_context, resolve_child_id, resolve_optional_uuid
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
+legacy_router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class CreateTaskPayload(BaseModel):
@@ -179,3 +182,34 @@ async def update_task_endpoint(
     row = (updated or tasks)[0]
     row["user_id"] = row.get("created_by_user_id")
     return Task.model_validate(row)
+
+
+@legacy_router.post("/tasks", response_model=Task)
+async def legacy_create_task(
+    payload: CreateTaskPayload,
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> Task:
+    logger.warning("legacy route hit: /tasks (POST)")
+    return await create_task_endpoint(payload, auth, child_id_header)
+
+
+@legacy_router.get("/tasks", response_model=List[Task])
+async def legacy_list_tasks(
+    view: str = Query("open", description="View filter: open | scheduled | completed"),
+    child_id: Optional[str] = Query(None, description="Optional child id"),
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> List[Task]:
+    logger.warning("legacy route hit: /tasks (GET)")
+    return await list_tasks_endpoint(view, child_id, auth, child_id_header)
+
+
+@legacy_router.patch("/tasks/{task_id}", response_model=Task)
+async def legacy_update_task(
+    task_id: str,
+    payload: UpdateTaskPayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Task:
+    logger.warning("legacy route hit: /tasks/{task_id}")
+    return await update_task_endpoint(task_id, payload, auth)

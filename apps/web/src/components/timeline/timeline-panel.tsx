@@ -101,7 +101,14 @@ type TimelineApiEvent = {
 };
 
 function mapApiEvent(event: TimelineApiEvent): TimelineEvent {
-  const type = event.type as TimelineEventType;
+  const rawType = event.type;
+  let normalizedType = rawType;
+  if (rawType?.startsWith("dirty_diaper")) {
+    normalizedType = "diaper";
+  } else if (rawType === "bath" || rawType === "medication") {
+    normalizedType = "activity";
+  }
+  const type = normalizedType as TimelineEventType;
   return {
     id: event.id,
     type: ["sleep", "bottle", "diaper", "activity", "growth"].includes(type)

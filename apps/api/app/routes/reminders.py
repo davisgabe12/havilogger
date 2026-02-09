@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import List, Optional
+import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -10,6 +11,8 @@ from ..schemas import Task, TaskStatus
 from ..supabase import AuthContext, get_auth_context, resolve_child_id, resolve_optional_uuid
 
 router = APIRouter(prefix="/api/v1", tags=["reminders"])
+legacy_router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ReminderAckPayload(BaseModel):
@@ -88,3 +91,23 @@ async def acknowledge_reminder_endpoint(
     row = (updated or tasks)[0]
     row["user_id"] = row.get("created_by_user_id")
     return Task.model_validate(row)
+
+
+@legacy_router.get("/reminders/due", response_model=List[Task])
+async def legacy_list_due_reminders(
+    child_id: Optional[str] = Query(None, description="Optional child id"),
+    auth: AuthContext = Depends(get_auth_context),
+    child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
+) -> List[Task]:
+    logger.warning("legacy route hit: /reminders/due")
+    return await list_due_reminders_endpoint(child_id, auth, child_id_header)
+
+
+@legacy_router.post("/reminders/{task_id}/ack", response_model=Task)
+async def legacy_acknowledge_reminder(
+    task_id: str,
+    payload: ReminderAckPayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Task:
+    logger.warning("legacy route hit: /reminders/{task_id}/ack")
+    return await acknowledge_reminder_endpoint(task_id, payload, auth)

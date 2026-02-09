@@ -1,2 +1,2 @@
-[user1] requestfailed: GET http://127.0.0.1:3001/app/onboarding/family?_rsc=1bajn (net::ERR_ABORTED)
-[user1] requestfailed: GET http://127.0.0.1:3001/app/onboarding/family?_rsc=1bajn (net::ERR_ABORTED)
+[pre-app-ready] url=http://127.0.0.1:3003/app
+[user1] requestfailed: GET http://127.0.0.1:3003/app/onboarding/family?_rsc=1bajn (net::ERR_ABORTED)

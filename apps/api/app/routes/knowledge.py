@@ -74,6 +74,18 @@ async def list_knowledge(
     child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
 ) -> list[KnowledgeItem]:
     resolved_child_id = resolve_child_id(child_id_header, child_id)
+    if resolved_child_id:
+        child_rows = await auth.supabase.select(
+            "children",
+            params={
+                "select": "id",
+                "id": f"eq.{resolved_child_id}",
+                "family_id": f"eq.{auth.family_id}",
+                "limit": "1",
+            },
+        )
+        if not child_rows:
+            raise HTTPException(status_code=404, detail="Child not found.")
     now_iso = _now_iso()
     params: Dict[str, Any] = {
         "select": (
@@ -99,6 +111,18 @@ async def review_knowledge(
     child_id_header: Optional[str] = Header(None, alias="X-Havi-Child-Id"),
 ) -> list[Dict[str, Any]]:
     resolved_child_id = resolve_child_id(child_id_header, child_id)
+    if resolved_child_id:
+        child_rows = await auth.supabase.select(
+            "children",
+            params={
+                "select": "id",
+                "id": f"eq.{resolved_child_id}",
+                "family_id": f"eq.{auth.family_id}",
+                "limit": "1",
+            },
+        )
+        if not child_rows:
+            raise HTTPException(status_code=404, detail="Child not found.")
     params: Dict[str, Any] = {
         "select": (
             "id,family_id,user_id,subject_id,key,type,status,payload,confidence,qualifier,"

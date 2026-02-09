@@ -5,8 +5,8 @@ import dotenv from "dotenv";
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
 const baseURL =
-  process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001";
-const shouldStartServers = !process.env.PLAYWRIGHT_BASE_URL;
+  process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3001";
+const shouldStartServers = process.env.PLAYWRIGHT_WEBSERVER === "1";
 
 export default defineConfig({
   testDir: "./tests",

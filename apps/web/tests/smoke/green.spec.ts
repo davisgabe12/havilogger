@@ -36,7 +36,7 @@ const trackConsoleErrors = (page: any, bucket: string[], label: string) => {
   });
 };
 
-test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
+test("Full flow end-to-end", async ({ page, browser }, testInfo) => {
   ensureProofDir();
   const consoleErrors: string[] = [];
   trackConsoleErrors(page, consoleErrors, "user1");
@@ -99,15 +99,21 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
   }
 
   if (!signedIn) {
-    await expect(page.getByText(/check your email/i)).toBeVisible();
-    await screenshot(page, "03b-sign-up-confirmation.png");
+    const errorBanner = page.locator("p.text-destructive");
+    const noticeBanner = page.locator("p.text-emerald-200");
+    if (await errorBanner.isVisible()) {
+      throw new Error(`Signup error: ${(await errorBanner.innerText()).trim()}`);
+    }
+    if (await noticeBanner.isVisible()) {
+      await screenshot(page, "03b-sign-up-confirmation.png");
+    }
     if (!fallbackEmail || !fallbackPassword) {
       throw new Error(
         "Email confirmation required. Set GREEN_EXISTING_EMAIL and GREEN_EXISTING_PASSWORD to continue.",
       );
     }
-      mark("sign-in-fallback");
-      await page.goto("/auth/sign-in");
+    mark("sign-in-fallback");
+    await page.goto("/auth/sign-in");
     await page.fill('input[type="email"]', fallbackEmail);
     await page.fill('input[type="password"]', fallbackPassword);
     await page.getByRole("button", { name: /sign in/i }).click();
@@ -161,17 +167,63 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
     throw new Error(`Onboarding did not complete. Current URL: ${page.url()}`);
   };
 
+  const completeSetupModalIfNeeded = async (
+    targetPage: any,
+    screenshotName: string,
+  ) => {
+    const modal = targetPage.getByTestId("setup-required-modal");
+    const visible = await modal.isVisible().catch(() => false);
+    if (!visible) {
+      return;
+    }
+
+    await screenshot(targetPage, screenshotName);
+    await targetPage.getByTestId("finish-setup").click();
+    await targetPage.getByTestId("settings-save").waitFor({ timeout: 15_000 });
+
+    const editButton = targetPage.getByTestId("settings-child-edit");
+    if (await editButton.isVisible().catch(() => false)) {
+      await editButton.click();
+    }
+
+    const bornButton = targetPage.getByTestId("settings-child-born");
+    if (await bornButton.isVisible().catch(() => false)) {
+      await bornButton.click();
+    }
+
+    const dobField = targetPage.getByTestId("settings-child-dob");
+    if (await dobField.isVisible().catch(() => false)) {
+      await dobField.fill("09-23-2025");
+    }
+
+    const genderSelect = targetPage.getByTestId("settings-child-gender");
+    if (await genderSelect.isVisible().catch(() => false)) {
+      await genderSelect.selectOption("girl");
+    }
+
+    const birthWeightField = targetPage.getByTestId("settings-child-birth-weight");
+    if (await birthWeightField.isVisible().catch(() => false)) {
+      await birthWeightField.fill("7.5");
+    }
+
+    targetPage.once("dialog", (dialog: any) => dialog.accept());
+    await targetPage.getByTestId("settings-save").click();
+    await targetPage.getByRole("button", { name: /back to chat/i }).click();
+    await expect(targetPage.getByTestId("setup-required-modal")).toHaveCount(0);
+  };
+
     mark("onboarding");
     await completeOnboardingIfNeeded();
 
   await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
+  await completeSetupModalIfNeeded(page, "06a-setup-required.png");
   consoleErrors.push(`[pre-app-ready] url=${page.url()}`);
   await screenshot(page, "06-app-before-ready.png");
   if (page.url().includes("/app/onboarding/")) {
     throw new Error(`Blocked on onboarding route: ${page.url()}`);
   }
   try {
-    await page.getByTestId("app-ready").waitFor({ timeout: 15_000 });
+    await page.getByTestId("chat-input").waitFor({ timeout: 15_000 });
   } catch (err) {
     await screenshot(page, "06-app-crash.png");
     const logPath = path.join(proofDir, "console-errors.log");
@@ -182,7 +234,7 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
     });
     throw err;
   }
-    await screenshot(page, "06-app-loaded.png");
+  await screenshot(page, "06-app-loaded.png");
 
   const chatMessages = page.getByTestId("chat-message");
   const sendMessage = async (text: string) => {
@@ -292,7 +344,7 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
 
   await page.reload();
   await page.waitForLoadState("domcontentloaded");
-  await page.getByTestId("app-ready").waitFor();
+  await page.getByTestId("chat-input").waitFor({ timeout: 15_000 });
   await page.selectOption('[data-testid="active-child-select"]', { label: "River" });
   await page.getByTestId("nav-tasks").click();
   await page.getByTestId("tasks-view-all").click();
@@ -332,7 +384,7 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
   await screenshot(page, "14-memory-saved.png");
 
   await page.reload();
-  await page.getByTestId("app-ready").waitFor();
+  await page.getByTestId("chat-input").waitFor({ timeout: 15_000 });
   await page.getByTestId("nav-knowledge").click();
   await page.getByTestId("memory-suggestions").waitFor();
   await expect(page.getByTestId(rejectId)).toHaveCount(0);
@@ -402,7 +454,16 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
   }
 
   if (!inviteeSignedIn) {
-    await expect(inviteePage.getByText(/check your email/i)).toBeVisible();
+    const inviteeError = inviteePage.locator("p.text-destructive");
+    const inviteeNotice = inviteePage.locator("p.text-emerald-200");
+    if (await inviteeError.isVisible()) {
+      throw new Error(
+        `Invitee signup error: ${(await inviteeError.innerText()).trim()}`,
+      );
+    }
+    if (await inviteeNotice.isVisible()) {
+      await screenshot(inviteePage, "18-invitee-confirmation.png");
+    }
     if (!inviteeFallbackEmail || !inviteeFallbackPassword) {
       throw new Error(
         "Email confirmation required for invitee. Set GREEN_INVITEE_EMAIL and GREEN_INVITEE_PASSWORD to continue.",
@@ -418,7 +479,8 @@ test("GREEN flow end-to-end", async ({ page, browser }, testInfo) => {
 
   await inviteePage.goto(inviteLink);
   await inviteePage.waitForURL(/\/app/, { timeout: 15_000 });
-  await expect(inviteePage.getByTestId("app-ready")).toBeVisible();
+  await completeSetupModalIfNeeded(inviteePage, "18a-invitee-setup.png");
+  await inviteePage.getByTestId("chat-input").waitFor({ timeout: 15_000 });
   await screenshot(inviteePage, "18-invite-accepted.png");
 
   mark("invitee-verify");

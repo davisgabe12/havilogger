@@ -7,6 +7,12 @@ type ApiFetchOptions = RequestInit & {
 
 let cachedFamilyId: string | null | undefined;
 let familyIdPromise: Promise<string | null> | null = null;
+const sessionRetryDelayMs = 250;
+
+const wait = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 const resolveActiveFamilyId = async (): Promise<string | null> => {
   if (cachedFamilyId !== undefined && cachedFamilyId !== null) {
@@ -39,7 +45,13 @@ export const apiFetch = async (
   options: ApiFetchOptions = {},
 ): Promise<Response> => {
   const { data: sessionData } = await supabase.auth.getSession();
-  let token = sessionData?.session?.access_token ?? null;
+  let session = sessionData?.session ?? null;
+  if (!session) {
+    await wait(sessionRetryDelayMs);
+    const retry = await supabase.auth.getSession();
+    session = retry.data?.session ?? null;
+  }
+  let token = session?.access_token ?? null;
 
   const headers = new Headers(options.headers ?? {});
   if (token) {
@@ -55,13 +67,31 @@ export const apiFetch = async (
     headers.set("X-Havi-Child-Id", options.childId);
   }
 
-  if (process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
-    // eslint-disable-next-line no-console
-    console.info("[apiFetch] auth", {
-      tokenPresent: Boolean(token),
-      familyIdPresent: Boolean(familyId),
-      childIdPresent: Boolean(options.childId),
-    });
+  const urlString = typeof input === "string" ? input : input.toString();
+  let path = urlString;
+  if (urlString.startsWith("http")) {
+    const parsed = new URL(urlString);
+    path = `${parsed.pathname}${parsed.search}`;
+  }
+  const needsAuth =
+    (path.includes("/api/v1/") && !path.includes("/api/v1/share/")) ||
+    path.startsWith("/events?");
+  if (!token && needsAuth) {
+    if (process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+      // eslint-disable-next-line no-console
+      console.info("[apiFetch] auth", {
+        tokenPresent: false,
+        path,
+        status: 401,
+      });
+    }
+    return new Response(
+      JSON.stringify({ detail: "Missing auth session." }),
+      {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   let response = await fetch(input, { ...options, headers });
@@ -90,6 +120,15 @@ export const apiFetch = async (
       status: response.status,
       url: typeof input === "string" ? input : input.toString(),
       body: bodyText,
+    });
+  }
+
+  if (process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+    // eslint-disable-next-line no-console
+    console.info("[apiFetch] auth", {
+      tokenPresent: Boolean(token),
+      path,
+      status: response.status,
     });
   }
 

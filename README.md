@@ -94,6 +94,26 @@ Quick outline:
 
 See `docs/testing.md` for a breakdown of what each suite covers.
 
+### Playwright E2E (GREEN smoke)
+
+- One-command run:
+  - `./scripts/e2e_green.sh`
+- Or from web:
+  - `cd apps/web && PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001 npx playwright test -g green --reporter=line`
+- Artifacts:
+  - Playwright output and traces live in `apps/web/test-results` (see `apps/web/test-results/report.json`).
+
+### Running backend tests in a venv (recommended)
+
+If `pytest` is missing, create a local venv once and reuse it:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r apps/api/requirements.txt
+cd apps/api && python -m pytest -k rls_paths -q
+```
+
 ## Core Action Schema (Backend)
 
 The OpenAI prompt in `apps/api/app/openai_client.py` normalizes messages into `Action` objects defined in `apps/api/app/schemas.py`:

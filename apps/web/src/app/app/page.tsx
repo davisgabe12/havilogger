@@ -2183,7 +2183,6 @@ export default function Home() {
       if (!activeConversationIdRef.current) {
         try {
           const conversation = await createConversation(resolvedChildId);
-          updateConversationParam(conversation.id);
           activeConversationIdRef.current = conversation.id;
           setActiveConversationId(conversation.id);
           setChatTitle(conversation.title);
@@ -2273,6 +2272,9 @@ export default function Home() {
           data.conversation_id ?? activeConversationIdRef.current;
         if (data.conversation_id) {
           setActiveConversationId(data.conversation_id);
+        }
+        if (activeConversationIdRef.current) {
+          updateConversationParam(activeConversationIdRef.current);
         }
         if (data.actions?.length) {
           setHasAnyLog(true);

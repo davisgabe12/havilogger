@@ -1,0 +1,5 @@
+step: onboarding
+url: http://127.0.0.1:3003/app/onboarding/family
+error: locator.waitFor: Timeout 15000ms exceeded.
+Call log:
+[2m  - waiting for getByTestId('chat-input') to be visible[22m

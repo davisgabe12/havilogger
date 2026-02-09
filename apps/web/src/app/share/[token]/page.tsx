@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
+import { apiFetch } from "@/lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -62,7 +63,7 @@ export default function SharedConversationPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/share/${token}`);
+        const res = await apiFetch(`${API_BASE_URL}/api/v1/share/${token}`);
         if (!res.ok) {
           const detail = await res.json().catch(() => ({}));
           const message =
