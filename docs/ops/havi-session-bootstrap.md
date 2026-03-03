@@ -106,7 +106,8 @@ npm run build
 ## First 20 Minutes In A New Session
 
 1. Read this file and `docs/current-state/triage-log-2026-03-02.md`.
-2. Check git status + latest commit context.
-3. Run local or production smoke depending on task scope.
-4. Confirm top P0/P1 items and pick first fix slice.
-5. Implement -> test -> deploy (if needed) -> smoke -> document outcome.
+2. Read `docs/ops/havi-autonomous-run-checklist.md` when running autonomously.
+3. Check git status + latest commit context.
+4. Run local or production smoke depending on task scope.
+5. Confirm top P0/P1 items and pick first fix slice.
+6. Implement -> test -> deploy (if needed) -> smoke -> document outcome.

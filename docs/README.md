@@ -18,6 +18,7 @@ Use one status near the top of every document:
 - `docs/testing.md`
 - `docs/green-smoke-test.md`
 - `docs/ops/havi-session-bootstrap.md`
+- `docs/ops/havi-autonomous-run-checklist.md`
 - `docs/brand-theming-notes.md`
 - `docs/plan/gethavi-domain-deployment-plan.md`
 - `docs/plan/havi-objective-execution-plan-2026-03-02.md`
