@@ -28,6 +28,8 @@ If a document does not clearly fit one bucket, treat that as a docs bug and fix 
    - `docs/canonical/running-locally.md`
 4. Deployment plan currently in progress:
    - `docs/active/plan/gethavi-domain-deployment-plan.md`
+5. Production before/after smoke gate:
+   - `docs/canonical/ops/production-core-smoke.md`
 
 ## Maintenance Rules
 

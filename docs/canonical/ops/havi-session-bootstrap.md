@@ -88,6 +88,13 @@ npm run build
 
 If running inside a sandboxed Codex runtime and localhost bind fails (`EPERM`/`operation not permitted`), run smoke from a normal terminal or rerun with elevated permissions.
 
+4. Production before/after smoke gate (required for substantial changes):
+
+```bash
+HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh
+HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh
+```
+
 ## Production Smoke Minimum
 
 1. `https://gethavi.com` returns 200.

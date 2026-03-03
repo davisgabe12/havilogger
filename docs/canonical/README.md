@@ -11,6 +11,7 @@ This folder contains the current source of truth for Havi behavior.
 2. Operational runbooks used in active development.
 3. Testing and local run instructions.
 4. Current Supabase schema and migration references.
+5. Production verification runbooks (for example, `ops/production-core-smoke.md`).
 
 ## What does not belong here
 

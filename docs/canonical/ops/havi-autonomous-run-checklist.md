@@ -29,7 +29,11 @@ Ship meaningful progress safely with minimal user interruption, while keeping is
 guidance must not create timeline activity events.
 3. Keep deploy safety:
 if production behavior changes, run production smoke before closeout.
-4. Keep docs in sync when behavior changes.
+4. For substantial changes, run production smoke twice:
+`HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh`
+`HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh`
+and keep both reports under `docs/active/green-proof/`.
+5. Keep docs in sync when behavior changes.
 
 ## Issue Discovery While Doing Other Work
 

@@ -5,6 +5,9 @@ Last updated: March 3, 2026
 
 Goal: verify auth + onboarding + /app load with Supabase-backed settings.
 
+For production before/after gating, use:
+`docs/canonical/ops/production-core-smoke.md`
+
 ## Prereqs
 - API running on `http://127.0.0.1:8000`
 - Web running on `http://localhost:3001`

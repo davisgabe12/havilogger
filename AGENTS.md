@@ -39,6 +39,7 @@ Act as the CTO for this project. Prioritize clarity, correctness, scalability, a
 - bug-triage: `/Users/gabedavis/.codex/skills/bug-triage`
 - spec-writer: `/Users/gabedavis/.codex/skills/spec-writer`
 - havi-session-bootstrap: `/Users/gabedavis/.codex/skills/havi-session-bootstrap`
+- havi-prod-core-smoke: `/Users/gabedavis/.codex/skills/havi-prod-core-smoke`
 
 ## Linear access recovery
 Use this whenever Codex reports it cannot access Linear or shows auth errors.

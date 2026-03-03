@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 2, 2026
+Last updated: March 3, 2026
 
 # Core E2E Validation (Local)
 
@@ -65,3 +65,22 @@ Validate that core product flow works locally against Supabase:
 
 - Supabase `Confirm email` is currently disabled in the tested environment.
 - This enables faster launch signup flow but increases abuse risk; mitigation should include strict rate limits and bot protection on signup endpoints.
+
+## Production Before/After Core Smoke (March 3, 2026)
+
+Fast production gate run with both:
+
+1. existing account flow (`gdavis12+smoke0303a@gmail.com`)
+2. new signup flow (`gdavis12+prodsmoke...@gmail.com`)
+
+Reports:
+
+- `docs/active/green-proof/prod-core-smoke-before-docs-20260303.json`
+- `docs/active/green-proof/prod-core-smoke-after-docs-20260303.json`
+
+Validated in both runs:
+
+1. `https://gethavi.com` + auth pages + API health return 200.
+2. Tracking message classified as `logging` and adds timeline event.
+3. Guidance question classified as `question` and does not add timeline event.
+4. Task creation succeeds.
