@@ -1,0 +1,49 @@
+{
+  "run_label": "after-guard-racefix-20260303",
+  "timestamp_utc": "2026-03-03T20:32:19Z",
+  "site_base_url": "https://gethavi.com",
+  "api_base_url": "https://api-production-0a5d.up.railway.app",
+  "existing_email": "gdavis12+smoke0303a@gmail.com",
+  "new_email": "gdavis12+prodsmoke20260303123152@gmail.com",
+  "http_checks": {
+    "site_root": "200",
+    "sign_in": "200",
+    "sign_up": "200",
+    "api_health": "200"
+  },
+  "flow_count": 2,
+  "flows": [
+    {
+      "label": "existing-account",
+      "mode": "login",
+      "email": "gdavis12+smoke0303a@gmail.com",
+      "family_id": "2ae55801-093f-4b14-af25-e6b79071879d",
+      "child_id": "06fdd7f1-7297-4c6f-8294-d653088b3c4d",
+      "conversation_id": "0ca34bbf-e274-4dce-bacc-a713bd273a24",
+      "task_id": "7f6cf540-4fb5-496e-9ac1-98e7d30953b7",
+      "tracking_intent": "logging",
+      "guidance_intent": "question",
+      "tracking_actions": 1,
+      "guidance_actions": 0,
+      "events_before": 0,
+      "events_after_tracking": 1,
+      "events_after_guidance": 1
+    },
+    {
+      "label": "new-signup",
+      "mode": "signup",
+      "email": "gdavis12+prodsmoke20260303123152@gmail.com",
+      "family_id": "6c6ea53d-886f-463d-9f6b-c3bcca8a3c39",
+      "child_id": "ef9008b3-474f-4d4b-af8e-feaf50ff1ebe",
+      "conversation_id": "9e41f92e-06e2-43b6-9648-26ec63602b26",
+      "task_id": "dc38d6f6-da5a-477e-8c39-5904eeb52bf1",
+      "tracking_intent": "logging",
+      "guidance_intent": "question",
+      "tracking_actions": 1,
+      "guidance_actions": 0,
+      "events_before": 0,
+      "events_after_tracking": 1,
+      "events_after_guidance": 1
+    }
+  ]
+}

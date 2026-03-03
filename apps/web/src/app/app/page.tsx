@@ -31,6 +31,10 @@ import { chipLibrary } from "@/components/chat/chips";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { supabase } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
+import {
+  normalizeChildId,
+  selectActiveChild,
+} from "@/lib/settings/active-child";
 import { cn } from "@/lib/utils";
 import { useFamilyGuard } from "@/lib/guards/use-family-guard";
 import type { KnowledgeReviewItem } from "@/types/knowledge";
@@ -103,6 +107,18 @@ type ChildProfile = {
   latest_weight_date?: string | null;
   timezone?: string | null;
   routine_eligible?: boolean | null;
+};
+
+type SettingsResponsePayload = {
+  caregiver?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    relationship?: string | null;
+  } | null;
+  child?: ChildProfile | null;
+  children?: ChildProfile[] | null;
 };
 
 type InferenceCard = {
@@ -1823,7 +1839,7 @@ export default function Home() {
         return;
       }
 
-      const childId = child.id ? String(child.id) : null;
+      const childId = normalizeChildId(child.id);
       setActiveChildId(childId);
       setActiveChildName(child.first_name ?? child.name ?? "");
       setChildFirstName(child.first_name ?? "");
@@ -1874,7 +1890,7 @@ export default function Home() {
       if (!res.ok) {
         throw new Error("Unable to load settings");
       }
-      const data = await res.json();
+      const data = (await res.json()) as SettingsResponsePayload;
       const caregiver = data.caregiver ?? {};
       const children = Array.isArray(data.children)
         ? (data.children as ChildProfile[])
@@ -1882,23 +1898,23 @@ export default function Home() {
           ? ([data.child] as ChildProfile[])
           : [];
       setChildrenList(children);
-      const firstChildId = children[0]?.id ? String(children[0].id) : "";
-      setPrimaryChildId(firstChildId);
+      setPrimaryChildId(normalizeChildId(children[0]?.id) ?? "");
       const storedChildId =
         typeof window !== "undefined"
-          ? window.localStorage.getItem(ACTIVE_CHILD_KEY)
+          ? normalizeChildId(window.localStorage.getItem(ACTIVE_CHILD_KEY))
           : null;
-      const explicitChildId = data.child?.id ? String(data.child.id) : null;
-      const selectedChild =
-        children.find((entry) => entry.id === storedChildId) ??
-        (explicitChildId
-          ? children.find((entry) => entry.id === explicitChildId)
-          : null) ??
-        (children.length > 0 ? children[0] : null);
-      if (selectedChild?.id && typeof window !== "undefined") {
-        window.localStorage.setItem(ACTIVE_CHILD_KEY, selectedChild.id);
-      } else if (typeof window !== "undefined") {
-        window.localStorage.removeItem(ACTIVE_CHILD_KEY);
+      const selectedChild = selectActiveChild(
+        children,
+        storedChildId,
+        normalizeChildId(data.child?.id),
+      );
+      const selectedChildId = normalizeChildId(selectedChild?.id);
+      if (typeof window !== "undefined") {
+        if (selectedChildId) {
+          window.localStorage.setItem(ACTIVE_CHILD_KEY, selectedChildId);
+        } else {
+          window.localStorage.removeItem(ACTIVE_CHILD_KEY);
+        }
       }
       applyChildProfile(selectedChild);
       setCaregiverFirstName(caregiver.first_name ?? "");
@@ -1928,14 +1944,18 @@ export default function Home() {
 
   const handleChildChange = useCallback(
     (childId: string | null) => {
+      const normalizedChildId = normalizeChildId(childId);
       const nextChild =
-        (childId
-          ? childrenList.find((entry) => entry.id === childId)
+        (normalizedChildId
+          ? childrenList.find(
+              (entry) => normalizeChildId(entry.id) === normalizedChildId,
+            )
           : null) ?? null;
       applyChildProfile(nextChild);
       if (typeof window !== "undefined") {
-        if (nextChild?.id) {
-          window.localStorage.setItem(ACTIVE_CHILD_KEY, nextChild.id);
+        const nextChildId = normalizeChildId(nextChild?.id);
+        if (nextChildId) {
+          window.localStorage.setItem(ACTIVE_CHILD_KEY, nextChildId);
         } else {
           window.localStorage.removeItem(ACTIVE_CHILD_KEY);
         }
@@ -2950,7 +2970,38 @@ export default function Home() {
       if (!res.ok) {
         throw new Error("Failed to save settings");
       }
-      await res.json();
+      const saved = (await res.json().catch(() => null)) as
+        | SettingsResponsePayload
+        | null;
+      if (saved) {
+        const caregiver = saved.caregiver ?? {};
+        const children = Array.isArray(saved.children)
+          ? (saved.children as ChildProfile[])
+          : saved.child
+            ? ([saved.child] as ChildProfile[])
+            : [];
+        setChildrenList(children);
+        setPrimaryChildId(normalizeChildId(children[0]?.id) ?? "");
+        const selectedChild = selectActiveChild(
+          children,
+          normalizeChildId(activeChildId),
+          normalizeChildId(saved.child?.id),
+        );
+        const selectedChildId = normalizeChildId(selectedChild?.id);
+        if (typeof window !== "undefined") {
+          if (selectedChildId) {
+            window.localStorage.setItem(ACTIVE_CHILD_KEY, selectedChildId);
+          } else {
+            window.localStorage.removeItem(ACTIVE_CHILD_KEY);
+          }
+        }
+        applyChildProfile(selectedChild);
+        setCaregiverFirstName(caregiver.first_name ?? "");
+        setCaregiverLastName(caregiver.last_name ?? "");
+        setCaregiverPhone(caregiver.phone ?? "");
+        setCaregiverEmail(caregiver.email ?? "");
+        setRelationship(caregiver.relationship ?? "");
+      }
       showSettingsSuccess();
       setCaregiverSnapshot({
         first_name: caregiverFirstName,
@@ -2971,31 +3022,6 @@ export default function Home() {
         latest_weight_date: childLatestWeightDate,
         timezone: childTimezone,
       });
-      if (activeChildId) {
-        setChildrenList((prev) =>
-          prev.map((child) =>
-            child.id === activeChildId
-              ? {
-                  ...child,
-                  first_name: childFirstName,
-                  last_name: childLastName,
-                  birth_date: toApiDate(childDob),
-                  due_date: toApiDate(childDueDate),
-                  gender: childGender,
-                  birth_weight: childBirthWeight
-                    ? Number(childBirthWeight)
-                    : null,
-                  birth_weight_unit: childBirthWeightUnit,
-                  latest_weight: childLatestWeight
-                    ? Number(childLatestWeight)
-                    : null,
-                  latest_weight_date: toApiDate(childLatestWeightDate),
-                  timezone: childTimezone,
-                }
-              : child,
-          ),
-        );
-      }
     } catch (err) {
       const reason = err instanceof Error ? err.message : "Unknown error";
       setSettingsError(reason);

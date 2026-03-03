@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase/client";
-import { apiFetch } from "@/lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -55,88 +54,103 @@ export default function OnboardingChildPage() {
       if (loading) return;
       setLoading(true);
       setError(null);
+      try {
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
+        const session = sessionData?.session ?? null;
+        if (sessionError || !session) {
+          router.replace("/auth/sign-in");
+          return;
+        }
 
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
-      const session = sessionData?.session ?? null;
-      if (sessionError || !session) {
-        router.replace("/auth/sign-in");
-        return;
-      }
+        const hasBirthDate = Boolean(birthDate);
+        const hasDueDate = Boolean(dueDate);
+        if (!hasBirthDate && !hasDueDate) {
+          setError("Add a birth date or due date to continue.");
+          setLoading(false);
+          return;
+        }
+        if (!gender.trim()) {
+          setError("Select a gender to continue.");
+          setLoading(false);
+          return;
+        }
+        if (hasBirthDate && !birthWeight.trim()) {
+          setError("Add a birth weight to continue.");
+          setLoading(false);
+          return;
+        }
 
-      const hasBirthDate = Boolean(birthDate);
-      const hasDueDate = Boolean(dueDate);
-      if (!hasBirthDate && !hasDueDate) {
-        setError("Add a birth date or due date to continue.");
-        setLoading(false);
-        return;
-      }
-      if (!gender.trim()) {
-        setError("Select a gender to continue.");
-        setLoading(false);
-        return;
-      }
-      if (hasBirthDate && !birthWeight.trim()) {
-        setError("Add a birth weight to continue.");
-        setLoading(false);
-        return;
-      }
+        const familyId = await fetchActiveFamilyId();
+        if (!familyId) {
+          router.replace("/app/select-family");
+          return;
+        }
 
-      const familyId = await fetchActiveFamilyId();
-      if (!familyId) {
-        router.replace("/app/select-family");
-        return;
-      }
+        const settingsHeaders = {
+          Authorization: `Bearer ${session.access_token}`,
+          "X-Havi-Family-Id": familyId,
+        };
 
-      const settingsResponse = await apiFetch(`${API_BASE_URL}/api/v1/settings`);
-      if (!settingsResponse.ok) {
-        setError("We couldn’t save that child profile. Try again.");
-        setLoading(false);
-        return;
-      }
+        const settingsResponse = await fetch(`${API_BASE_URL}/api/v1/settings`, {
+          method: "GET",
+          headers: settingsHeaders,
+        });
+        if (!settingsResponse.ok) {
+          throw new Error("We couldn’t save that child profile. Try again.");
+        }
 
-      const settingsPayload = (await settingsResponse.json().catch(() => null)) as
-        | {
-            caregiver?: Record<string, unknown>;
-            child?: {
-              first_name?: string | null;
-              last_name?: string | null;
-              birth_date?: string | null;
-              due_date?: string | null;
-            } & Record<string, unknown>;
-          }
-        | null;
-      const caregiver = settingsPayload?.caregiver ?? {};
-      const child = settingsPayload?.child ?? {};
+        const settingsPayload = (await settingsResponse.json().catch(() => null)) as
+          | {
+              caregiver?: Record<string, unknown>;
+              child?: {
+                first_name?: string | null;
+                last_name?: string | null;
+                birth_date?: string | null;
+                due_date?: string | null;
+              } & Record<string, unknown>;
+            }
+          | null;
+        const caregiver = settingsPayload?.caregiver ?? {};
+        const child = settingsPayload?.child ?? {};
 
-      const updateResponse = await apiFetch(`${API_BASE_URL}/api/v1/settings`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          caregiver,
-          child: {
-            ...child,
-            first_name: childName.trim() || child.first_name || "Child",
-            last_name: child.last_name ?? "",
-            birth_date: birthDate || child.birth_date || "",
-            due_date: dueDate || child.due_date || "",
-            gender: gender.trim().toLowerCase(),
-            birth_weight: birthWeight ? Number(birthWeight) : null,
-            birth_weight_unit: birthWeightUnit,
-            timezone: childTimezone,
+        const updateResponse = await fetch(`${API_BASE_URL}/api/v1/settings`, {
+          method: "PUT",
+          headers: {
+            ...settingsHeaders,
+            "Content-Type": "application/json",
           },
-        }),
-      });
+          body: JSON.stringify({
+            caregiver,
+            child: {
+              ...child,
+              first_name: childName.trim() || child.first_name || "Child",
+              last_name: child.last_name ?? "",
+              birth_date: birthDate || child.birth_date || "",
+              due_date: dueDate || child.due_date || "",
+              gender: gender.trim().toLowerCase(),
+              birth_weight: birthWeight ? Number(birthWeight) : null,
+              birth_weight_unit: birthWeightUnit,
+              timezone: childTimezone,
+            },
+          }),
+        });
 
-      if (!updateResponse.ok) {
-        setError("We couldn’t save that child profile. Try again.");
+        if (!updateResponse.ok) {
+          throw new Error("We couldn’t save that child profile. Try again.");
+        }
+
+        router.replace("/app");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setError("The request was interrupted. Please try again.");
+        } else if (err instanceof Error && err.message) {
+          setError(err.message);
+        } else {
+          setError("We couldn’t save that child profile. Try again.");
+        }
         setLoading(false);
-        return;
       }
-
-      router.replace("/app");
     },
     [
       birthDate,

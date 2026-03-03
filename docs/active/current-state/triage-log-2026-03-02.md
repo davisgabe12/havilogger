@@ -238,22 +238,26 @@ This log is the staging source for Linear tickets when direct Linear integration
 - Actual:
   - UI remains blocked in no-active-child state despite successful auth.
 - Hypotheses (ranked):
-  1. Client-side onboarding flow is aborting critical requests (likely race/abort-controller behavior around family/session guard).
-  2. Active family/child state hydration is failing in app shell despite `/api/active-family` and backend settings being healthy.
+  1. Family guard async effect can continue after cleanup and still call `router.replace(...)`, causing stale redirects back into onboarding.
+  2. Settings save path does not reliably rehydrate/select an active child from API response when child creation happens during setup.
+  3. Onboarding pages depend on `apiFetch` chain and can surface `AbortError` without resilient recovery messaging.
 - Root cause:
-  - Not fully confirmed yet; likely frontend state/guard orchestration bug, not backend API outage.
+  - Confirmed frontend orchestration bugs:
+    - Lifecycle race in `useFamilyGuard` allowed stale async runs to redirect.
+    - Child-selection hydration after setup was brittle (id normalization + immediate active-child assignment gaps).
+    - Onboarding requests needed explicit auth/family headers and stronger error handling for interrupted requests.
 - Fix summary:
-  - Not fixed in this pass.
-  - Backend verification from same signed-in session succeeded:
-    - `POST /api/v1/families` -> 200
-    - `PUT /api/v1/settings` with child data -> 200
-    - `POST /api/v1/activities` tracking -> 200 (`intent=logging`, actions=1)
-    - `POST /api/v1/activities` guidance -> 200 (`intent=question`, actions=0)
-    - Event count check: before=0, after tracking=1, after guidance=1 (guidance did not create timeline event)
+  - Hardened `useFamilyGuard` to prevent stale/unmounted runs from navigating.
+  - Added child-id normalization + deterministic active-child selection helper and wired it into app settings hydration.
+  - Updated onboarding family/child pages to use explicit auth/family headers and robust `AbortError` handling.
+  - Added unit tests for id normalization and active-child selection helper.
 - Tests added/run:
-  - Manual production browser run + API verification from authenticated session on March 3, 2026.
+  - `cd apps/web && npm run build` (pass).
+  - `HAVI_SMOKE_LABEL=after-sid60-hydration-20260303 ./scripts/prod_core_smoke.sh` (pass).
+  - `HAVI_SMOKE_LABEL=after-guard-racefix-20260303 ./scripts/prod_core_smoke.sh` (pass).
+  - Production browser repro on March 3, 2026 still confirms issue on currently deployed build until this fix is deployed.
 - Risks/follow-ups:
-  - Core UX is blocked for new families even though backend works; launch risk remains high until UI onboarding/active-child state is stabilized.
+  - Deploy to production and rerun browser GREEN smoke; current production still reflects pre-fix frontend bundle.
 - Owner: CTO agent
 - Linear issue: `SID-60` https://linear.app/diagonal-loop/issue/SID-60/prod-onboarding-flow-stalls-before-active-child-selection-blocking
 

@@ -93,6 +93,7 @@ export const useFamilyGuard = (options?: {
     };
 
     const runGuard = async (attempt: number) => {
+      if (!isMounted) return;
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
       let session = sessionData?.session ?? null;
@@ -101,6 +102,7 @@ export const useFamilyGuard = (options?: {
         const retry = await supabase.auth.getSession();
         session = retry.data?.session ?? null;
       }
+      if (!isMounted) return;
       log("session", {
         hasSession: Boolean(session),
         error: sessionError?.message ?? null,
@@ -113,6 +115,7 @@ export const useFamilyGuard = (options?: {
           }
           return;
         }
+        if (!isMounted) return;
         router.replace("/auth/sign-in");
         if (isMounted) {
           setState({ status: "redirecting", error: null });
@@ -155,6 +158,7 @@ export const useFamilyGuard = (options?: {
         String(row.family_id),
       );
       const activeFamilyId = await fetchActiveFamilyId(debugEnabled);
+      if (!isMounted) return;
       log("decision-inputs", {
         memberships,
         activeFamilyId,
@@ -167,6 +171,7 @@ export const useFamilyGuard = (options?: {
       });
 
       if (initialDecision.type === "redirect") {
+        if (!isMounted) return;
         router.replace(initialDecision.to);
         if (isMounted) {
           setState({ status: "redirecting", error: null });
@@ -177,6 +182,7 @@ export const useFamilyGuard = (options?: {
 
       if (initialDecision.type === "clearCookie") {
         await clearActiveFamilyId();
+        if (!isMounted) return;
         router.replace(initialDecision.to);
         if (isMounted) {
           setState({ status: "redirecting", error: null });
@@ -204,6 +210,7 @@ export const useFamilyGuard = (options?: {
       }
 
       if (!resolvedFamilyId) {
+        if (!isMounted) return;
         router.replace("/app/select-family");
         if (isMounted) {
           setState({ status: "redirecting", error: null });
@@ -243,6 +250,7 @@ export const useFamilyGuard = (options?: {
       });
 
       if (finalDecision.type === "redirect") {
+        if (!isMounted) return;
         router.replace(finalDecision.to);
         if (isMounted) {
           setState({ status: "redirecting", error: null });

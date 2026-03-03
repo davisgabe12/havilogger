@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase/client";
-import { apiFetch } from "@/lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -24,56 +23,61 @@ export default function OnboardingFamilyPage() {
       if (loading) return;
       setLoading(true);
       setError(null);
+      try {
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
+        const session = sessionData?.session ?? null;
+        if (sessionError || !session) {
+          router.replace("/auth/sign-in");
+          return;
+        }
 
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
-      const session = sessionData?.session ?? null;
-      if (sessionError || !session) {
-        router.replace("/auth/sign-in");
-        return;
-      }
+        const familyResponse = await fetch(`${API_BASE_URL}/api/v1/families`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ name: familyName.trim() }),
+        });
 
-      const familyResponse = await apiFetch(`${API_BASE_URL}/api/v1/families`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: familyName.trim() }),
-      });
+        if (!familyResponse.ok) {
+          throw new Error("We couldn’t create your family. Try again.");
+        }
 
-      if (!familyResponse.ok) {
-        setError("We couldn’t create your family. Try again.");
+        const familyPayload = (await familyResponse.json().catch(() => null)) as
+          | { id?: string }
+          | null;
+        const familyId = familyPayload?.id ?? "";
+
+        if (!familyId) {
+          throw new Error("We couldn’t create your family. Try again.");
+        }
+
+        const cookieResponse = await fetch("/api/active-family", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ familyId }),
+        });
+
+        if (!cookieResponse.ok) {
+          throw new Error("We couldn’t set your active family. Try again.");
+        }
+
+        router.replace("/app/onboarding/child");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setError("The request was interrupted. Please try again.");
+        } else if (err instanceof Error && err.message) {
+          setError(err.message);
+        } else {
+          setError("We couldn’t create your family. Try again.");
+        }
         setLoading(false);
-        return;
       }
-
-      const familyPayload = (await familyResponse.json().catch(() => null)) as
-        | { id?: string }
-        | null;
-      const familyId = familyPayload?.id ?? "";
-
-      if (!familyId) {
-        setError("We couldn’t create your family. Try again.");
-        setLoading(false);
-        return;
-      }
-
-      const cookieResponse = await fetch("/api/active-family", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ familyId }),
-      });
-
-      if (!cookieResponse.ok) {
-        setError("We couldn’t set your active family. Try again.");
-        setLoading(false);
-        return;
-      }
-
-      router.replace("/app/onboarding/child");
     },
     [familyName, loading, router],
   );
