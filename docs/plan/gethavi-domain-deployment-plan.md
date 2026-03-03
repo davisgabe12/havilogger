@@ -19,28 +19,34 @@ Launch recommendation for this week:
 2. Add abuse controls immediately (rate limits + bot protection/captcha) before traffic scale.
 3. Re-evaluate enabling email confirmation after onboarding friction metrics are measured.
 
-## Execution status (March 2, 2026)
+## Execution status (March 3, 2026)
 
-Started deployment execution from local machine:
+Deployment execution was advanced from local terminal:
 
-1. Vercel CLI installed via `npx vercel` and authenticated.
-2. Project linked as `gabes-projects-4207ce9b/web`.
-3. Preview deploy attempted from `apps/web`.
+1. Vercel project linked (`gabes-projects-4207ce9b/web`) and required production env vars set.
+2. Production web deploy completed successfully:
+   - `https://web-iota-flame-17.vercel.app`
+3. Railway API service `api` redeployed with:
+   - explicit start command via `apps/api/railway.toml`
+   - required Supabase/OpenAI env vars configured in Railway production
+4. Railway API health confirmed:
+   - `https://api-production-0a5d.up.railway.app/health` -> `200 {"status":"ok"}`
+5. Vercel domains attached to project:
+   - `gethavi.com`
+   - `www.gethavi.com`
 
-Current blocker:
+Current blocker to full public cutover:
 
-- Build fails at prerender step for `/app/invite` with:
-  - `Error: supabaseUrl is required.`
-- This indicates missing required Vercel environment variables for web build/runtime.
+- DNS at Squarespace/Google Domains still points to existing records and has not been switched to Vercel target IP.
+- Vercel reports both domains are attached but not yet verified due DNS mismatch.
 
-Immediate next fix:
+Immediate next fix (manual DNS step):
 
-1. Set required Vercel env vars for the `web` project:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `NEXT_PUBLIC_API_BASE_URL`
-   - `NEXT_PUBLIC_SITE_URL=https://gethavi.com`
-2. Re-run `npx vercel deploy -y` from `apps/web`.
+1. In DNS, point apex and `www` to Vercel target:
+   - `A gethavi.com 76.76.21.21`
+   - `A www.gethavi.com 76.76.21.21` (per current Vercel verification output)
+2. Remove/replace conflicting Squarespace web A records and `www` CNAME for Squarespace.
+3. Wait for propagation and verify domain in Vercel dashboard/CLI.
 
 ## Summary
 This plan is now explicit for **end-to-end deployment** across:
