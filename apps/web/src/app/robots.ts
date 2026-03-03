@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const baseUrl = "https://havi.ai";
+const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://gethavi.com").replace(/\/$/, "");
 
 export default function robots(): MetadataRoute.Robots {
   return {

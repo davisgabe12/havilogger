@@ -1,5 +1,24 @@
 # gethavi.com rollout plan (pre-launch)
 
+Status: active-plan
+Last updated: March 2, 2026
+
+## Current state check (March 2, 2026)
+
+- Local web + API run successfully against Supabase envs.
+- Sign-up and sign-in flows validated in browser.
+- Core chat flow validated:
+  - logging input persists to timeline
+  - guidance input returns advisory response
+- One chat classification bug (implicit guidance without `?`) was found and fixed in `apps/api/app/main.py`.
+- Supabase `Confirm email` is currently disabled in tested environment (fastest launch path).
+
+Launch recommendation for this week:
+
+1. Keep `Confirm email` disabled through first production cutover to reduce signup friction.
+2. Add abuse controls immediately (rate limits + bot protection/captcha) before traffic scale.
+3. Re-evaluate enabling email confirmation after onboarding friction metrics are measured.
+
 ## Summary
 This plan is now explicit for **end-to-end deployment** across:
 - production web,

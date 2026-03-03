@@ -1,66 +1,74 @@
-# Running Havi Locally
+Status: current
+Last updated: March 2, 2026
 
-This guide describes how to start the backend and frontend using only commands and scripts that live in this repo.
+# Running Havi Locally (Supabase Mode)
 
-## 1. Backend API (FastAPI + SQLite)
+This project now runs against Supabase for auth and data. Local API + web should use the same env keys as production, pointed at your chosen Supabase project.
 
-- **Dependencies**
-  - Python 3.11+.
-  - Install backend dependencies:
-    - `pip install -r apps/api/requirements.txt`
-- **Configuration**
-  - Copy the example config and set your OpenAI key:
-    - `cp apps/api/config.example.json apps/api/config.json`
-    - Edit `apps/api/config.json` and set `"openai_api_key"`.
-- **Running the API**
-  - Directly via uvicorn:
-    - `cd apps/api`
-    - `uvicorn app.main:app --reload --port 8000`
-  - Or via the root helper script (expects a Python venv at `.venv`):
-    - `./restart.sh`
-    - This script:
-      - Activates `.venv`.
-      - Starts uvicorn as `uvicorn app.main:app --host "$HOST" --port 8000`.
-      - Starts the frontend dev server (see below) in parallel.
-  - Health check:
-    - `GET http://127.0.0.1:8000/health` → handled by `apps/api/app/main.py:health`.
+## Prerequisites
 
-## 2. Frontend Web (Next.js)
+- Python virtualenv exists at `.venv` in repo root.
+- Node modules installed in `apps/web`.
+- Supabase project credentials available.
 
-- **Dependencies**
-  - Node.js and npm.
-  - Install frontend dependencies:
-    - `cd apps/web`
-    - `npm install`
-- **Configuration**
-  - The frontend reads `NEXT_PUBLIC_API_BASE_URL` to reach the API:
-    - For local dev, use `http://127.0.0.1:8000` (default assumed in `page.tsx` when env is unset).
-    - You can set this in a `.env.local` file or your shell environment.
-- **Running the frontend**
-  - From `apps/web`:
-    - `npm run dev`
-      - Proxies all client‑side fetches (e.g. `fetch(\`\${API_BASE_URL}/api/v1/activities\`)`) to your running FastAPI instance.
-  - Or via the root script:
-    - `./restart.sh`
-      - Starts both backend and frontend together, logging output to `logs/backend.log` and `logs/frontend.log`.
-- **Key entrypoints**
-  - `apps/web/src/app/page.tsx`
-    - Chat panel calls `POST ${API_BASE_URL}/api/v1/activities`.
-    - Tasks panel calls `GET/PATCH ${API_BASE_URL}/api/v1/tasks`.
-    - History panel calls `GET ${API_BASE_URL}/api/v1/conversations`.
-    - Settings panel calls `GET/PUT ${API_BASE_URL}/api/v1/settings`.
-  - `apps/web/src/components/timeline/timeline-panel.tsx`
-    - Fetches `GET ${API_BASE_URL}/events` with `child_id`, `start`, `end`.
-  - `apps/web/src/app/knowledge/page.tsx`
-    - Calls `GET /api/v1/knowledge/review` and `POST /api/v1/knowledge/{id}/confirm|reject|edit`.
-  - `apps/web/src/app/share/[token]/page.tsx`
-    - Calls `GET ${API_BASE_URL}/api/v1/share/{token}`.
+## 1. API env (`apps/api/.env.local`)
 
-## 3. Useful Logs and Temporary Files
+Required:
 
-- `logs/backend.log`
-  - Uvicorn/FastAPI logs when started via `./restart.sh`.
-- `logs/frontend.log`
-  - Next.js dev logs when started via `./restart.sh`.
-- `tmp/backend.pid`, `tmp/frontend.pid`
-  - PID files tracked by `restart.sh` and `stop.sh`.
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+
+Optional but recommended:
+
+- `HAVI_SITE_URL=http://127.0.0.1:3001` for local invite/share links
+
+## 2. Web env (`apps/web/.env.local`)
+
+Required:
+
+- `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000`
+- `NEXT_PUBLIC_SUPABASE_URL` (same Supabase URL as API env)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (same anon key as API env)
+
+Optional:
+
+- `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3001`
+
+## 3. Start local stack
+
+API:
+
+```bash
+cd apps/api
+../../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Web:
+
+```bash
+cd apps/web
+npm run dev -- --port 3001 --webpack
+```
+
+## 4. Smoke checks
+
+- API health: `http://127.0.0.1:8000/health` returns `{"status":"ok"}`
+- Web auth pages load:
+  - `http://127.0.0.1:3001/auth/sign-up`
+  - `http://127.0.0.1:3001/auth/sign-in`
+- App loads after sign-in: `http://127.0.0.1:3001/app`
+
+## 5. Known local behavior
+
+- If Supabase `Confirm email` is disabled, new sign-ups can sign in immediately.
+- If `Confirm email` is enabled, sign-up succeeds but first sign-in requires email verification.
+- The backend expects valid Supabase Bearer tokens on `/api/v1/*` routes.
+
+## 6. Build/test quick commands
+
+```bash
+cd apps/web && npm run build
+cd apps/api && ../../.venv/bin/pytest tests/test_question_detection.py -q
+```

@@ -92,7 +92,7 @@ function ensurePortFree(port) {
 }
 
 function startDevServer(port, host, forwardedArgs) {
-  const args = ['dev', '-H', host, '-p', String(port), ...forwardedArgs];
+  const args = ['dev', '--webpack', '-H', host, '-p', String(port), ...forwardedArgs];
   const child = spawn(nextBin, args, {
     cwd: projectRoot,
     stdio: 'inherit',

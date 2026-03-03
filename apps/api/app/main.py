@@ -312,14 +312,32 @@ app = FastAPI(
     description="Transforms parenting notes into structured actions",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+def _cors_allow_origins() -> List[str]:
+    defaults = [
         "http://localhost:3001",
         "http://127.0.0.1:3001",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-    ],
+        "https://gethavi.com",
+        "https://www.gethavi.com",
+    ]
+    extra = os.getenv("HAVI_CORS_ORIGINS", "")
+    if extra.strip():
+        defaults.extend([origin.strip() for origin in extra.split(",") if origin.strip()])
+    deduped: List[str] = []
+    seen = set()
+    for origin in defaults:
+        if origin in seen:
+            continue
+        seen.add(origin)
+        deduped.append(origin)
+    return deduped
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_allow_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -1435,10 +1453,45 @@ def _action_from_segment(segment: str, timezone_value: Optional[str]) -> Action:
 
 
 def _is_question(message: str) -> bool:
-    lowered = message.strip().lower()
+    lowered = " ".join(message.strip().lower().split())
+    if not lowered:
+        return False
     if lowered.endswith("?"):
         return True
-    return "what is normal" in lowered or lowered.startswith("what is")
+    if "is that normal" in lowered or "what is normal" in lowered:
+        return True
+    explicit_phrases = [
+        "what should",
+        "should i",
+        "what do i do",
+        "how do i",
+        "how can i",
+        "can i",
+        "is it okay",
+        "is this okay",
+        "any tips",
+        "help me",
+    ]
+    if any(phrase in lowered for phrase in explicit_phrases):
+        return True
+    starts = (
+        "what ",
+        "why ",
+        "how ",
+        "when ",
+        "where ",
+        "who ",
+        "should ",
+        "can ",
+        "could ",
+        "would ",
+        "is ",
+        "are ",
+        "do ",
+        "does ",
+        "did ",
+    )
+    return lowered.startswith(starts)
 
 
 def _detect_memory_inference(
@@ -1740,7 +1793,7 @@ async def create_invite(
     )
     if not created:
         raise HTTPException(status_code=500, detail="Unable to create invite.")
-    base_url = os.getenv("HAVI_SITE_URL") or os.getenv("NEXT_PUBLIC_SITE_URL") or "http://localhost:3001"
+    base_url = os.getenv("HAVI_SITE_URL") or os.getenv("NEXT_PUBLIC_SITE_URL") or "https://gethavi.com"
     return {
         "token": token,
         "family_id": auth.family_id,
@@ -2312,7 +2365,19 @@ def classify_question_category(message: str, symptom_tags: List[str]) -> str:
     lower = message.lower()
     if symptom_tags:
         return "health"
-    if any(word in lower for word in ["sleep", "nap", "wake window", "bedtime"]):
+    if any(
+        word in lower
+        for word in [
+            "sleep",
+            "nap",
+            "wake",
+            "waking",
+            "wake window",
+            "bedtime",
+            "night wake",
+            "night waking",
+        ]
+    ):
         return "sleep"
     if any(word in lower for word in ["routine", "schedule", "plan the day"]):
         return "routine"
