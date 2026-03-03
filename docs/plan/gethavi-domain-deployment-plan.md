@@ -19,6 +19,29 @@ Launch recommendation for this week:
 2. Add abuse controls immediately (rate limits + bot protection/captcha) before traffic scale.
 3. Re-evaluate enabling email confirmation after onboarding friction metrics are measured.
 
+## Execution status (March 2, 2026)
+
+Started deployment execution from local machine:
+
+1. Vercel CLI installed via `npx vercel` and authenticated.
+2. Project linked as `gabes-projects-4207ce9b/web`.
+3. Preview deploy attempted from `apps/web`.
+
+Current blocker:
+
+- Build fails at prerender step for `/app/invite` with:
+  - `Error: supabaseUrl is required.`
+- This indicates missing required Vercel environment variables for web build/runtime.
+
+Immediate next fix:
+
+1. Set required Vercel env vars for the `web` project:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_API_BASE_URL`
+   - `NEXT_PUBLIC_SITE_URL=https://gethavi.com`
+2. Re-run `npx vercel deploy -y` from `apps/web`.
+
 ## Summary
 This plan is now explicit for **end-to-end deployment** across:
 - production web,
