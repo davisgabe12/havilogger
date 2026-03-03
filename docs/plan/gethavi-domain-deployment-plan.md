@@ -34,6 +34,15 @@ Deployment execution was advanced from local terminal:
 5. Vercel domains attached to project:
    - `gethavi.com`
    - `www.gethavi.com`
+6. Live deployed smoke from Vercel domain passed for:
+   - sign-up
+   - family + child onboarding
+   - chat guidance and tracking reply
+   - timeline persistence for tracked event
+   - task creation
+7. Temporary pre-cutover CORS bridge applied:
+   - Railway `HAVI_CORS_ORIGINS` includes current Vercel deployment domain(s)
+   - remove this temporary allowance after `gethavi.com` DNS cutover is complete.
 
 Current blocker to full public cutover:
 
@@ -47,6 +56,7 @@ Immediate next fix (manual DNS step):
    - `A www.gethavi.com 76.76.21.21` (per current Vercel verification output)
 2. Remove/replace conflicting Squarespace web A records and `www` CNAME for Squarespace.
 3. Wait for propagation and verify domain in Vercel dashboard/CLI.
+4. After `gethavi.com` is live, tighten Railway `HAVI_CORS_ORIGINS` to canonical domain(s) only.
 
 ## Summary
 This plan is now explicit for **end-to-end deployment** across:
