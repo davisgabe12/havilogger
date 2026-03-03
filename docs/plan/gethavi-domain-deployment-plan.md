@@ -47,6 +47,12 @@ Deployment execution was advanced from local terminal:
    - custom `A @ -> 76.76.21.21`
    - custom `A www -> 76.76.21.21`
 9. Temporary CORS bridge removed after DNS update (`HAVI_CORS_ORIGINS` deleted in Railway).
+10. Canonical host redirect enforced:
+   - `www.gethavi.com` now returns `308` to `https://gethavi.com/`.
+11. Post-cutover production smoke complete:
+   - `GET /`, `GET /auth/sign-in`, `GET /auth/sign-up`, `GET /app` on `gethavi.com` all return `200`.
+   - API health `200`.
+   - authenticated API checks (`/api/v1/settings`, `/api/v1/conversations`, `/api/v1/tasks`) return `200`.
 
 Current blocker to full public cutover:
 
