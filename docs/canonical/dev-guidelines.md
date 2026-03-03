@@ -3,7 +3,7 @@
 These guidelines apply to **all work** in the Havi monorepo at:
 `~/Desktop/projects/havilogger`
 
-Feature‑specific docs (for example, `docs/chat-ui-dev-guidelines.md`) may add extra rules; in that case, follow both this file and the feature‑specific doc.
+Feature‑specific docs (for example, `docs/canonical/chat-ui-dev-guidelines.md`) may add extra rules; in that case, follow both this file and the feature‑specific doc.
 
 ---
 
@@ -25,7 +25,7 @@ Feature‑specific docs (for example, `docs/chat-ui-dev-guidelines.md`) may add 
 - Identify which **core use cases / flows** the change touches.
   - Examples: chat, tasks, timeline, knowledge review, sharing, settings, docs.
 - Check existing docs/specs:
-  - `docs/architecture.md`, `docs/core-flows.md`, `docs/testing.md`, and any feature‑specific docs.
+  - `docs/canonical/architecture.md`, `docs/canonical/core-flows.md`, `docs/canonical/testing.md`, and any feature‑specific docs.
 - Write a short plan:
   - Files to change (paths).
   - What will change in each file.
@@ -55,7 +55,7 @@ Feature‑specific docs (for example, `docs/chat-ui-dev-guidelines.md`) may add 
 - Backend:
   - Run from `apps/api`:
     - `pytest`
-  - If `pytest` is missing, set up the venv + deps (see `docs/testing.md`) and call that out in your notes.
+  - If `pytest` is missing, set up the venv + deps (see `docs/canonical/testing.md`) and call that out in your notes.
 - Frontend:
   - Run from `apps/web`:
     - `npm test`
@@ -123,4 +123,3 @@ Feature‑specific docs (for example, `docs/chat-ui-dev-guidelines.md`) may add 
    - Write a clear PR description (problem, flows, tests, limitations).
 
 By default, all future work in this repo should follow this `dev-guidelines.md` plus any additional constraints in feature‑specific docs. 
-

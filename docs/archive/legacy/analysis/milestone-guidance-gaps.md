@@ -1,3 +1,6 @@
+Status: archive
+Archived: March 3, 2026
+
 # Milestone Guidance Gap Analysis
 
 ## Strengths (current state)
@@ -82,4 +85,3 @@
    - Impact: Parents can’t see what prior info is shaping advice.
    - Likelihood: Medium.
    - Simplest fix: UI badge listing memories used with opt-out.
-

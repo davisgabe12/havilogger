@@ -1,9 +1,11 @@
 Status: current
-Last updated: March 2, 2026
+Last updated: March 3, 2026
 
 # Running Havi Locally (Supabase Mode)
 
 This project now runs against Supabase for auth and data. Local API + web should use the same env keys as production, pointed at your chosen Supabase project.
+
+Important: Havi does not use a local SQL database in this mode. Supabase is remote, and this repo's local app processes connect to that remote project.
 
 ## Prerequisites
 
@@ -49,8 +51,13 @@ Web:
 
 ```bash
 cd apps/web
-npm run dev -- --port 3001 --webpack
+npm run dev -- --port 3001
 ```
+
+If you use Codex sandboxed commands and see `operation not permitted`/`EPERM` on `127.0.0.1` bind:
+
+1. Start services from your normal terminal (outside sandbox), or
+2. Run Codex commands with elevated permissions, then rerun smoke checks.
 
 ## 4. Smoke checks
 
@@ -65,6 +72,10 @@ npm run dev -- --port 3001 --webpack
 - If Supabase `Confirm email` is disabled, new sign-ups can sign in immediately.
 - If `Confirm email` is enabled, sign-up succeeds but first sign-in requires email verification.
 - The backend expects valid Supabase Bearer tokens on `/api/v1/*` routes.
+- In constrained runtimes, frontend dev server may fail with `ETIMEDOUT` while starting. Rerun `npm run dev -- --port 3001`, then verify `/auth/sign-in` returns HTTP 200 before running full smoke.
+- If `npm run build` fails with missing `.next/dev/types/cache-life.d.ts`, clear Next cache and retry:
+  - `rm -rf apps/web/.next`
+  - `cd apps/web && npm run build`
 
 ## 6. Build/test quick commands
 

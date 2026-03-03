@@ -1,3 +1,6 @@
+Status: archive
+Archived: March 3, 2026
+
 # Home V1 (Zones 1–5): Behavior, Data, and Tests
 
 This doc is a deterministic, system-level view of how Home V1 works: what it reads, what it renders, and how we test it. It is written to answer: “What happens, when, and why?”

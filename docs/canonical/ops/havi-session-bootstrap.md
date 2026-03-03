@@ -46,6 +46,7 @@ Havi is a parent/caregiver copilot that:
 1. Web: Next.js on Vercel (`gethavi.com`).
 2. API: FastAPI on Railway (`api-production-0a5d.up.railway.app`).
 3. Data/Auth: Supabase (shared dev/prod project for now).
+4. Supabase is remote/shared in current setup; local runs do not use a local SQL database.
 
 ## Fast Local Start
 
@@ -85,6 +86,8 @@ npm run build
 /Users/gabedavis/.codex/skills/havi-e2e-smoke/scripts/fast_start_smoke.sh --no-start
 ```
 
+If running inside a sandboxed Codex runtime and localhost bind fails (`EPERM`/`operation not permitted`), run smoke from a normal terminal or rerun with elevated permissions.
+
 ## Production Smoke Minimum
 
 1. `https://gethavi.com` returns 200.
@@ -105,8 +108,8 @@ npm run build
 
 ## First 20 Minutes In A New Session
 
-1. Read this file and `docs/current-state/triage-log-2026-03-02.md`.
-2. Read `docs/ops/havi-autonomous-run-checklist.md` when running autonomously.
+1. Read this file and `docs/active/current-state/triage-log-2026-03-02.md`.
+2. Read `docs/canonical/ops/havi-autonomous-run-checklist.md` when running autonomously.
 3. Check git status + latest commit context.
 4. Run local or production smoke depending on task scope.
 5. Confirm top P0/P1 items and pick first fix slice.

@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 2, 2026
+Last updated: March 3, 2026
 
 # Havi Bug Triage Log
 
@@ -164,3 +164,95 @@ This log is the staging source for Linear tickets when direct Linear integration
   - Several older integration tests still assume pre-auth endpoint access; they need dedicated harness migration.
 - Owner: CTO agent
 - Linear issue: pending (Linear not available in this session)
+
+## TRIAGE-006: Local smoke false-negatives when Codex runtime blocks localhost bind
+
+- Title: Local startup/smoke fails with EPERM bind errors in constrained runtime
+- Severity: `P2`
+- Area: `deploy`
+- Repro steps:
+  1. Run `./restart.sh` or `/Users/gabedavis/.codex/skills/havi-e2e-smoke/scripts/fast_start_smoke.sh` from constrained Codex runtime.
+  2. Observe API/web startup behavior.
+- Expected:
+  - API binds to `127.0.0.1:8000` and web binds to `127.0.0.1:3001`.
+  - Smoke checks return 200 for health/auth routes.
+- Actual:
+  - Runtime intermittently returns `operation not permitted` / `EPERM` when binding localhost ports.
+  - Smoke checks report `000` even when app code is unchanged.
+- Hypotheses (ranked):
+  1. Runtime sandbox policy blocks bind/listen operations.
+  2. Background process lifecycle in tooling creates false negatives for startup checks.
+- Root cause:
+  - Environment/runtime constraint, not a deterministic application logic regression.
+- Fix summary:
+  - Documented workaround in canonical runbooks:
+    - run startup/smoke from normal terminal, or
+    - rerun commands with elevated permissions.
+- Tests added/run:
+  - Ran multiple smoke/startup attempts and captured log signatures (`EPERM`, `operation not permitted`).
+- Risks/follow-ups:
+  - Can mask real regressions unless smoke is run in a known-good runtime.
+- Owner: CTO agent
+- Linear issue: pending
+
+## TRIAGE-007: Webpack-specific build path no longer used (Mitigated)
+
+- Title: Avoid webpack build path that fails with `MinifyPlugin is not a constructor`
+- Severity: `P2`
+- Area: `deploy`
+- Repro steps:
+  1. Run `cd apps/web && npm run build -- --webpack`.
+- Expected:
+  - Next.js production build succeeds.
+- Actual:
+  - Build fails with `TypeError: MinifyPlugin is not a constructor`.
+- Hypotheses (ranked):
+  1. Webpack/minifier plugin mismatch with current Next.js 16 toolchain.
+  2. Lockfile or dependency skew across root/app lockfiles.
+- Root cause:
+  - Webpack-specific build path in current Next.js toolchain is unstable in this repo/runtime.
+- Fix summary:
+  - Removed forced webpack usage from local startup script (`apps/web/scripts/dev-safe.js`).
+  - Updated canonical local runbook to use default Next 16 startup/build flow.
+  - Validation now relies on `npm run build` (default `next build`) and route-level smoke checks.
+- Tests added/run:
+  - `cd apps/web && npm run build` (pass, run with elevated permissions in this session).
+- Risks/follow-ups:
+  - If a future workflow requires webpack build explicitly, this issue may recur and should be reopened.
+- Owner: CTO agent
+- Linear issue: pending
+
+## TRIAGE-008: Production UI onboarding can stall even when backend family/child writes succeed
+
+- Title: New signup can authenticate but app stays in "couldn’t verify your family" state and blocks chat send
+- Severity: `P1`
+- Area: `auth`
+- Repro steps:
+  1. Create new account on production (`/auth/sign-up`) and land on `/app`.
+  2. Observe banner: `We couldn’t verify your family yet. Some data may be missing.`
+  3. Attempt family onboarding (`/app/onboarding/family`) and child onboarding (`/app/onboarding/child`).
+  4. UI buttons can remain in `Creating...` / `Saving...` with repeated `AbortError: signal is aborted without reason` console errors.
+  5. Return to `/app` and send `Baby pooped at 3pm` -> blocked: `Select an active child before sending.`
+- Expected:
+  - Family + child onboarding completes, active child is selected, chat send works from UI.
+- Actual:
+  - UI remains blocked in no-active-child state despite successful auth.
+- Hypotheses (ranked):
+  1. Client-side onboarding flow is aborting critical requests (likely race/abort-controller behavior around family/session guard).
+  2. Active family/child state hydration is failing in app shell despite `/api/active-family` and backend settings being healthy.
+- Root cause:
+  - Not fully confirmed yet; likely frontend state/guard orchestration bug, not backend API outage.
+- Fix summary:
+  - Not fixed in this pass.
+  - Backend verification from same signed-in session succeeded:
+    - `POST /api/v1/families` -> 200
+    - `PUT /api/v1/settings` with child data -> 200
+    - `POST /api/v1/activities` tracking -> 200 (`intent=logging`, actions=1)
+    - `POST /api/v1/activities` guidance -> 200 (`intent=question`, actions=0)
+    - Event count check: before=0, after tracking=1, after guidance=1 (guidance did not create timeline event)
+- Tests added/run:
+  - Manual production browser run + API verification from authenticated session on March 3, 2026.
+- Risks/follow-ups:
+  - Core UX is blocked for new families even though backend works; launch risk remains high until UI onboarding/active-child state is stabilized.
+- Owner: CTO agent
+- Linear issue: pending

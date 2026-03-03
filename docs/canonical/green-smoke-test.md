@@ -1,3 +1,6 @@
+Status: current
+Last updated: March 3, 2026
+
 # HAVI GREEN smoke test (local)
 
 Goal: verify auth + onboarding + /app load with Supabase-backed settings.
@@ -39,6 +42,8 @@ Smoke test source: `apps/web/tests/smoke/green.spec.ts`
 
 ## Troubleshooting
 - If Playwright cannot bind to `localhost:3001` (EPERM/EADDRINUSE), stop any running dev server or set `PLAYWRIGHT_BASE_URL` to an already-running web server (this skips starting web/api servers) and rerun `npm run test:green`.
+- If Codex sandbox reports `operation not permitted` while binding to `127.0.0.1:8000` or `127.0.0.1:3001`, run startup/smoke from your regular terminal or rerun command with elevated permissions.
+- If frontend startup logs include `ETIMEDOUT` after `✓ Starting...`, rerun web startup and confirm `http://127.0.0.1:3001/auth/sign-in` returns 200 before continuing.
 
 ## What the smoke test proves
 - Marketing `/` is unauthenticated and renders without app UI.

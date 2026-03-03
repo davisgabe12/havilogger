@@ -1,3 +1,6 @@
+Status: archive
+Archived: March 3, 2026
+
 # GREEN Notes
 
 - 2026-02-01: Migrated critical app flows (activities, conversations, tasks, timeline) to Supabase-backed API endpoints and updated web IDs to UUID strings.

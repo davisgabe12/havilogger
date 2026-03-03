@@ -1,3 +1,6 @@
+Status: archive
+Archived: March 3, 2026
+
 # Implementation Direction (Minimal Changes)
 
 Goal: enable traceability + evalability without a big refactor.
@@ -33,4 +36,3 @@ Goal: enable traceability + evalability without a big refactor.
 - evaluates `expected_attributes` with a lightweight heuristic
 
 This enables quick regression checks without refactoring the model layer.
-

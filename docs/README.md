@@ -1,46 +1,36 @@
-# Documentation Index and Lifecycle
+Status: current
+Last updated: March 3, 2026
 
-This directory uses an active-vs-archive model so execution docs stay accurate during rapid shipping.
+# Havi Documentation Buckets
 
-## Status model
+Documentation is grouped into three top-level buckets:
 
-Use one status near the top of every document:
+1. `docs/canonical/` for current source-of-truth docs.
+2. `docs/active/` for in-progress plans and dated execution logs.
+3. `docs/archive/` for historical docs that are not authoritative.
 
-- `Status: current` for runbooks/specs that match live behavior.
-- `Status: active-plan` for in-progress plans.
-- `Status: archive` for historical context only.
+If a document does not clearly fit one bucket, treat that as a docs bug and fix placement in the same PR.
 
-## Active docs (source of truth)
+## Bucket Rules
 
-- `docs/running-locally.md`
-- `docs/architecture.md`
-- `docs/core-flows.md`
-- `docs/testing.md`
-- `docs/green-smoke-test.md`
-- `docs/ops/havi-session-bootstrap.md`
-- `docs/ops/havi-autonomous-run-checklist.md`
-- `docs/brand-theming-notes.md`
-- `docs/plan/gethavi-domain-deployment-plan.md`
-- `docs/plan/havi-objective-execution-plan-2026-03-02.md`
-- `docs/current-state/core-e2e-validation-2026-03-02.md`
+1. `canonical` is the only bucket that should be used to answer "how does Havi work now?"
+2. `active` may contain drafts, plans, and temporary rollout notes; it should reference canonical docs for behavior.
+3. `archive` should never be cited as implementation truth.
+4. Every new doc should start with a `Status:` header and absolute date.
 
-## Legacy docs (review for archive)
+## Fast Entry Points
 
-- Most files under `docs/analysis/`
-- Older notes in `docs/current-state/` not updated in 2026
-- One-off exploration files in `docs/` root that do not include a status header
+1. Session bootstrap:
+   - `docs/canonical/ops/havi-session-bootstrap.md`
+2. Autonomous checklist:
+   - `docs/canonical/ops/havi-autonomous-run-checklist.md`
+3. Local runbook:
+   - `docs/canonical/running-locally.md`
+4. Deployment plan currently in progress:
+   - `docs/active/plan/gethavi-domain-deployment-plan.md`
 
-## Folder intent
+## Maintenance Rules
 
-- `docs/plan/`: execution plans and rollout checklists.
-- `docs/current-state/`: dated state snapshots and validation records.
-- `docs/supabase/`: schema, RLS, and migration SQL artifacts.
-- `docs/ops/`: operational runbooks and session bootstrap guides.
-- `docs/archive/`: deprecated docs moved out of active paths.
-
-## Update rules
-
-1. Any behavior-changing code PR updates at least one active doc.
-2. If a doc is stale and cannot be fixed in the same PR, mark it `Status: archive`.
-3. Prefer updating a single source-of-truth doc over creating parallel duplicates.
-4. Use absolute dates (for example, `March 2, 2026`) in rollout/state notes.
+1. Behavior-changing PRs must update at least one canonical doc.
+2. If a doc is stale and cannot be fixed immediately, move it to `docs/archive/`.
+3. Keep one canonical source per topic; avoid parallel duplicates.

@@ -8,7 +8,7 @@ Act as the CTO for this project. Prioritize clarity, correctness, scalability, a
 - Prefer small, reversible changes and call out risks, dependencies, and impact.
 - Keep communication crisp: decisions, tradeoffs, and next actions.
 - Use absolute dates when discussing timelines.
-- For autonomous runs, follow `docs/ops/havi-autonomous-run-checklist.md`.
+- For autonomous runs, follow `docs/canonical/ops/havi-autonomous-run-checklist.md`.
 
 ## Planning output
 - Goal + success metrics

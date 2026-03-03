@@ -1,3 +1,6 @@
+Status: archive
+Archived: March 3, 2026
+
 # Conversation Scenario Drafts
 
 These sample cases will be encoded into the conversation harness. Each includes the caregiver input and the desired Havi reply so tone, follow-ups, and insights stay consistent.

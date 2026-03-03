@@ -2,15 +2,15 @@
 
 Apply migrations in this exact order using the Supabase SQL editor:
 
-1) `docs/supabase/002_app_core_uuid.sql`
-2) `docs/supabase/004_green_indexes.sql`
-3) `docs/supabase/005_family_invites.sql`
-4) `docs/supabase/006_memory_v1.sql`
-5) `docs/supabase/007_share_links.sql`
-6) `docs/supabase/008_green_reconcile.sql`
-7) `docs/supabase/009_create_family_rpc.sql`
-8) `docs/supabase/010_green_schema_fixes.sql`
-9) `docs/supabase/011_family_invites_policies.sql`
+1) `docs/canonical/supabase/002_app_core_uuid.sql`
+2) `docs/canonical/supabase/004_green_indexes.sql`
+3) `docs/canonical/supabase/005_family_invites.sql`
+4) `docs/canonical/supabase/006_memory_v1.sql`
+5) `docs/canonical/supabase/007_share_links.sql`
+6) `docs/canonical/supabase/008_green_reconcile.sql`
+7) `docs/canonical/supabase/009_create_family_rpc.sql`
+8) `docs/canonical/supabase/010_green_schema_fixes.sql`
+9) `docs/canonical/supabase/011_family_invites_policies.sql`
 
 ## How to apply (Supabase SQL editor)
 1) Open your Supabase project → **SQL Editor**.

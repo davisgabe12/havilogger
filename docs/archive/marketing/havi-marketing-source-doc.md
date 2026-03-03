@@ -1,3 +1,6 @@
+Status: archive
+Archived: March 3, 2026
+
 # Havi — Marketing Source Doc (for Codex)
 
 ## TL;DR

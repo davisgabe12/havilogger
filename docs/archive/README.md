@@ -1,9 +1,10 @@
 Status: current
-Last updated: March 2, 2026
+Last updated: March 3, 2026
 
-# Archive Folder Policy
+# Archive Docs Policy
 
 This folder is for docs that are no longer operationally correct but worth keeping for history.
+Archived docs are explicitly non-canonical.
 
 Rules:
 

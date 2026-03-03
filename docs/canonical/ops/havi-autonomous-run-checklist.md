@@ -13,8 +13,8 @@ Ship meaningful progress safely with minimal user interruption, while keeping is
 
 1. Confirm current objective and acceptance criteria from latest user direction.
 2. Pull latest context from:
-`docs/ops/havi-session-bootstrap.md`
-`docs/current-state/triage-log-2026-03-02.md`
+`docs/canonical/ops/havi-session-bootstrap.md`
+`docs/active/current-state/triage-log-2026-03-02.md`
 3. Select one thin fix slice.
 4. Implement root-cause fix (avoid broad unrelated refactors).
 5. Run targeted tests for touched logic.
@@ -44,7 +44,7 @@ If you discover a new issue while working on a different task:
 title, repro, expected vs actual, likely root cause, impact/risk.
 4. Create a Linear ticket if access is available.
 5. If Linear is unavailable in-session, append a triage entry to:
-`docs/current-state/triage-log-2026-03-02.md`
+`docs/active/current-state/triage-log-2026-03-02.md`
 and mark `Linear issue: pending`.
 6. Continue current task unless discovered issue is P0.
 7. If P0, stop and switch to containment/fix workflow first.
