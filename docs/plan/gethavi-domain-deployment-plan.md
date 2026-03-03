@@ -43,6 +43,10 @@ Deployment execution was advanced from local terminal:
 7. Temporary pre-cutover CORS bridge applied:
    - Railway `HAVI_CORS_ORIGINS` includes current Vercel deployment domain(s)
    - remove this temporary allowance after `gethavi.com` DNS cutover is complete.
+8. DNS cutover applied in Squarespace:
+   - custom `A @ -> 76.76.21.21`
+   - custom `A www -> 76.76.21.21`
+9. Temporary CORS bridge removed after DNS update (`HAVI_CORS_ORIGINS` deleted in Railway).
 
 Current blocker to full public cutover:
 
