@@ -1,0 +1,112 @@
+Status: current
+Last updated: March 3, 2026
+
+# Havi Session Bootstrap
+
+## User Job To Be Done (JTBD)
+
+Parents and caregivers need one calm place to quickly capture what happened with their child, get trustworthy next-step guidance, and keep everyone aligned without carrying the full mental load alone.
+
+## What Havi Does (High Level)
+
+Havi is a parent/caregiver copilot that:
+
+1. Captures child events (feeds, diapers, sleep, routines, symptoms).
+2. Gives warm, practical guidance for parenting questions.
+3. Keeps shared family context and memory persistent.
+4. Coordinates action with tasks and reminders across caregivers.
+
+## Core Product Surfaces
+
+1. Auth + onboarding (`/auth/*`, family + child setup).
+2. Main app chat (`/app`) for logging, guidance, tasks, and memory.
+3. Timeline for persisted events.
+4. Tasks for caregiver coordination.
+5. Settings for caregiver/child profile and family context.
+
+## How Product Logic Works (Current)
+
+1. Web sends chat input to `POST /api/v1/activities`.
+2. API classifies intent and routes to one of: logging, guidance, task creation, memory save.
+3. Logging path writes timeline/activity records and returns concise confirmation.
+4. Guidance path returns advisory text and should not create activity timeline events.
+5. Task path writes task records and confirms creation.
+6. Memory path writes explicit memory when asked to save.
+
+## Critical Invariants
+
+1. Guidance messages must not be persisted as activity timeline events.
+2. Logging confirmations must stay concise and deterministic.
+3. Authenticated child-scoped routes require valid bearer token + child context.
+4. `www.gethavi.com` must redirect to `https://gethavi.com`.
+5. Production checks are not complete until smoke verification passes.
+
+## Current Stack
+
+1. Web: Next.js on Vercel (`gethavi.com`).
+2. API: FastAPI on Railway (`api-production-0a5d.up.railway.app`).
+3. Data/Auth: Supabase (shared dev/prod project for now).
+
+## Fast Local Start
+
+Preferred:
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+./restart.sh
+```
+
+Quick health:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/health
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3001/auth/sign-in
+```
+
+## Fast Validation
+
+1. API focused tests (chat logic):
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger/apps/api
+../../.venv/bin/pytest tests/test_chat_routing_logic.py tests/test_router.py tests/test_question_detection.py -q
+```
+
+2. Web build:
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger/apps/web
+npm run build
+```
+
+3. Runtime smoke:
+
+```bash
+/Users/gabedavis/.codex/skills/havi-e2e-smoke/scripts/fast_start_smoke.sh --no-start
+```
+
+## Production Smoke Minimum
+
+1. `https://gethavi.com` returns 200.
+2. `https://www.gethavi.com` returns redirect to apex.
+3. API health endpoint returns 200.
+4. Auth flow + onboarding works.
+5. One tracking message logs to timeline.
+6. One guidance message returns advice and does not log timeline activity.
+7. One task can be created and persisted.
+
+## Cofounder CTO Mode (Execution Standard)
+
+1. Prioritize user trust and core flow correctness over feature breadth.
+2. Ship small, reversible fixes with tests tied to regressions.
+3. Validate end-to-end after each substantial change.
+4. Keep docs current and archive stale guidance quickly.
+5. Own outcomes: do not declare complete without runtime evidence.
+
+## First 20 Minutes In A New Session
+
+1. Read this file and `docs/current-state/triage-log-2026-03-02.md`.
+2. Check git status + latest commit context.
+3. Run local or production smoke depending on task scope.
+4. Confirm top P0/P1 items and pick first fix slice.
+5. Implement -> test -> deploy (if needed) -> smoke -> document outcome.

@@ -17,6 +17,7 @@ Use one status near the top of every document:
 - `docs/core-flows.md`
 - `docs/testing.md`
 - `docs/green-smoke-test.md`
+- `docs/ops/havi-session-bootstrap.md`
 - `docs/brand-theming-notes.md`
 - `docs/plan/gethavi-domain-deployment-plan.md`
 - `docs/plan/havi-objective-execution-plan-2026-03-02.md`
@@ -33,6 +34,7 @@ Use one status near the top of every document:
 - `docs/plan/`: execution plans and rollout checklists.
 - `docs/current-state/`: dated state snapshots and validation records.
 - `docs/supabase/`: schema, RLS, and migration SQL artifacts.
+- `docs/ops/`: operational runbooks and session bootstrap guides.
 - `docs/archive/`: deprecated docs moved out of active paths.
 
 ## Update rules
