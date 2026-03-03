@@ -95,6 +95,11 @@ def classify_intent(message: str) -> IntentResult:
             "spit up",
             "doctor",
             "pediatrician",
+            "hitting",
+            "hits",
+            "smack",
+            "slap",
+            "kick",
         ]
     ):
         return add("health/sleep keyword", "health_sleep_question", 0.84)
@@ -123,7 +128,7 @@ def classify_intent(message: str) -> IntentResult:
 
     # Chit chat / thanks
     if any(phrase in lower for phrase in ["lol", "thanks", "thank you", "haha", "hi", "hello", "ok thanks"]):
-        return add("small talk", "chit_chat", 0.45)
+        return add("small talk", "chit_chat", 0.55)
 
     # Fallback
     return IntentResult("general_parenting_advice", 0.35, ["fallback"])

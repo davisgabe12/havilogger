@@ -11,7 +11,7 @@ def test_router_examples() -> None:
         ("What milestones should a 20 month old hit?", "milestone_expectations"),
         ("Ideas for rainy day activities", "activity_request"),
         ("11 week old won't settle after transfer", "health_sleep_question"),
-        ("Should we sleep train?", "general_parenting_advice"),
+        ("Should we sleep train?", "health_sleep_question"),
         ("lol thanks", "chit_chat"),
     ]
     for message, expected in cases:

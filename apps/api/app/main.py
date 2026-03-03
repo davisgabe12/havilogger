@@ -50,6 +50,7 @@ from .routes import knowledge as knowledge_routes
 from .routes import reminders as reminder_routes
 from .routes import tasks as task_routes
 from . import share as share_routes
+from .knowledge_utils import knowledge_pending_prompts
 from .router import classify_intent
 from .schemas import (
     Action,
@@ -644,10 +645,14 @@ async def capture_activity(
     question_category = classify_question_category(payload.message, symptom_tags)
     is_question = _is_question(payload.message)
     intent_result = classify_intent(payload.message)
+    route_to_guidance = _should_route_to_guidance(
+        is_question=is_question,
+        intent_name=intent_result.intent,
+    )
     user_intent = (
         "task"
         if intent_result.intent == "task_request"
-        else ("question" if is_question else "log")
+        else ("question" if route_to_guidance else "logging")
     )
 
     user_message = await _insert_conversation_message(
@@ -752,9 +757,10 @@ async def capture_activity(
         )
     actions: List[Action] = []
     assistant_text: str
-    intent = "log"
+    ui_nudges: List[str] = []
+    intent = "logging"
 
-    if not is_question:
+    if not route_to_guidance:
         segments = _split_message_into_events(payload.message)
         actions = [
             _action_from_segment(segment, timezone_value)
@@ -811,15 +817,28 @@ async def capture_activity(
                 confidence=confidence,
                 source="chat",
             )
-        assistant_text = (
-            summarize_actions(actions, child_row, {"symptom_tags": symptom_tags})
-            or "Got it — I logged that."
+        assistant_text, _ = build_assistant_message(
+            actions,
+            payload.message,
+            child_data=child_row,
+            context={
+                "intent": "logging",
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": actions,
+            },
         )
     else:
-        assistant_text = _build_question_response(
+        assistant_text, ui_nudges = build_assistant_message(
+            [],
             payload.message,
-            child_row=child_row,
-            category=question_category,
+            child_data=child_row,
+            context={
+                "intent": intent_result.intent,
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": [],
+            },
         )
         intent = "question"
 
@@ -845,6 +864,7 @@ async def capture_activity(
         user_message_id=user_message.id,
         assistant_message_id=assistant_message.id,
         intent=intent,
+        ui_nudges=ui_nudges or None,
     )
 
 @app.get("/")
@@ -1492,6 +1512,21 @@ def _is_question(message: str) -> bool:
         "did ",
     )
     return lowered.startswith(starts)
+
+
+GUIDANCE_INTENTS = {
+    "health_sleep_question",
+    "milestone_expectations",
+    "activity_request",
+    "general_parenting_advice",
+    "chit_chat",
+}
+
+
+def _should_route_to_guidance(*, is_question: bool, intent_name: str) -> bool:
+    if is_question:
+        return True
+    return (intent_name or "").strip() in GUIDANCE_INTENTS
 
 
 def _detect_memory_inference(
@@ -2980,7 +3015,10 @@ def build_assistant_message(
     context: Dict[str, Any],
 ) -> tuple[str, List[str]]:
     ui_nudges: list[str] = []
-    context_actions = context.get("recent_actions") or actions or recent_action_models(4)
+    if "recent_actions" in context:
+        context_actions = context.get("recent_actions") or []
+    else:
+        context_actions = actions or recent_action_models(4)
     try:
         summary = summarize_actions(actions, child_data, context)
         intent = (context.get("intent") or "").strip()

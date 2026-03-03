@@ -17,8 +17,7 @@ def test_logging_reply_strips_knowledge_prompts() -> None:
     child = {"first_name": "Lev", "timezone": "America/Los_Angeles"}
     knowledge = [
         KnowledgeItem(
-            id=1,
-            profile_id=1,
+            id="k1",
             key="care_framework",
             type=KnowledgeItemType.INFERRED,
             status=KnowledgeItemStatus.PENDING,
@@ -27,7 +26,7 @@ def test_logging_reply_strips_knowledge_prompts() -> None:
             updated_at=datetime.now(timezone.utc),
         )
     ]
-    message = build_assistant_message(
+    message, _ = build_assistant_message(
         actions,
         "woke at 3am",
         child_data=child,

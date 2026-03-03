@@ -128,3 +128,39 @@ This log is the staging source for Linear tickets when direct Linear integration
   - Abuse/spam risk on production signup until mitigations are active.
 - Owner: unassigned
 - Linear issue: `SID-5` https://linear.app/diagonal-loop/issue/SID-5/launch-safe-auth-posture-with-confirm-email-off-rate-limit-bot
+
+## TRIAGE-005: Core guidance routing depended too much on explicit question detection (Fixed)
+
+- Title: Guidance/advice statements without `?` could route through logging behavior
+- Severity: `P1`
+- Area: `chat`
+- Repro steps:
+  1. Send `my toddler hits sometimes` or similar advice-seeking statement without `?`.
+  2. Observe response quality and routing.
+- Expected:
+  - Guidance-style response with behavior coaching.
+  - No logging-style acknowledgement when user intent is advice.
+- Actual:
+  - Router and response path relied heavily on `_is_question`, so non-question phrasing could take logging path.
+  - Composition path did not consistently use the richer guidance composer.
+- Hypotheses (ranked):
+  1. Routing gate used `is_question` as primary branch condition.
+  2. Intent names were inconsistent (`log` vs `logging`) across code paths.
+  3. Guidance composer path had latent NameError risk (`knowledge_pending_prompts` import missing).
+- Root cause:
+  - Branching in `capture_activity` used explicit question detection instead of intent-aware guidance routing.
+  - Composition logic was partially bypassed and contained stale assumptions/imports.
+- Fix summary:
+  - Added `_should_route_to_guidance` to route by either explicit question or guidance-classified intent.
+  - Standardized logging intent usage to `logging`.
+  - Switched both logging and guidance response text generation to `build_assistant_message`.
+  - Added missing `knowledge_pending_prompts` import and made composer avoid implicit fallback reads when `recent_actions` is explicitly provided.
+  - Expanded router health/sleep intent keywords for aggression phrasing and stabilized chit-chat confidence to avoid fallback misclassification.
+- Tests added/run:
+  - Added `apps/api/tests/test_chat_routing_logic.py`.
+  - Updated `apps/api/tests/test_assistant_message.py` and `apps/api/tests/test_router.py`.
+  - Ran: `cd apps/api && ../../.venv/bin/pytest tests/test_chat_routing_logic.py tests/test_router.py tests/test_question_detection.py tests/test_assistant_message.py -q` (pass).
+- Risks/follow-ups:
+  - Several older integration tests still assume pre-auth endpoint access; they need dedicated harness migration.
+- Owner: CTO agent
+- Linear issue: pending (Linear not available in this session)
