@@ -255,4 +255,32 @@ This log is the staging source for Linear tickets when direct Linear integration
 - Risks/follow-ups:
   - Core UX is blocked for new families even though backend works; launch risk remains high until UI onboarding/active-child state is stabilized.
 - Owner: CTO agent
-- Linear issue: pending
+- Linear issue: `SID-60` https://linear.app/diagonal-loop/issue/SID-60/prod-onboarding-flow-stalls-before-active-child-selection-blocking
+
+## TRIAGE-009: Onboarding should collect required profile data before core app
+
+- Title: Require caregiver/child profile fields in onboarding and autofill shared values
+- Severity: `P2`
+- Area: `onboarding`
+- Repro steps:
+  1. New signup reaches `/app` with incomplete profile.
+  2. User is redirected to settings fallback to complete required data.
+  3. Optional field defaults (for example child last name) create incomplete profile states.
+- Expected:
+  - Onboarding itself should require key caregiver and child profile data before core app.
+  - Shared fields should be autofilled where appropriate and editable.
+- Actual:
+  - Required data collection can be deferred into settings fallback and is less explicit.
+- Hypotheses (ranked):
+  1. Onboarding and settings responsibilities are blurred.
+  2. Required-field policy is not enforced consistently at onboarding boundary.
+- Root cause:
+  - Product flow/design gap in onboarding sequencing and field requirements.
+- Fix summary:
+  - Logged requirement and acceptance criteria in Linear for implementation planning.
+- Tests added/run:
+  - N/A (requirements tracking issue).
+- Risks/follow-ups:
+  - Increased onboarding confusion and risk of incomplete family/child context at first chat.
+- Owner: CTO agent
+- Linear issue: `SID-61` https://linear.app/diagonal-loop/issue/SID-61/onboarding-collect-required-caregiverchild-profile-fields-before-core
