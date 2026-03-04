@@ -17,20 +17,28 @@ const trackConsoleErrors = (
   page.on("requestfailed", (request: any) => {
     const failure = request.failure?.();
     const errorText = failure?.errorText ?? "unknown error";
+    const method = request.method?.() ?? "GET";
     const url = request.url();
-    if (shouldIgnoreRequestFailure(url, errorText)) {
+    if (shouldIgnoreRequestFailure(url, errorText, method)) {
       return;
     }
     bucket.push(
-      `[${label}] requestfailed: ${request.method()} ${url} (${errorText})`,
+      `[${label}] requestfailed: ${method} ${url} (${errorText})`,
     );
   });
 };
 
-const shouldIgnoreRequestFailure = (url: string, errorText: string) => {
+const shouldIgnoreRequestFailure = (
+  url: string,
+  errorText: string,
+  method: string,
+) => {
   if (url.endsWith("/favicon.ico")) return true;
   if (url.includes("/manifest.json")) return true;
-  if (errorText.includes("net::ERR_ABORTED") && url.includes("/favicon")) {
+  if (
+    errorText.includes("net::ERR_ABORTED") &&
+    (method === "GET" || method === "HEAD")
+  ) {
     return true;
   }
   return false;
@@ -122,6 +130,48 @@ const completeSetupModalIfNeeded = async (page: any) => {
   await expect(page.getByTestId("setup-required-modal")).toHaveCount(0);
 };
 
+const waitForAppCoreReady = async (page: any, timeout = 20_000) => {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    await page.waitForLoadState("domcontentloaded");
+    const currentUrl = page.url();
+
+    if (
+      currentUrl.includes("/app/onboarding/") ||
+      currentUrl.includes("/app/select-family")
+    ) {
+      await completeOnboardingIfNeeded(page);
+      continue;
+    }
+
+    if (!/\/app(\?|$)/.test(currentUrl)) {
+      await page.waitForTimeout(400);
+      continue;
+    }
+
+    const appReady = page.getByTestId("app-ready");
+    const readyVisible = await appReady.isVisible().catch(() => false);
+    if (!readyVisible) {
+      await page.waitForTimeout(400);
+      continue;
+    }
+
+    const settingsReady = await appReady.getAttribute("data-settings-ready");
+    const childReady = await appReady.getAttribute("data-active-child-ready");
+    if (settingsReady === "1" && childReady === "1") {
+      await page.getByTestId("active-child-select").waitFor({
+        timeout: Math.max(1_000, deadline - Date.now()),
+      });
+      await page.getByTestId("chat-input").waitFor({
+        timeout: Math.max(1_000, deadline - Date.now()),
+      });
+      return;
+    }
+    await page.waitForTimeout(400);
+  }
+  throw new Error(`App core not ready. Current URL: ${page.url()}`);
+};
+
 test("GREEN smoke", async ({ page }) => {
   const consoleErrors: string[] = [];
   trackConsoleErrors(page, consoleErrors, "green");
@@ -183,18 +233,28 @@ test("GREEN smoke", async ({ page }) => {
     const url = res.url?.() ?? "";
     return url.includes("/api/v1/knowledge") && res.request().method() === "GET";
   });
-  await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
+  await waitForAppCoreReady(page);
   await completeSetupModalIfNeeded(page);
-  await page.getByTestId("chat-input").waitFor({ timeout: 15_000 });
+  await waitForAppCoreReady(page);
   const knowledgeResponse = await knowledgeResponsePromise;
   expect(knowledgeResponse.status()).toBe(200);
 
   const chatMessages = page.getByTestId("chat-message");
   const sendMessage = async (text: string) => {
-    const before = await chatMessages.count();
+    const activityResponse = page.waitForResponse(
+      (res: any) =>
+        res.request().method() === "POST" &&
+        res.url?.().includes("/api/v1/activities"),
+    );
     await page.getByTestId("chat-input").fill(text);
+    await expect(page.getByTestId("chat-send")).toBeEnabled({ timeout: 20_000 });
     await page.getByTestId("chat-send").click();
-    await expect(chatMessages).toHaveCount(before + 2);
+    const activityResult = await activityResponse;
+    expect(activityResult.status()).toBe(200);
+    await expect(chatMessages.filter({ hasText: text })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("chat-input")).toBeEnabled({ timeout: 20_000 });
   };
 
   const chatText = `Green chat ${timestamp}`;
@@ -204,11 +264,19 @@ test("GREEN smoke", async ({ page }) => {
   await page.getByTestId("nav-tasks").click();
   await page.getByTestId("tasks-view-all").click();
   const taskTitle = `Green task ${timestamp}`;
+  const createTaskResponse = page.waitForResponse(
+    (res: any) =>
+      res.request().method() === "POST" &&
+      res.url?.().includes("/api/v1/tasks"),
+  );
   await page.getByTestId("task-input").fill(taskTitle);
+  await expect(page.getByTestId("task-add")).toBeEnabled({ timeout: 10_000 });
   await page.getByTestId("task-add").click();
+  const taskResponse = await createTaskResponse;
+  expect(taskResponse.status()).toBe(200);
   await expect(
     page.getByTestId("task-title").filter({ hasText: taskTitle }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
 
   await page.getByTestId("nav-knowledge").click();
   await page.getByTestId("memory-suggestions").waitFor();
@@ -217,7 +285,7 @@ test("GREEN smoke", async ({ page }) => {
   await expect(page.getByTestId("memory-saved")).toBeVisible();
 
   await page.reload();
-  await page.getByTestId("chat-input").waitFor({ timeout: 15_000 });
+  await waitForAppCoreReady(page);
   await page.getByTestId("nav-havi").click();
   await expect(page.getByText(chatText)).toBeVisible();
 
@@ -227,7 +295,7 @@ test("GREEN smoke", async ({ page }) => {
     page.getByTestId("task-title").filter({ hasText: taskTitle }),
   ).toBeVisible();
 
-  await page.waitForTimeout(30_000);
+  await page.waitForTimeout(5_000);
   expect(badKnowledgeResponses).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });

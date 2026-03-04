@@ -67,10 +67,12 @@ export const useFamilyGuard = (options?: {
   useEffect(() => {
     let isMounted = true;
     const debugEnabled = process.env.NEXT_PUBLIC_DEBUG_GUARD === "1";
-    const maxAttempts = 2;
-    const retryDelayMs = 600;
+    const maxAttempts = 3;
+    const retryDelayMs = 450;
     const sessionRetryDelayMs = 250;
     const failOpenTimeoutMs = 8000;
+    let activeRunToken = 0;
+    const retryTimers = new Set<ReturnType<typeof setTimeout>>();
     const log = (...args: unknown[]) => {
       if (!debugEnabled) return;
       // eslint-disable-next-line no-console
@@ -85,15 +87,28 @@ export const useFamilyGuard = (options?: {
       }
     };
 
-    const failOpen = (message: string) => {
+    const failOpen = (message: string, runToken: number) => {
+      if (!isMounted || runToken !== activeRunToken) return;
       clearFailOpenTimer();
-      if (isMounted) {
-        setState({ status: "ready", error: message });
-      }
+      setState({ status: "ready", error: message });
     };
 
-    const runGuard = async (attempt: number) => {
-      if (!isMounted) return;
+    const scheduleRetry = (
+      nextAttempt: number,
+      runToken: number,
+      reason: string,
+    ) => {
+      const timer = setTimeout(() => {
+        retryTimers.delete(timer);
+        if (!isMounted || runToken !== activeRunToken) return;
+        log("retry", { nextAttempt, reason });
+        void runGuard(nextAttempt, runToken);
+      }, retryDelayMs);
+      retryTimers.add(timer);
+    };
+
+    const runGuard = async (attempt: number, runToken: number) => {
+      if (!isMounted || runToken !== activeRunToken) return;
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
       let session = sessionData?.session ?? null;
@@ -102,7 +117,7 @@ export const useFamilyGuard = (options?: {
         const retry = await supabase.auth.getSession();
         session = retry.data?.session ?? null;
       }
-      if (!isMounted) return;
+      if (!isMounted || runToken !== activeRunToken) return;
       log("session", {
         hasSession: Boolean(session),
         error: sessionError?.message ?? null,
@@ -110,16 +125,11 @@ export const useFamilyGuard = (options?: {
       if (!session || sessionError) {
         if (allowUnauthed) {
           clearFailOpenTimer();
-          if (isMounted) {
-            setState({ status: "ready", error: null });
-          }
+          setState({ status: "ready", error: null });
           return;
         }
-        if (!isMounted) return;
         router.replace("/auth/sign-in");
-        if (isMounted) {
-          setState({ status: "redirecting", error: null });
-        }
+        setState({ status: "redirecting", error: null });
         clearFailOpenTimer();
         return;
       }
@@ -145,20 +155,22 @@ export const useFamilyGuard = (options?: {
           attempt,
         });
         if (attempt + 1 < maxAttempts) {
-          setTimeout(() => {
-            if (isMounted) void runGuard(attempt + 1);
-          }, retryDelayMs);
+          scheduleRetry(attempt + 1, runToken, "memberships-error");
           return;
         }
-        failOpen("We couldn’t verify your family yet. Some data may be missing.");
+        failOpen("We couldn’t verify your family yet. Some data may be missing.", runToken);
         return;
       }
 
       const memberships = (membershipsData ?? []).map((row) =>
         String(row.family_id),
       );
+      if (memberships.length === 0 && attempt + 1 < maxAttempts) {
+        scheduleRetry(attempt + 1, runToken, "zero-memberships-race");
+        return;
+      }
       const activeFamilyId = await fetchActiveFamilyId(debugEnabled);
-      if (!isMounted) return;
+      if (!isMounted || runToken !== activeRunToken) return;
       log("decision-inputs", {
         memberships,
         activeFamilyId,
@@ -171,22 +183,18 @@ export const useFamilyGuard = (options?: {
       });
 
       if (initialDecision.type === "redirect") {
-        if (!isMounted) return;
+        if (!isMounted || runToken !== activeRunToken) return;
         router.replace(initialDecision.to);
-        if (isMounted) {
-          setState({ status: "redirecting", error: null });
-        }
+        setState({ status: "redirecting", error: null });
         clearFailOpenTimer();
         return;
       }
 
       if (initialDecision.type === "clearCookie") {
         await clearActiveFamilyId();
-        if (!isMounted) return;
+        if (!isMounted || runToken !== activeRunToken) return;
         router.replace(initialDecision.to);
-        if (isMounted) {
-          setState({ status: "redirecting", error: null });
-        }
+        setState({ status: "redirecting", error: null });
         clearFailOpenTimer();
         return;
       }
@@ -194,14 +202,13 @@ export const useFamilyGuard = (options?: {
       let resolvedFamilyId: string | null = activeFamilyId;
       if (initialDecision.type === "autoSelect") {
         const ok = await setActiveFamilyId(initialDecision.familyId);
+        if (!isMounted || runToken !== activeRunToken) return;
         if (!ok) {
           if (attempt + 1 < maxAttempts) {
-            setTimeout(() => {
-              if (isMounted) void runGuard(attempt + 1);
-            }, retryDelayMs);
+            scheduleRetry(attempt + 1, runToken, "auto-select-cookie");
             return;
           }
-          failOpen("We couldn’t select your family. Some data may be missing.");
+          failOpen("We couldn’t select your family. Some data may be missing.", runToken);
           return;
         }
         resolvedFamilyId = initialDecision.familyId;
@@ -210,11 +217,9 @@ export const useFamilyGuard = (options?: {
       }
 
       if (!resolvedFamilyId) {
-        if (!isMounted) return;
+        if (!isMounted || runToken !== activeRunToken) return;
         router.replace("/app/select-family");
-        if (isMounted) {
-          setState({ status: "redirecting", error: null });
-        }
+        setState({ status: "redirecting", error: null });
         clearFailOpenTimer();
         return;
       }
@@ -223,6 +228,7 @@ export const useFamilyGuard = (options?: {
         .from("children")
         .select("id", { count: "exact", head: true })
         .eq("family_id", resolvedFamilyId);
+      if (!isMounted || runToken !== activeRunToken) return;
       log("children-count", {
         status: childStatus,
         error: childError?.message ?? null,
@@ -233,12 +239,10 @@ export const useFamilyGuard = (options?: {
 
       if (childError) {
         if (attempt + 1 < maxAttempts) {
-          setTimeout(() => {
-            if (isMounted) void runGuard(attempt + 1);
-          }, retryDelayMs);
+          scheduleRetry(attempt + 1, runToken, "children-count-error");
           return;
         }
-        failOpen("We couldn’t load your child profile. Some data may be missing.");
+        failOpen("We couldn’t load your child profile. Some data may be missing.", runToken);
         return;
       }
 
@@ -250,29 +254,43 @@ export const useFamilyGuard = (options?: {
       });
 
       if (finalDecision.type === "redirect") {
-        if (!isMounted) return;
-        router.replace(finalDecision.to);
-        if (isMounted) {
-          setState({ status: "redirecting", error: null });
+        if (
+          finalDecision.to === "/app/onboarding/child" &&
+          (count ?? 0) === 0 &&
+          attempt + 1 < maxAttempts
+        ) {
+          scheduleRetry(attempt + 1, runToken, "zero-child-race");
+          return;
         }
+        if (!isMounted || runToken !== activeRunToken) return;
+        router.replace(finalDecision.to);
+        setState({ status: "redirecting", error: null });
         clearFailOpenTimer();
         return;
       }
 
-      if (isMounted) {
-        clearFailOpenTimer();
-        setState({ status: "ready", error: null });
-      }
+      if (!isMounted || runToken !== activeRunToken) return;
+      clearFailOpenTimer();
+      setState({ status: "ready", error: null });
     };
 
+    activeRunToken += 1;
+    const initialRunToken = activeRunToken;
     timeoutId = setTimeout(() => {
-      failOpen("We couldn’t verify your family yet. Some data may be missing.");
+      failOpen(
+        "We couldn’t verify your family yet. Some data may be missing.",
+        initialRunToken,
+      );
     }, failOpenTimeoutMs);
-
-    void runGuard(0);
+    void runGuard(0, initialRunToken);
 
     return () => {
       isMounted = false;
+      activeRunToken += 1;
+      for (const retryTimer of retryTimers) {
+        clearTimeout(retryTimer);
+      }
+      retryTimers.clear();
       clearFailOpenTimer();
     };
   }, [allowUnauthed, router]);

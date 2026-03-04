@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
-    "test:green": "playwright test tests/smoke/green.spec.ts",
+    "test:green": "playwright test tests/smoke/green.smoke.spec.ts",
+    "test:green:full": "playwright test tests/smoke/green.spec.ts",
     "green:doctor": "node ../../scripts/green-doctor.mjs"
   },
   "dependencies": {

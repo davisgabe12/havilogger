@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3001";
 const shouldStartServers = process.env.PLAYWRIGHT_WEBSERVER === "1";
+const traceMode = process.env.PLAYWRIGHT_TRACE === "1" ? "on" : "off";
 
 export default defineConfig({
   testDir: "./tests",
@@ -22,7 +23,7 @@ export default defineConfig({
     headless: true,
     viewport: { width: 1280, height: 720 },
     screenshot: "off",
-    trace: "on",
+    trace: traceMode,
   },
   webServer: shouldStartServers
     ? [

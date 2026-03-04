@@ -35,6 +35,8 @@ import {
   normalizeChildId,
   selectActiveChild,
 } from "@/lib/settings/active-child";
+import { extractChildrenFromSettings } from "@/lib/settings/settings-payload";
+import { upsertById } from "@/lib/tasks/task-state";
 import { cn } from "@/lib/utils";
 import { useFamilyGuard } from "@/lib/guards/use-family-guard";
 import type { KnowledgeReviewItem } from "@/types/knowledge";
@@ -661,6 +663,7 @@ export default function Home() {
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [taskCreateError, setTaskCreateError] = useState<string | null>(null);
   const [taskCreating, setTaskCreating] = useState(false);
+  const tasksLoadRequestRef = useRef(0);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [tasksView, setTasksView] = useState<
     "all" | "open" | "scheduled" | "unscheduled" | "completed"
@@ -731,11 +734,13 @@ export default function Home() {
   const [childLatestWeightDate, setChildLatestWeightDate] = useState("");
   const [childTimezone, setChildTimezone] = useState(DEFAULT_TIMEZONE);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsHydrated, setSettingsHydrated] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const settingsSuccessTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settingsLoadRequestRef = useRef(0);
   const [chipTemplates, setChipTemplates] = useState<ChipTemplate[]>(
     chipLibrary.slice(0, 6),
   );
@@ -1076,9 +1081,24 @@ export default function Home() {
     () => computeMissingExpectationFields(),
     [computeMissingExpectationFields],
   );
-  const needsCaregiverSetup = !caregiverFirstName && !caregiverLastName && !caregiverEmail;
-  const showSignupPrompt =
+  const resolvedCoreChildId =
+    [activeChildId, primaryChildId].find(isValidChildId) ?? null;
+  const hasResolvedCoreChild = Boolean(resolvedCoreChildId);
+  const needsCaregiverSetup =
+    !caregiverFirstName && !caregiverLastName && !caregiverEmail;
+  const profileIncomplete =
     missingProfileFields.length > 0 || needsCaregiverSetup;
+  const showSignupPrompt =
+    settingsHydrated &&
+    !settingsLoading &&
+    !hasResolvedCoreChild;
+  const showSetupNudgeBanner =
+    settingsHydrated &&
+    !settingsLoading &&
+    hasResolvedCoreChild &&
+    profileIncomplete &&
+    activePanel !== "settings";
+  const appCoreReady = settingsHydrated && hasResolvedCoreChild;
   const hardErrorLower = hardErrorMessage?.toLowerCase() ?? "";
   const showNewChatButton = hardErrorLower.includes("start a new chat");
   const showSignupButton =
@@ -1708,6 +1728,8 @@ export default function Home() {
   }, [activePanel, guardReady, loadInferences, loadSavedMemories]);
 
   const loadTasks = useCallback(async () => {
+    const requestId = tasksLoadRequestRef.current + 1;
+    tasksLoadRequestRef.current = requestId;
     setTasksLoading(true);
     setTasksError(null);
     try {
@@ -1731,12 +1753,14 @@ export default function Home() {
           byId.set(task.id, task);
         }
       }
-      setTasks(Array.from(byId.values()));
+      if (requestId !== tasksLoadRequestRef.current) return;
+      setTasks((prev) => upsertById(Array.from(byId.values()), prev));
     } catch (err) {
       const reason = err instanceof Error ? err.message : "Unknown error";
+      if (requestId !== tasksLoadRequestRef.current) return;
       setTasksError(reason);
-      setTasks([]);
     } finally {
+      if (requestId !== tasksLoadRequestRef.current) return;
       setTasksLoading(false);
     }
   }, [activeChildId]);
@@ -1786,9 +1810,12 @@ export default function Home() {
         });
         if (!res.ok) throw new Error("Unable to create task");
         const created: TaskItem = await res.json();
-        setTasks((prev) => [created, ...prev]);
+        // Invalidate any in-flight list read started before this creation.
+        tasksLoadRequestRef.current += 1;
+        setTasks((prev) => upsertById([created], prev));
         setNewTaskTitle("");
         setTaskCreateError(null);
+        void loadTasks();
       } catch (err) {
         const reason = err instanceof Error ? err.message : "Unable to create task";
         setTaskCreateError(reason);
@@ -1796,7 +1823,7 @@ export default function Home() {
         setTaskCreating(false);
       }
     },
-    [activeChildId, primaryChildId, newTaskTitle],
+    [activeChildId, loadTasks, primaryChildId, newTaskTitle],
   );
 
   useEffect(() => {
@@ -1883,20 +1910,35 @@ export default function Home() {
   );
 
   const loadSettings = useCallback(async () => {
+    const requestId = settingsLoadRequestRef.current + 1;
+    settingsLoadRequestRef.current = requestId;
     setSettingsLoading(true);
     setSettingsError(null);
     try {
-      const res = await apiFetch(`${API_BASE_URL}/api/v1/settings`);
-      if (!res.ok) {
-        throw new Error("Unable to load settings");
+      const maxAttempts = 3;
+      const retryDelayMs = 350;
+      let data: SettingsResponsePayload | null = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const res = await apiFetch(`${API_BASE_URL}/api/v1/settings`);
+        if (!res.ok) {
+          throw new Error("Unable to load settings");
+        }
+        data = (await res.json()) as SettingsResponsePayload;
+        const children = extractChildrenFromSettings(data);
+        const shouldRetryForChildRace =
+          children.length === 0 &&
+          attempt + 1 < maxAttempts;
+        if (!shouldRetryForChildRace) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
       }
-      const data = (await res.json()) as SettingsResponsePayload;
-      const caregiver = data.caregiver ?? {};
-      const children = Array.isArray(data.children)
-        ? (data.children as ChildProfile[])
-        : data.child
-          ? ([data.child] as ChildProfile[])
-          : [];
+
+      if (requestId !== settingsLoadRequestRef.current) return;
+      const payload: SettingsResponsePayload = data ?? {};
+      const caregiver = payload.caregiver ?? {};
+      const children = extractChildrenFromSettings(payload);
       setChildrenList(children);
       setPrimaryChildId(normalizeChildId(children[0]?.id) ?? "");
       const storedChildId =
@@ -1906,7 +1948,7 @@ export default function Home() {
       const selectedChild = selectActiveChild(
         children,
         storedChildId,
-        normalizeChildId(data.child?.id),
+        normalizeChildId(payload.child?.id),
       );
       const selectedChildId = normalizeChildId(selectedChild?.id);
       if (typeof window !== "undefined") {
@@ -1931,11 +1973,14 @@ export default function Home() {
       });
     } catch (err) {
       const reason = err instanceof Error ? err.message : "Unknown error";
+      if (requestId !== settingsLoadRequestRef.current) return;
       setSettingsError(reason);
     } finally {
+      if (requestId !== settingsLoadRequestRef.current) return;
       setSettingsLoading(false);
+      setSettingsHydrated(true);
     }
-  }, []);
+  }, [applyChildProfile]);
 
   useEffect(() => {
     if (!guardReady) return;
@@ -2975,15 +3020,13 @@ export default function Home() {
         | null;
       if (saved) {
         const caregiver = saved.caregiver ?? {};
-        const children = Array.isArray(saved.children)
-          ? (saved.children as ChildProfile[])
-          : saved.child
-            ? ([saved.child] as ChildProfile[])
-            : [];
-        setChildrenList(children);
-        setPrimaryChildId(normalizeChildId(children[0]?.id) ?? "");
+        const children = extractChildrenFromSettings(saved);
+        const effectiveChildren =
+          children.length > 0 ? children : childrenList;
+        setChildrenList(effectiveChildren);
+        setPrimaryChildId(normalizeChildId(effectiveChildren[0]?.id) ?? "");
         const selectedChild = selectActiveChild(
-          children,
+          effectiveChildren,
           normalizeChildId(activeChildId),
           normalizeChildId(saved.child?.id),
         );
@@ -3030,6 +3073,7 @@ export default function Home() {
     }
   }, [
     activeChildId,
+    childrenList,
     caregiverFirstName,
     caregiverLastName,
     caregiverPhone,
@@ -3142,13 +3186,20 @@ export default function Home() {
     };
   }, []);
 
-  if (guard.status !== "ready" || !hydrated) {
+  if (guard.status !== "ready" || !hydrated || !settingsHydrated) {
     return <GuardLoading />;
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div data-testid="app-ready" data-app-frame className="flex min-h-screen w-full">
+      <div
+        data-testid="app-ready"
+        data-app-frame
+        data-settings-ready={settingsHydrated ? "1" : "0"}
+        data-active-child-ready={hasResolvedCoreChild ? "1" : "0"}
+        data-core-ready={appCoreReady ? "1" : "0"}
+        className="flex min-h-screen w-full"
+      >
         <aside className="hidden md:flex md:w-60 flex-col gap-4 border-r border-border/60 bg-sidebar p-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             HAVI
@@ -3196,6 +3247,21 @@ export default function Home() {
               data-testid="guard-warning"
             >
               {guard.error}
+            </div>
+          ) : null}
+          {showSetupNudgeBanner ? (
+            <div
+              className="mb-4 rounded-md border border-border/60 bg-muted/50 px-3 py-2 text-sm"
+              data-testid="setup-nudge-banner"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-muted-foreground">
+                  Add a few profile details for more personalized guidance.
+                </p>
+                <Button size="sm" variant="outline" onClick={openSignupPanel}>
+                  Finish setup
+                </Button>
+              </div>
             </div>
           ) : null}
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -5104,7 +5170,7 @@ export default function Home() {
                 Finish setup to personalize HAVI
               </p>
               <p className="text-sm text-muted-foreground">
-                Add child details so HAVI can personalize guidance and reminders.
+                Select a child in setup before chatting so HAVI can route updates correctly.
               </p>
             </div>
             {missingProfileFields.length ? (
