@@ -649,9 +649,14 @@ async def capture_activity(
         is_question=is_question,
         intent_name=intent_result.intent,
     )
+    mixed_logging_segments = (
+        _extract_logging_segments_for_mixed(payload.message)
+        if route_to_guidance
+        else []
+    )
     mixed_route = (
         route_to_guidance
-        and has_logging_signals(payload.message)
+        and bool(mixed_logging_segments)
         and intent_result.intent not in {"task_request", "saving"}
     )
     user_intent = (
@@ -766,7 +771,11 @@ async def capture_activity(
     intent = "logging"
 
     if not route_to_guidance or mixed_route:
-        segments = _split_message_into_events(payload.message)
+        segments = (
+            mixed_logging_segments
+            if mixed_route
+            else _split_message_into_events(payload.message)
+        )
         actions = [
             _action_from_segment(segment, timezone_value)
             for segment in segments
@@ -1410,6 +1419,39 @@ def _split_message_into_events(message: str) -> List[str]:
     parts = re.split(r"(?<=[.!?])\s+|\s+(?:and|then)\s+|;|\n", message)
     cleaned = [part.strip() for part in parts if part and part.strip()]
     return cleaned or [message.strip()]
+
+
+_MIXED_CLAUSE_SPLIT_RE = re.compile(
+    r",\s+(?=(?:what|how|why|when|where|who|should|can|could|would|is|are|do|does|did)\b)",
+    re.IGNORECASE,
+)
+
+
+def _split_mixed_message_candidates(message: str) -> List[str]:
+    if not message:
+        return []
+    coarse_parts = _MIXED_CLAUSE_SPLIT_RE.split(message)
+    segments: List[str] = []
+    for part in coarse_parts:
+        segments.extend(_split_message_into_events(part))
+    return [segment.strip() for segment in segments if segment and segment.strip()]
+
+
+def _extract_logging_segments_for_mixed(message: str) -> List[str]:
+    if not message:
+        return []
+    segments = []
+    for segment in _split_mixed_message_candidates(message):
+        if _is_question(segment):
+            continue
+        if has_logging_signals(segment):
+            segments.append(segment)
+    if segments:
+        return segments
+    stripped = message.strip()
+    if stripped and has_logging_signals(stripped) and not _is_question(stripped):
+        return [stripped]
+    return []
 
 
 _AMOUNT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(oz|ounce|ounces|ml|milliliters?)\b", re.IGNORECASE)

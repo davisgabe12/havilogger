@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from app.main import (
     _action_from_segment,
+    _extract_logging_segments_for_mixed,
     _split_message_into_events,
     build_assistant_message,
     describe_action,
 )
+from app.schemas import CoreActionType
 
 
 def test_split_message_into_events_splits_sentence_boundaries() -> None:
@@ -41,3 +43,20 @@ def test_mixed_intent_reply_keeps_logged_confirmation_and_guidance() -> None:
     assert assistant_message.startswith("Logged:")
     assert "wake windows" in lower
     assert "baby pooped at 3pm" not in lower
+
+
+def test_extract_logging_segments_for_mixed_splits_question_clause() -> None:
+    message = "baby pooped at 3pm, what should i do if he is waking at night?"
+    assert _extract_logging_segments_for_mixed(message) == ["baby pooped at 3pm"]
+
+
+def test_mixed_logging_segment_parses_diaper_not_question_sleep() -> None:
+    message = "baby pooped at 3pm, what should i do if he is waking at night?"
+    segments = _extract_logging_segments_for_mixed(message)
+    action = _action_from_segment(segments[0], timezone_value="America/Los_Angeles")
+    assert action.action_type == CoreActionType.DIAPER_POOP
+
+
+def test_extract_logging_segments_for_mixed_ignores_pure_question() -> None:
+    message = "what should i do if he pooped at 3pm and is still fussy?"
+    assert _extract_logging_segments_for_mixed(message) == []
