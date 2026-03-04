@@ -124,7 +124,7 @@ RAILWAY_CLI="$(find /Users/gabedavis/.npm/_npx -path '*/node_modules/.bin/railwa
 
 ## First 20 Minutes In A New Session
 
-1. Read this file and `docs/active/current-state/triage-log-2026-03-02.md`.
+1. Read this file and `docs/active/current-state/triage-migration-2026-03-04.md`.
 2. Read `docs/canonical/ops/havi-autonomous-run-checklist.md` when running autonomously.
 3. Check git status + latest commit context.
 4. Run local or production smoke depending on task scope.

@@ -288,3 +288,31 @@ This log is the staging source for Linear tickets when direct Linear integration
   - Increased onboarding confusion and risk of incomplete family/child context at first chat.
 - Owner: CTO agent
 - Linear issue: `SID-61` https://linear.app/diagonal-loop/issue/SID-61/onboarding-collect-required-caregiverchild-profile-fields-before-core
+
+## TRIAGE-010: Tasks UI can miss newly created tasks after successful POST
+
+- Title: Task create returns `200` but task list can stay empty in current panel session
+- Severity: `P2`
+- Area: `tasks`
+- Repro steps:
+  1. Navigate to Tasks panel and submit a new task quickly after panel load.
+  2. Observe API `POST /api/v1/tasks` returns `200`.
+  3. Observe task row is not consistently visible in current rendered list.
+- Expected:
+  - Newly created task appears immediately in tasks list.
+- Actual:
+  - Task create succeeds but list can remain stale/empty in-session.
+- Hypotheses (ranked):
+  1. In-flight `loadTasks()` response races with optimistic append and overwrites state.
+  2. Child-scoped filtering + panel reload timing causes stale list render.
+- Root cause:
+  - Not fully confirmed yet; evidence points to asynchronous state overwrite/race in tasks panel lifecycle.
+- Fix summary:
+  - Not fixed in this slice; tracked as follow-up after SID-60/SID-63 stabilization.
+- Tests added/run:
+  - `cd apps/web && PLAYWRIGHT_WEBSERVER=1 npx playwright test tests/smoke/green.spec.ts` (fails at task visibility despite task POST `200`).
+- Risks/follow-ups:
+  - Parent/caregiver trust risk: action appears to save but UI does not reflect it.
+  - Should be triaged into Linear and addressed before treating long GREEN suite as release gate.
+- Owner: CTO agent
+- Linear issue: pending
