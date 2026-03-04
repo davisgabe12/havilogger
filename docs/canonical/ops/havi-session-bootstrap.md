@@ -95,6 +95,15 @@ HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh
 HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh
 ```
 
+5. Railway deploy fallback for sandboxed sessions:
+If `npx @railway/cli ...` fails with DNS (`ENOTFOUND`) in sandboxed Codex runs, use a cached CLI binary and run with elevated network permissions.
+
+```bash
+RAILWAY_CLI="$(find /Users/gabedavis/.npm/_npx -path '*/node_modules/.bin/railway' -type f 2>/dev/null | head -n1)"
+"$RAILWAY_CLI" up . --service api --detach --path-as-root
+"$RAILWAY_CLI" deployment list --service api --json | head -c 2000
+```
+
 ## Production Smoke Minimum
 
 1. `https://gethavi.com` returns 200.

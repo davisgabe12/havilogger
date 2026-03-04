@@ -33,7 +33,8 @@ if production behavior changes, run production smoke before closeout.
 `HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh`
 `HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh`
 and keep both reports under `docs/active/green-proof/`.
-5. Keep docs in sync when behavior changes.
+5. If Railway deploy via `npx @railway/cli` fails in sandbox with DNS errors, switch to cached Railway CLI binary and rerun with elevated permissions before retrying smoke gates.
+6. Keep docs in sync when behavior changes.
 
 ## Issue Discovery While Doing Other Work
 
