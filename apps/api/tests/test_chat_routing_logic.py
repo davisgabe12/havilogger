@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.main import (
     _action_from_segment,
     _is_question,
+    _route_decision_for_message,
     _should_route_to_guidance,
     build_assistant_message,
     classify_question_category,
@@ -85,3 +86,35 @@ def test_plain_event_routes_to_logging_message_shape() -> None:
         },
     )
     assert assistant_message.startswith("Logged:")
+
+
+def test_route_decision_marks_mixed_when_log_clause_and_question_clause_coexist() -> None:
+    message = "baby pooped at 3pm, what should i do if he is waking at night?"
+    intent_result = classify_intent(message)
+
+    decision = _route_decision_for_message(message, intent_result.intent)
+
+    assert decision.route_kind == "mixed"
+    assert decision.user_intent == "mixed"
+    assert decision.mixed_logging_segments == ["baby pooped at 3pm"]
+
+
+def test_route_decision_keeps_question_when_logging_signal_is_inside_question() -> None:
+    message = "what should i do if he pooped at 3pm and is still fussy?"
+    intent_result = classify_intent(message)
+
+    decision = _route_decision_for_message(message, intent_result.intent)
+
+    assert decision.route_kind == "ask"
+    assert decision.user_intent == "question"
+    assert decision.mixed_logging_segments == []
+
+
+def test_route_decision_marks_task_before_mixed() -> None:
+    message = "remind me to call the pediatrician after nap"
+    intent_result = classify_intent(message)
+
+    decision = _route_decision_for_message(message, intent_result.intent)
+
+    assert decision.route_kind == "task"
+    assert decision.user_intent == "task"

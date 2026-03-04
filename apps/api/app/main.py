@@ -404,6 +404,15 @@ class ContextBundle:
     has_prior_messages: bool
 
 
+@dataclass
+class RouteDecision:
+    route_kind: str
+    user_intent: str
+    route_to_guidance: bool
+    mixed_logging_segments: List[str]
+    is_question: bool
+
+
 async def _build_context_bundle(
     auth: AuthContext,
     *,
@@ -643,26 +652,24 @@ async def capture_activity(
     timezone_value = child_row.get("timezone") or payload.timezone
     symptom_tags = message_symptom_tags(payload.message)
     question_category = classify_question_category(payload.message, symptom_tags)
-    is_question = _is_question(payload.message)
     intent_result = classify_intent(payload.message)
-    route_to_guidance = _should_route_to_guidance(
-        is_question=is_question,
-        intent_name=intent_result.intent,
-    )
-    mixed_logging_segments = (
-        _extract_logging_segments_for_mixed(payload.message)
-        if route_to_guidance
-        else []
-    )
-    mixed_route = (
-        route_to_guidance
-        and bool(mixed_logging_segments)
-        and intent_result.intent not in {"task_request", "saving"}
-    )
-    user_intent = (
-        "task"
-        if intent_result.intent == "task_request"
-        else ("mixed" if mixed_route else ("question" if route_to_guidance else "logging"))
+    route_decision = _route_decision_for_message(payload.message, intent_result.intent)
+    route_to_guidance = route_decision.route_to_guidance
+    mixed_logging_segments = route_decision.mixed_logging_segments
+    mixed_route = route_decision.route_kind == "mixed"
+    user_intent = route_decision.user_intent
+    logger.info(
+        "chat route decision",
+        extra={
+            "method": "POST",
+            "path": "/api/v1/activities",
+            "child_id": child_id,
+            "session_id": conversation_id,
+            "classifier_intent": intent_result.intent,
+            "route_kind": route_decision.route_kind,
+            "is_question": route_decision.is_question,
+            "mixed_logging_segments": len(mixed_logging_segments),
+        },
     )
 
     user_message = await _insert_conversation_message(
@@ -1589,6 +1596,44 @@ def _should_route_to_guidance(*, is_question: bool, intent_name: str) -> bool:
     if is_question:
         return True
     return (intent_name or "").strip() in GUIDANCE_INTENTS
+
+
+def _route_decision_for_message(message: str, intent_name: str) -> RouteDecision:
+    normalized_intent = (intent_name or "").strip()
+    is_question = _is_question(message)
+    route_to_guidance = _should_route_to_guidance(
+        is_question=is_question,
+        intent_name=normalized_intent,
+    )
+    mixed_logging_segments = (
+        _extract_logging_segments_for_mixed(message)
+        if route_to_guidance
+        else []
+    )
+    mixed_route = (
+        route_to_guidance
+        and bool(mixed_logging_segments)
+        and normalized_intent not in {"task_request", "saving"}
+    )
+    if normalized_intent == "task_request":
+        route_kind = "task"
+        user_intent = "task"
+    elif mixed_route:
+        route_kind = "mixed"
+        user_intent = "mixed"
+    elif route_to_guidance:
+        route_kind = "ask"
+        user_intent = "question"
+    else:
+        route_kind = "log"
+        user_intent = "logging"
+    return RouteDecision(
+        route_kind=route_kind,
+        user_intent=user_intent,
+        route_to_guidance=route_to_guidance,
+        mixed_logging_segments=mixed_logging_segments,
+        is_question=is_question,
+    )
 
 
 def _detect_memory_inference(
