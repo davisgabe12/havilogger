@@ -7,6 +7,7 @@ from app.main import (
     build_assistant_message,
     describe_action,
 )
+from app.router import classify_intent
 from app.schemas import CoreActionType
 
 
@@ -60,3 +61,37 @@ def test_mixed_logging_segment_parses_diaper_not_question_sleep() -> None:
 def test_extract_logging_segments_for_mixed_ignores_pure_question() -> None:
     message = "what should i do if he pooped at 3pm and is still fussy?"
     assert _extract_logging_segments_for_mixed(message) == []
+
+
+def test_ack_phrase_no_all_good_is_not_echoed_verbatim() -> None:
+    message = "no, all good."
+    intent = classify_intent(message).intent
+    assistant_message, _ = build_assistant_message(
+        [],
+        message,
+        child_data={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        context={
+            "intent": intent,
+            "question_category": "generic",
+            "symptom_tags": [],
+            "recent_actions": [],
+        },
+    )
+    assert assistant_message.strip().lower() != message
+
+
+def test_ack_phrase_okay_thanks_is_not_echoed_verbatim() -> None:
+    message = "okay thanks"
+    intent = classify_intent(message).intent
+    assistant_message, _ = build_assistant_message(
+        [],
+        message,
+        child_data={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        context={
+            "intent": intent,
+            "question_category": "generic",
+            "symptom_tags": [],
+            "recent_actions": [],
+        },
+    )
+    assert assistant_message.strip().lower() != message
