@@ -1,4 +1,4 @@
-from app.router import classify_intent
+from app.router import classify_intent, has_logging_signals
 
 
 def test_router_examples() -> None:
@@ -24,3 +24,9 @@ def test_router_fallback() -> None:
     result = classify_intent("Tell me more")
     assert result.intent == "general_parenting_advice"
     assert result.confidence > 0
+
+
+def test_has_logging_signals_detects_tracking_language() -> None:
+    assert has_logging_signals("baby pooped at 3pm")
+    assert has_logging_signals("6oz bottle at 2:30pm")
+    assert not has_logging_signals("what should i do if he wakes at night")

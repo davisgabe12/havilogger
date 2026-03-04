@@ -51,7 +51,7 @@ from .routes import reminders as reminder_routes
 from .routes import tasks as task_routes
 from . import share as share_routes
 from .knowledge_utils import knowledge_pending_prompts
-from .router import classify_intent
+from .router import classify_intent, has_logging_signals
 from .schemas import (
     Action,
     ActionMetadata,
@@ -649,10 +649,15 @@ async def capture_activity(
         is_question=is_question,
         intent_name=intent_result.intent,
     )
+    mixed_route = (
+        route_to_guidance
+        and has_logging_signals(payload.message)
+        and intent_result.intent not in {"task_request", "saving"}
+    )
     user_intent = (
         "task"
         if intent_result.intent == "task_request"
-        else ("question" if route_to_guidance else "logging")
+        else ("mixed" if mixed_route else ("question" if route_to_guidance else "logging"))
     )
 
     user_message = await _insert_conversation_message(
@@ -760,7 +765,7 @@ async def capture_activity(
     ui_nudges: List[str] = []
     intent = "logging"
 
-    if not route_to_guidance:
+    if not route_to_guidance or mixed_route:
         segments = _split_message_into_events(payload.message)
         actions = [
             _action_from_segment(segment, timezone_value)
@@ -817,6 +822,7 @@ async def capture_activity(
                 confidence=confidence,
                 source="chat",
             )
+    if not route_to_guidance:
         assistant_text, _ = build_assistant_message(
             actions,
             payload.message,
@@ -828,6 +834,19 @@ async def capture_activity(
                 "recent_actions": actions,
             },
         )
+    elif mixed_route:
+        assistant_text, ui_nudges = build_assistant_message(
+            actions,
+            payload.message,
+            child_data=child_row,
+            context={
+                "intent": "mixed",
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": actions,
+            },
+        )
+        intent = "mixed"
     else:
         assistant_text, ui_nudges = build_assistant_message(
             [],
@@ -1387,7 +1406,8 @@ def _dedupe_key_for_inference(
 def _split_message_into_events(message: str) -> List[str]:
     if not message:
         return []
-    parts = re.split(r"\s+(?:and|then)\s+|;|\n", message)
+    # Split on conjunctions and sentence boundaries to capture multi-event logs.
+    parts = re.split(r"(?<=[.!?])\s+|\s+(?:and|then)\s+|;|\n", message)
     cleaned = [part.strip() for part in parts if part and part.strip()]
     return cleaned or [message.strip()]
 
@@ -3022,16 +3042,18 @@ def build_assistant_message(
     try:
         summary = summarize_actions(actions, child_data, context)
         intent = (context.get("intent") or "").strip()
+        descriptions = [
+            describe_action(action, child_data.get("timezone"))
+            for action in actions
+        ] if actions else []
+        logging_confirmation = (
+            f"Logged: {', '.join(descriptions)}."
+            if descriptions
+            else "Logged your update."
+        )
         # Logging path: keep responses tight and never surface fallbacks here.
         if intent == "logging":
-            descriptions = [
-                describe_action(action, child_data.get("timezone"))
-                for action in actions
-            ] if actions else []
-            if descriptions:
-                base = f"Logged: {', '.join(descriptions)}."
-            else:
-                base = "Logged your update."
+            base = logging_confirmation
             follow_up = ""
             if context.get("feed_follow_up"):
                 follow_up = f" {context['feed_follow_up']}"
@@ -3046,6 +3068,8 @@ def build_assistant_message(
             return reply, []
 
         # Non-logging: advice / guidance / general replies.
+        if intent == "mixed" and descriptions:
+            summary = logging_confirmation
         stage_line = stage_guidance(
             original_message,
             child_data,
@@ -3131,8 +3155,6 @@ def summarize_actions(actions: List[Action], child_data: dict, context: Dict[str
 def describe_action(action: Action, timezone_pref: Optional[str] = None) -> str:
     timestamp = format_time(action.timestamp, timezone_pref)
     meta = action.metadata
-    if action.note:
-        return action.note
     if action.action_type == CoreActionType.ACTIVITY and meta.amount_value:
         return f"Fed {meta.amount_value:g} {meta.amount_unit or ''} around {timestamp}".strip()
     if action.action_type in {
