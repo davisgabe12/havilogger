@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 3, 2026
+Last updated: March 4, 2026
 
 # Production Core Smoke (Before/After Gate)
 
@@ -12,10 +12,13 @@ Use this fast smoke gate before and after major changes to confirm Havi core beh
 3. Core actions in both flows:
    - tracking message,
    - guidance message,
-   - task creation.
+   - task creation,
+   - conversation auto-title + rename persistence.
 4. Invariant:
    - tracking adds timeline event,
-   - guidance does not add timeline event.
+   - guidance does not add timeline event,
+   - first message auto-titles conversation (`!= New chat`),
+   - manual renamed title remains unchanged after follow-up.
 
 ## Commands
 
@@ -49,6 +52,7 @@ For each release slice, keep both reports (`before` and `after`) and confirm:
 1. HTTP checks stayed green.
 2. Both flows passed.
 3. Guidance-vs-tracking invariant stayed intact.
+4. Title invariants stayed intact (`auto_title`, `renamed_title`, `title_after_follow_up` in report).
 
 ## Environment Overrides
 

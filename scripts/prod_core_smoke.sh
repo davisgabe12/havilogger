@@ -281,6 +281,32 @@ run_core_flow() {
   fi
   echo "[pass] Tracking persisted event count before=${before_count} after=${after_tracking_count}"
 
+  api_call "GET" "/api/v1/conversations/${conversation_id}" "$token" "$family_id"
+  assert_status_200 "Fetch conversation after first message"
+  local autotitled_title
+  autotitled_title="$(jq -r '.title // empty' <<<"$API_BODY")"
+  if [[ -z "$autotitled_title" || "$autotitled_title" == "New chat" ]]; then
+    echo "[fail] Conversation did not auto-title after first message (title=${autotitled_title})"
+    echo "$API_BODY" | jq -C . || true
+    exit 1
+  fi
+  echo "[pass] Conversation auto-titled: ${autotitled_title}"
+
+  local custom_title
+  custom_title="Smoke title ${label} ${SMOKE_SUFFIX}"
+  local rename_payload
+  rename_payload="$(jq -n --arg title "$custom_title" '{title:$title}')"
+  api_call "PATCH" "/api/v1/conversations/${conversation_id}" "$token" "$family_id" "$child_id" "$rename_payload"
+  assert_status_200 "Rename conversation"
+  local renamed_title
+  renamed_title="$(jq -r '.title // empty' <<<"$API_BODY")"
+  if [[ "$renamed_title" != "$custom_title" ]]; then
+    echo "[fail] Conversation rename mismatch expected=${custom_title} got=${renamed_title}"
+    echo "$API_BODY" | jq -C . || true
+    exit 1
+  fi
+  echo "[pass] Conversation renamed: ${renamed_title}"
+
   local guidance_payload
   guidance_payload="$(jq -n \
     --arg message "What should I do if he is waking at night?" \
@@ -311,6 +337,17 @@ run_core_flow() {
   fi
   echo "[pass] Guidance did not add timeline events"
 
+  api_call "GET" "/api/v1/conversations/${conversation_id}" "$token" "$family_id"
+  assert_status_200 "Fetch conversation after follow-up"
+  local title_after_follow_up
+  title_after_follow_up="$(jq -r '.title // empty' <<<"$API_BODY")"
+  if [[ "$title_after_follow_up" != "$custom_title" ]]; then
+    echo "[fail] Renamed title was overwritten after follow-up message (expected=${custom_title}, got=${title_after_follow_up})"
+    echo "$API_BODY" | jq -C . || true
+    exit 1
+  fi
+  echo "[pass] Renamed title remained stable after follow-up"
+
   local task_payload
   task_payload="$(jq -n --arg title "Buy diapers (${label})" --arg child_id "$child_id" '{title:$title,child_id:$child_id}')"
   api_call "POST" "/api/v1/tasks" "$token" "$family_id" "$child_id" "$task_payload"
@@ -332,6 +369,9 @@ run_core_flow() {
     --arg child_id "$child_id" \
     --arg conversation_id "$conversation_id" \
     --arg task_id "$task_id" \
+    --arg auto_title "$autotitled_title" \
+    --arg renamed_title "$renamed_title" \
+    --arg title_after_follow_up "$title_after_follow_up" \
     --arg tracking_intent "$tracking_intent" \
     --arg guidance_intent "$guidance_intent" \
     --argjson before_count "$before_count" \
@@ -339,7 +379,7 @@ run_core_flow() {
     --argjson after_guidance_count "$after_guidance_count" \
     --argjson tracking_actions "$tracking_actions" \
     --argjson guidance_actions "$guidance_actions" \
-    '{label:$label,mode:$mode,email:$email,family_id:$family_id,child_id:$child_id,conversation_id:$conversation_id,task_id:$task_id,tracking_intent:$tracking_intent,guidance_intent:$guidance_intent,tracking_actions:$tracking_actions,guidance_actions:$guidance_actions,events_before:$before_count,events_after_tracking:$after_tracking_count,events_after_guidance:$after_guidance_count}')")
+    '{label:$label,mode:$mode,email:$email,family_id:$family_id,child_id:$child_id,conversation_id:$conversation_id,task_id:$task_id,auto_title:$auto_title,renamed_title:$renamed_title,title_after_follow_up:$title_after_follow_up,tracking_intent:$tracking_intent,guidance_intent:$guidance_intent,tracking_actions:$tracking_actions,guidance_actions:$guidance_actions,events_before:$before_count,events_after_tracking:$after_tracking_count,events_after_guidance:$after_guidance_count}')")
 
   REQ_COUNT=$((REQ_COUNT + 1))
 }

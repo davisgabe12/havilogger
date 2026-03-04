@@ -1,6 +1,7 @@
 import asyncio
 import os
 from uuid import uuid4
+from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -8,20 +9,29 @@ from fastapi import HTTPException
 os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 
-from app.main import _build_context_bundle, _insert_conversation_message  # noqa: E402
+from app.main import (  # noqa: E402
+    _build_context_bundle,
+    _build_session_title_from_first_message,
+    _insert_conversation_message,
+    _maybe_autotitle_session,
+)
 from app.routes.knowledge import list_knowledge  # noqa: E402
 from app.routes.tasks import CreateTaskPayload, create_task_endpoint, list_tasks_endpoint  # noqa: E402
 from app.supabase import AuthContext  # noqa: E402
 
 
 class FakeSupabase:
-    def __init__(self, *, select_queue=None, insert_queue=None):
+    def __init__(self, *, select_queue=None, insert_queue=None, update_queue=None, update_error=None):
         self.select_queue = {
             table: list(items) for table, items in (select_queue or {}).items()
         }
         self.insert_queue = {
             table: list(items) for table, items in (insert_queue or {}).items()
         }
+        self.update_queue = {
+            table: list(items) for table, items in (update_queue or {}).items()
+        }
+        self.update_error = update_error
         self.calls = []
 
     async def select(self, table, params):
@@ -40,6 +50,11 @@ class FakeSupabase:
 
     async def update(self, table, payload, params):
         self.calls.append(("update", table, payload, params))
+        if self.update_error is not None:
+            raise self.update_error
+        queue = self.update_queue.get(table)
+        if queue:
+            return queue.pop(0)
         return []
 
 
@@ -212,3 +227,146 @@ def test_task_create_and_list_scope_family_child():
     _, _, select_params = select_calls[-1]
     assert select_params["family_id"] == f"eq.{auth.family_id}"
     assert select_params["child_id"] == f"eq.{child_id}"
+
+
+def test_build_session_title_from_first_message_uses_absolute_date():
+    title = _build_session_title_from_first_message(
+        message="Baby pooped at 3pm",
+        timezone_name="America/Los_Angeles",
+        now_utc=datetime(2026, 3, 4, 18, 0, tzinfo=timezone.utc),
+    )
+    assert title == "Baby pooped 3pm · Mar 4, 2026"
+
+
+def test_maybe_autotitle_session_updates_first_message():
+    session_id = str(uuid4())
+    child_id = str(uuid4())
+    fake = FakeSupabase(
+        select_queue={
+            "conversation_sessions": [
+                [
+                    {
+                        "id": session_id,
+                        "title": "New chat",
+                    }
+                ],
+                [
+                    {"id": session_id, "title": "New chat"},
+                ],
+            ],
+        },
+        update_queue={
+            "conversation_sessions": [
+                [{"id": session_id, "title": "Baby pooped 3pm · Mar 4, 2026"}],
+            ]
+        },
+    )
+    auth = _auth_with_supabase(fake)
+
+    asyncio.run(
+        _maybe_autotitle_session(
+            auth,
+            session_id=session_id,
+            child_id=child_id,
+            message="Baby pooped at 3pm",
+            timezone_name="America/Los_Angeles",
+            has_prior_messages=False,
+        )
+    )
+
+    update_calls = [call for call in fake.calls if call[0] == "update"]
+    assert update_calls
+    _, table, payload, params = update_calls[0]
+    assert table == "conversation_sessions"
+    assert payload["title"].startswith("Baby pooped 3pm · ")
+    assert params["id"] == f"eq.{session_id}"
+    assert params["family_id"] == f"eq.{auth.family_id}"
+
+
+def test_maybe_autotitle_session_skips_when_has_prior_messages():
+    fake = FakeSupabase()
+    auth = _auth_with_supabase(fake)
+    asyncio.run(
+        _maybe_autotitle_session(
+            auth,
+            session_id=str(uuid4()),
+            child_id=str(uuid4()),
+            message="Baby pooped at 3pm",
+            timezone_name="UTC",
+            has_prior_messages=True,
+        )
+    )
+    update_calls = [call for call in fake.calls if call[0] == "update"]
+    assert not update_calls
+
+
+def test_maybe_autotitle_session_skips_when_title_already_manual():
+    session_id = str(uuid4())
+    child_id = str(uuid4())
+    fake = FakeSupabase(
+        select_queue={
+            "conversation_sessions": [[{"id": session_id, "title": "Night wake notes"}]],
+        },
+    )
+    auth = _auth_with_supabase(fake)
+    asyncio.run(
+        _maybe_autotitle_session(
+            auth,
+            session_id=session_id,
+            child_id=child_id,
+            message="What should I do if he is waking at night?",
+            timezone_name="UTC",
+            has_prior_messages=False,
+        )
+    )
+    update_calls = [call for call in fake.calls if call[0] == "update"]
+    assert not update_calls
+
+
+def test_maybe_autotitle_session_skips_when_feature_flag_disabled(monkeypatch):
+    monkeypatch.setenv("HAVI_AUTOTITLE_ENABLED", "0")
+    session_id = str(uuid4())
+    child_id = str(uuid4())
+    fake = FakeSupabase(
+        select_queue={
+            "conversation_sessions": [[{"id": session_id, "title": "New chat"}]],
+        },
+    )
+    auth = _auth_with_supabase(fake)
+    asyncio.run(
+        _maybe_autotitle_session(
+            auth,
+            session_id=session_id,
+            child_id=child_id,
+            message="Baby pooped at 3pm",
+            timezone_name="UTC",
+            has_prior_messages=False,
+        )
+    )
+    update_calls = [call for call in fake.calls if call[0] == "update"]
+    assert not update_calls
+
+
+def test_maybe_autotitle_session_fails_open_on_update_error():
+    session_id = str(uuid4())
+    child_id = str(uuid4())
+    fake = FakeSupabase(
+        select_queue={
+            "conversation_sessions": [
+                [{"id": session_id, "title": "New chat"}],
+                [{"id": session_id, "title": "New chat"}],
+            ],
+        },
+        update_error=RuntimeError("boom"),
+    )
+    auth = _auth_with_supabase(fake)
+    asyncio.run(
+        _maybe_autotitle_session(
+            auth,
+            session_id=session_id,
+            child_id=child_id,
+            message="Baby pooped at 3pm",
+            timezone_name="UTC",
+            has_prior_messages=False,
+        )
+    )

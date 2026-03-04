@@ -52,6 +52,7 @@ from .routes import tasks as task_routes
 from . import share as share_routes
 from .knowledge_utils import knowledge_pending_prompts
 from .router import classify_intent, has_logging_signals
+from .session_titles import build_session_title_snippet, ensure_unique_session_title
 from .schemas import (
     Action,
     ActionMetadata,
@@ -100,21 +101,176 @@ def _extract_rpc_scalar_result(value: Any) -> Optional[str]:
     return None
 
 
-def maybe_autotitle_session(
-    session: ConversationSession,
+def _autotitle_enabled() -> bool:
+    return os.getenv("HAVI_AUTOTITLE_ENABLED", "1") != "0"
+
+
+def _format_session_title_date(
     *,
-    child_id: Optional[str],
-    child_name: Optional[str],
+    timezone_name: Optional[str],
+    now_utc: Optional[datetime] = None,
+) -> str:
+    reference = now_utc or datetime.now(tz=timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    tz_name = normalize_timezone(timezone_name) or "UTC"
+    try:
+        localized = reference.astimezone(ZoneInfo(tz_name))
+    except Exception:
+        localized = reference.astimezone(timezone.utc)
+    return f"{localized.strftime('%b')} {localized.day}, {localized.year}"
+
+
+def _build_session_title_from_first_message(
+    *,
     message: str,
-    existing_message_count: int,
-) -> ConversationSession:
-    if existing_message_count != 0:
-        return session
-    if session.title != "New chat":
-        return session
-    base_title = generate_conversation_title(message, child_name=child_name)
-    unique_title = ensure_unique_title(base_title=base_title, child_id=child_id)
-    return update_session_title(session.id, unique_title)
+    timezone_name: Optional[str],
+    now_utc: Optional[datetime] = None,
+) -> str:
+    snippet = build_session_title_snippet(message)
+    date_label = _format_session_title_date(timezone_name=timezone_name, now_utc=now_utc)
+    return f"{snippet} · {date_label}"
+
+
+async def _ensure_unique_session_title(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    session_id: str,
+    base_title: str,
+) -> str:
+    rows = await auth.supabase.select(
+        "conversation_sessions",
+        params={
+            "select": "id,title",
+            "family_id": f"eq.{auth.family_id}",
+            "child_id": f"eq.{child_id}",
+            "limit": "500",
+        },
+    )
+    existing_titles = [
+        str(row.get("title") or "").strip()
+        for row in rows
+        if row.get("id") != session_id and str(row.get("title") or "").strip()
+    ]
+    return ensure_unique_session_title(base_title, existing_titles)
+
+
+async def _maybe_autotitle_session(
+    auth: AuthContext,
+    *,
+    session_id: str,
+    child_id: str,
+    message: str,
+    timezone_name: Optional[str],
+    has_prior_messages: bool,
+) -> None:
+    if not _autotitle_enabled():
+        logger.info(
+            "conversation autotitle skipped",
+            extra={
+                "session_id": session_id,
+                "child_id": child_id,
+                "autotitle_status": "skipped",
+                "autotitle_reason": "feature_disabled",
+            },
+        )
+        return
+    if has_prior_messages:
+        logger.info(
+            "conversation autotitle skipped",
+            extra={
+                "session_id": session_id,
+                "child_id": child_id,
+                "autotitle_status": "skipped",
+                "autotitle_reason": "has_prior_messages",
+            },
+        )
+        return
+    try:
+        session_rows = await auth.supabase.select(
+            "conversation_sessions",
+            params={
+                "select": "id,title",
+                "id": f"eq.{session_id}",
+                "family_id": f"eq.{auth.family_id}",
+                "child_id": f"eq.{child_id}",
+                "limit": "1",
+            },
+        )
+        if not session_rows:
+            logger.info(
+                "conversation autotitle skipped",
+                extra={
+                    "session_id": session_id,
+                    "child_id": child_id,
+                    "autotitle_status": "skipped",
+                    "autotitle_reason": "session_missing",
+                },
+            )
+            return
+        current_title = str(session_rows[0].get("title") or "New chat").strip() or "New chat"
+        if current_title != "New chat":
+            logger.info(
+                "conversation autotitle skipped",
+                extra={
+                    "session_id": session_id,
+                    "child_id": child_id,
+                    "autotitle_status": "skipped",
+                    "autotitle_reason": "title_already_set",
+                    "old_title": current_title,
+                },
+            )
+            return
+        base_title = _build_session_title_from_first_message(
+            message=message,
+            timezone_name=timezone_name,
+        )
+        unique_title = await _ensure_unique_session_title(
+            auth,
+            child_id=child_id,
+            session_id=session_id,
+            base_title=base_title,
+        )
+        updated = await auth.supabase.update(
+            "conversation_sessions",
+            {"title": unique_title, "updated_at": _now_iso()},
+            params={"id": f"eq.{session_id}", "family_id": f"eq.{auth.family_id}"},
+        )
+        if updated:
+            logger.info(
+                "conversation autotitle applied",
+                extra={
+                    "session_id": session_id,
+                    "child_id": child_id,
+                    "autotitle_status": "applied",
+                    "autotitle_reason": "first_message",
+                    "old_title": current_title,
+                    "new_title": unique_title,
+                },
+            )
+            return
+        logger.info(
+            "conversation autotitle skipped",
+            extra={
+                "session_id": session_id,
+                "child_id": child_id,
+                "autotitle_status": "skipped",
+                "autotitle_reason": "update_no_rows",
+                "old_title": current_title,
+            },
+        )
+    except Exception:
+        logger.warning(
+            "conversation autotitle failed",
+            extra={
+                "session_id": session_id,
+                "child_id": child_id,
+                "autotitle_status": "failed",
+                "autotitle_reason": "exception",
+            },
+            exc_info=True,
+        )
 RELATIVE_TIME_HINTS = [
     "today",
     "tonight",
@@ -679,6 +835,17 @@ async def capture_activity(
         content=payload.message,
         user_id=auth.user_id,
         intent=user_intent,
+    )
+    autotitle_timezone = normalize_timezone(child_row.get("timezone")) or normalize_timezone(
+        payload.timezone
+    )
+    await _maybe_autotitle_session(
+        auth,
+        session_id=conversation_id,
+        child_id=child_id,
+        message=payload.message,
+        timezone_name=autotitle_timezone,
+        has_prior_messages=context_bundle.has_prior_messages,
     )
     memory_target = detect_memory_save_target(payload.message)
     if memory_target:

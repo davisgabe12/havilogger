@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 3, 2026
+Last updated: March 4, 2026
 
 # Havi Session Bootstrap
 
@@ -24,6 +24,16 @@ Havi is a parent/caregiver copilot that:
 4. Tasks for caregiver coordination.
 5. Settings for caregiver/child profile and family context.
 
+## Session Meaning (Product)
+
+1. A session is a single chat thread for one child within one family.
+2. `New chat` creates a clean conversation slate (empty transcript context).
+3. Shared memory, timeline history, and tasks remain persistent across sessions.
+4. Session title behavior:
+   - Starts as `New chat`.
+   - On first message only, auto-title becomes `snippet · Mon D, YYYY`.
+   - Manual rename always wins and must not be overwritten.
+
 ## How Product Logic Works (Current)
 
 1. Web sends chat input to `POST /api/v1/activities`.
@@ -39,7 +49,9 @@ Havi is a parent/caregiver copilot that:
 2. Logging confirmations must stay concise and deterministic.
 3. Authenticated child-scoped routes require valid bearer token + child context.
 4. `www.gethavi.com` must redirect to `https://gethavi.com`.
-5. Production checks are not complete until smoke verification passes.
+5. Session auto-title must run once on first message only when title is `New chat`.
+6. Manual rename must remain stable after follow-up messages.
+7. Production checks are not complete until smoke verification passes.
 
 ## Current Stack
 
@@ -113,6 +125,8 @@ RAILWAY_CLI="$(find /Users/gabedavis/.npm/_npx -path '*/node_modules/.bin/railwa
 5. One tracking message logs to timeline.
 6. One guidance message returns advice and does not log timeline activity.
 7. One task can be created and persisted.
+8. First message auto-titles conversation (`!= New chat`).
+9. Manual renamed title remains unchanged after follow-up message.
 
 ## Cofounder CTO Mode (Execution Standard)
 

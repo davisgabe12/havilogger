@@ -30,6 +30,8 @@ If a document does not clearly fit one bucket, treat that as a docs bug and fix 
    - `docs/active/plan/gethavi-domain-deployment-plan.md`
 5. Production before/after smoke gate:
    - `docs/canonical/ops/production-core-smoke.md`
+6. Session title behavior (canonical):
+   - `docs/canonical/product/session-titles.md`
 
 ## Maintenance Rules
 
