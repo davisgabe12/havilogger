@@ -32,6 +32,10 @@ If a document does not clearly fit one bucket, treat that as a docs bug and fix 
    - `docs/canonical/ops/production-core-smoke.md`
 6. Session title behavior (canonical):
    - `docs/canonical/product/session-titles.md`
+7. Form field system (canonical):
+   - `docs/canonical/design/form-field-system.md`
+8. GREEN deterministic reset harness:
+   - `docs/canonical/testing/green-seed-reset.md`
 
 ## Maintenance Rules
 

@@ -100,6 +100,16 @@ npm run build
 
 If running inside a sandboxed Codex runtime and localhost bind fails (`EPERM`/`operation not permitted`), run smoke from a normal terminal or rerun with elevated permissions.
 
+Deterministic GREEN prep (slice 1 reset mode):
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+./scripts/green_seed_reset.sh reset
+```
+
+Runbook:
+`/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/testing/green-seed-reset.md`
+
 4. Production before/after smoke gate (required for substantial changes):
 
 ```bash

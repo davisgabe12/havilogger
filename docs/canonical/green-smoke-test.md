@@ -43,6 +43,15 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001 npm run test:green
 ```
 Smoke test source: `apps/web/tests/smoke/green.spec.ts`
 
+## Deterministic Reset/Seed Harness
+
+For deterministic GREEN prep, use:
+`docs/canonical/testing/green-seed-reset.md`
+
+Current status (March 4, 2026):
+1. Slice 1 is implemented: `scripts/green_seed_reset.sh reset` with strict guardrails and JSON reporting.
+2. `seed` and `reset-seed` modes are planned and intentionally not implemented yet.
+
 ## Troubleshooting
 - If Playwright cannot bind to `localhost:3001` (EPERM/EADDRINUSE), stop any running dev server or set `PLAYWRIGHT_BASE_URL` to an already-running web server (this skips starting web/api servers) and rerun `npm run test:green`.
 - If Codex sandbox reports `operation not permitted` while binding to `127.0.0.1:8000` or `127.0.0.1:3001`, run startup/smoke from your regular terminal or rerun command with elevated permissions.
