@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,6 +21,40 @@ class MessageFeedbackPayload(BaseModel):
     response_metadata: Optional[Dict[str, Any]] = None
 
 
+async def _enrich_feedback_metadata(
+    *,
+    auth: AuthContext,
+    conversation_id: str,
+    message_id: str,
+    payload: MessageFeedbackPayload,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = dict(payload.response_metadata or {})
+    metadata.setdefault("conversation_id", conversation_id)
+    metadata.setdefault("assistant_message_id", message_id)
+    metadata.setdefault("feedback_saved_at", datetime.now(tz=timezone.utc).isoformat())
+
+    try:
+        message_rows = await auth.supabase.select(
+            "conversation_messages",
+            params={
+                "select": "id,session_id,intent,created_at",
+                "id": f"eq.{message_id}",
+                "limit": "1",
+            },
+        )
+        if message_rows:
+            message_row = message_rows[0]
+            if message_row.get("intent"):
+                metadata.setdefault("assistant_intent", message_row.get("intent"))
+            if message_row.get("session_id"):
+                metadata.setdefault("session_id", message_row.get("session_id"))
+    except Exception:
+        # Feedback should never fail solely because enrichment lookups fail.
+        pass
+
+    return metadata
+
+
 async def _save_feedback(
     payload: MessageFeedbackPayload,
     auth: AuthContext,
@@ -28,6 +63,12 @@ async def _save_feedback(
     message_id = resolve_optional_uuid(payload.message_id, "message_id")
     if not conversation_id or not message_id:
         raise HTTPException(status_code=400, detail="Invalid feedback identifiers")
+    response_metadata = await _enrich_feedback_metadata(
+        auth=auth,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        payload=payload,
+    )
     feedback_payload = {
         "conversation_id": conversation_id,
         "message_id": message_id,
@@ -36,7 +77,7 @@ async def _save_feedback(
         "rating": payload.rating,
         "feedback_text": payload.feedback_text,
         "model_version": payload.model_version,
-        "response_metadata": payload.response_metadata,
+        "response_metadata": response_metadata,
     }
 
     existing_rows = await auth.supabase.select(

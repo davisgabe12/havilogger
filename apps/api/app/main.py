@@ -593,6 +593,10 @@ class RouteDecision:
     decision_source: str = "rule"
     confidence: float = 0.0
     classifier_intent: str = ""
+    classifier_override: bool = False
+    classifier_reason: Optional[str] = None
+    classifier_fallback_reason: Optional[str] = None
+    rollout_intent_classifier_pct: Optional[float] = None
 
 
 @dataclass
@@ -614,12 +618,25 @@ class RouteWritePolicy:
     allow_inference_memory_writes: bool
 
 
+@dataclass
+class ComposeResult:
+    assistant_text: str
+    ui_nudges: List[str]
+    intent: str
+    composer_source: str
+    composer_fallback_reason: Optional[str] = None
+
+
 def _route_metadata_from_decision(decision: RouteDecision) -> ChatRouteMetadata:
     return ChatRouteMetadata(
         route_kind=decision.route_kind,
         user_intent=decision.user_intent,
         classifier_intent=decision.classifier_intent or decision.user_intent,
         decision_source=decision.decision_source,
+        classifier_override=decision.classifier_override,
+        classifier_reason=decision.classifier_reason,
+        classifier_fallback_reason=decision.classifier_fallback_reason,
+        rollout_intent_classifier_pct=decision.rollout_intent_classifier_pct,
         confidence=max(0.0, min(1.0, decision.confidence)),
         is_question=decision.is_question,
         mixed_logging_segment_count=len(decision.mixed_logging_segments),
@@ -629,15 +646,42 @@ def _route_metadata_from_decision(decision: RouteDecision) -> ChatRouteMetadata:
 def _resolve_route_contract(message: str) -> tuple[IntentResult, RouteDecision, ChatRouteMetadata]:
     intent_result = classify_intent(message)
     route_decision = _route_decision_for_message(message, intent_result.intent)
-    route_decision.decision_source = (
-        "model"
-        if any(reason.startswith("openai_classifier_override") for reason in intent_result.reasons)
-        else "rule"
+    classifier_override = any(
+        reason.startswith("openai_classifier_override") for reason in intent_result.reasons
     )
+    route_decision.decision_source = "model" if classifier_override else "rule"
     route_decision.confidence = intent_result.confidence
     route_decision.classifier_intent = intent_result.intent
+    route_decision.classifier_override = classifier_override
+    route_decision.classifier_reason = _extract_reason_value(
+        intent_result.reasons,
+        "openai_reason:",
+    ) or (intent_result.reasons[0] if intent_result.reasons else None)
+    route_decision.classifier_fallback_reason = _extract_reason_value(
+        intent_result.reasons,
+        "model_fallback:",
+    ) or _extract_reason_value(
+        intent_result.reasons,
+        "model_skipped:",
+    )
+    rollout_pct = _extract_reason_value(
+        intent_result.reasons,
+        "model_rollout_pct:",
+    )
+    if rollout_pct is not None:
+        try:
+            route_decision.rollout_intent_classifier_pct = float(rollout_pct)
+        except ValueError:
+            route_decision.rollout_intent_classifier_pct = None
     route_metadata = _route_metadata_from_decision(route_decision)
     return intent_result, route_decision, route_metadata
+
+
+def _extract_reason_value(reasons: List[str], prefix: str) -> Optional[str]:
+    for reason in reasons:
+        if reason.startswith(prefix):
+            return reason[len(prefix):].strip() or None
+    return None
 
 
 def _should_persist_activity_actions(route_kind: str) -> bool:
@@ -675,23 +719,56 @@ def _compose_assistant_reply_for_route(
     child_row: Dict[str, Any],
     symptom_tags: List[str],
     question_category: str,
-) -> tuple[str, List[str], str]:
+) -> ComposeResult:
     child_context = {
         "first_name": child_row.get("first_name") or child_row.get("name"),
         "birth_date": child_row.get("birth_date"),
         "due_date": child_row.get("due_date"),
         "timezone": child_row.get("timezone"),
     }
+    should_try_model_guidance, model_skip_reason = _should_try_model_guidance(
+        route_kind=route_kind,
+        message=message,
+    )
 
     if route_kind == "ask":
-        model_guidance = compose_guidance_with_openai(
-            message,
-            child_context=child_context,
-            question_category=question_category,
-            symptom_tags=symptom_tags,
+        if should_try_model_guidance:
+            model_guidance = compose_guidance_with_openai(
+                message,
+                child_context=child_context,
+                question_category=question_category,
+                symptom_tags=symptom_tags,
+            )
+            if model_guidance and _guidance_contract_is_valid(model_guidance):
+                return ComposeResult(
+                    assistant_text=model_guidance,
+                    ui_nudges=[],
+                    intent="question",
+                    composer_source="model",
+                )
+        fallback_reason = (
+            model_skip_reason
+            if model_skip_reason
+            else "model_unavailable_or_contract_invalid"
         )
-        if model_guidance:
-            return model_guidance, [], "question"
+        assistant_text, ui_nudges = build_assistant_message(
+            [],
+            message,
+            child_data=child_row,
+            context={
+                "intent": classifier_intent,
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": [],
+            },
+        )
+        return ComposeResult(
+            assistant_text=assistant_text,
+            ui_nudges=ui_nudges,
+            intent="question",
+            composer_source="rule",
+            composer_fallback_reason=fallback_reason,
+        )
 
     if route_kind == "log":
         assistant_text, _ = build_assistant_message(
@@ -705,7 +782,12 @@ def _compose_assistant_reply_for_route(
                 "recent_actions": actions,
             },
         )
-        return assistant_text, [], "logging"
+        return ComposeResult(
+            assistant_text=assistant_text,
+            ui_nudges=[],
+            intent="logging",
+            composer_source="rule",
+        )
     if route_kind == "mixed":
         log_confirmation, _ = build_assistant_message(
             actions,
@@ -718,15 +800,21 @@ def _compose_assistant_reply_for_route(
                 "recent_actions": actions,
             },
         )
-        model_guidance = compose_guidance_with_openai(
-            message,
-            child_context=child_context,
-            question_category=question_category,
-            symptom_tags=symptom_tags,
-        )
-        if model_guidance:
-            merged = f"{log_confirmation}\n\n{model_guidance}".strip()
-            return merged, [], "mixed"
+        if should_try_model_guidance:
+            model_guidance = compose_guidance_with_openai(
+                message,
+                child_context=child_context,
+                question_category=question_category,
+                symptom_tags=symptom_tags,
+            )
+            if model_guidance and _guidance_contract_is_valid(model_guidance):
+                merged = f"{log_confirmation}\n\n{model_guidance}".strip()
+                return ComposeResult(
+                    assistant_text=merged,
+                    ui_nudges=[],
+                    intent="mixed",
+                    composer_source="model",
+                )
 
         assistant_text, ui_nudges = build_assistant_message(
             actions,
@@ -739,7 +827,15 @@ def _compose_assistant_reply_for_route(
                 "recent_actions": actions,
             },
         )
-        return assistant_text, ui_nudges, "mixed"
+        return ComposeResult(
+            assistant_text=assistant_text,
+            ui_nudges=ui_nudges,
+            intent="mixed",
+            composer_source="rule",
+            composer_fallback_reason=(
+                model_skip_reason if model_skip_reason else "model_unavailable_or_contract_invalid"
+            ),
+        )
     assistant_text, ui_nudges = build_assistant_message(
         [],
         message,
@@ -751,7 +847,61 @@ def _compose_assistant_reply_for_route(
             "recent_actions": [],
         },
     )
-    return assistant_text, ui_nudges, "question"
+    return ComposeResult(
+        assistant_text=assistant_text,
+        ui_nudges=ui_nudges,
+        intent="question",
+        composer_source="rule",
+        composer_fallback_reason="route_not_model_enabled",
+    )
+
+
+def _guidance_composer_rollout_pct() -> float:
+    raw = os.getenv("OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT", "100").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 100.0
+    return max(0.0, min(100.0, value))
+
+
+def _is_rollout_enabled_for_message(message: str, rollout_pct: float) -> bool:
+    if rollout_pct >= 100.0:
+        return True
+    if rollout_pct <= 0.0:
+        return False
+    digest = hashlib.sha256(message.lower().strip().encode("utf-8")).hexdigest()
+    bucket = int(digest[:8], 16) % 10000 / 100.0
+    return bucket < rollout_pct
+
+
+def _should_try_model_guidance(*, route_kind: str, message: str) -> tuple[bool, Optional[str]]:
+    if route_kind not in {"ask", "mixed"}:
+        return False, "route_not_guidance"
+    enabled = os.getenv("ENABLE_OPENAI_GUIDANCE_COMPOSER", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not enabled:
+        return False, "composer_disabled"
+    rollout_pct = _guidance_composer_rollout_pct()
+    if not _is_rollout_enabled_for_message(message, rollout_pct):
+        return False, "outside_rollout_bucket"
+    return True, None
+
+
+def _guidance_contract_is_valid(text: str) -> bool:
+    content = (text or "").strip()
+    if not content:
+        return False
+    lower = content.lower()
+    has_numbered_steps = bool(re.search(r"(^|\n)\s*1[\.\)]\s+", content))
+    has_not_to_do = "what not to do" in lower or "avoid" in lower
+    has_script = "script" in lower or "i won't let you" in lower
+    question_count = content.count("?")
+    return has_numbered_steps and has_not_to_do and has_script and question_count <= 2
 
 
 async def _build_context_bundle(
@@ -1010,6 +1160,10 @@ async def capture_activity(
             "classifier_intent": intent_result.intent,
             "route_kind": route_decision.route_kind,
             "route_decision_source": route_decision.decision_source,
+            "classifier_override": route_decision.classifier_override,
+            "classifier_reason": route_decision.classifier_reason,
+            "classifier_fallback_reason": route_decision.classifier_fallback_reason,
+            "rollout_intent_classifier_pct": route_decision.rollout_intent_classifier_pct,
             "route_confidence": route_decision.confidence,
             "is_question": route_decision.is_question,
             "mixed_logging_segments": len(mixed_logging_segments),
@@ -1041,6 +1195,8 @@ async def capture_activity(
         classifier_intent=intent_result.intent,
         has_memory_target=bool(memory_target),
     )
+    route_metadata.composer_source = "rule"
+    route_metadata.composer_fallback_reason = "route_not_composed"
     if memory_target and route_write_policy.allow_explicit_memory_writes:
         now_iso = _now_iso()
         summary_text = _strip_memory_prefix(payload.message)
@@ -1200,7 +1356,7 @@ async def capture_activity(
                 confidence=confidence,
                 source="chat",
             )
-    assistant_text, ui_nudges, intent = _compose_assistant_reply_for_route(
+    compose_result = _compose_assistant_reply_for_route(
         route_kind=route_decision.route_kind,
         classifier_intent=intent_result.intent,
         actions=actions,
@@ -1208,6 +1364,24 @@ async def capture_activity(
         child_row=child_row,
         symptom_tags=symptom_tags,
         question_category=question_category,
+    )
+    assistant_text = compose_result.assistant_text
+    ui_nudges = compose_result.ui_nudges
+    intent = compose_result.intent
+    route_metadata.composer_source = compose_result.composer_source
+    route_metadata.composer_fallback_reason = compose_result.composer_fallback_reason
+    logger.info(
+        "chat compose decision",
+        extra={
+            "method": "POST",
+            "path": "/api/v1/activities",
+            "child_id": child_id,
+            "session_id": conversation_id,
+            "route_kind": route_decision.route_kind,
+            "composer_source": compose_result.composer_source,
+            "composer_fallback_reason": compose_result.composer_fallback_reason,
+            "assistant_intent": intent,
+        },
     )
 
     assistant_message = await _insert_conversation_message(

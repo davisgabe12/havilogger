@@ -101,7 +101,7 @@ def test_ack_phrase_okay_thanks_is_not_echoed_verbatim() -> None:
 def test_compose_assistant_reply_for_route_returns_mixed_intent_and_logged_prefix() -> None:
     message = "baby pooped at 3pm. what should i do if he is waking at night?"
     actions = [_action_from_segment("baby pooped at 3pm", timezone_value="America/Los_Angeles")]
-    assistant_message, _, intent = _compose_assistant_reply_for_route(
+    composed = _compose_assistant_reply_for_route(
         route_kind="mixed",
         classifier_intent="logging",
         actions=actions,
@@ -110,16 +110,23 @@ def test_compose_assistant_reply_for_route_returns_mixed_intent_and_logged_prefi
         symptom_tags=[],
         question_category="sleep",
     )
-    assert intent == "mixed"
-    assert assistant_message.startswith("Logged:")
+    assert composed.intent == "mixed"
+    assert composed.assistant_text.startswith("Logged:")
 
 
 def test_compose_assistant_reply_for_route_uses_openai_guidance_for_ask(monkeypatch) -> None:
+    monkeypatch.setenv("ENABLE_OPENAI_GUIDANCE_COMPOSER", "1")
     def fake_compose_guidance(*args, **kwargs):
-        return "## Model guidance\n\n1. Step one."
+        return (
+            "This is common.\n\n"
+            "1. Step one.\n"
+            "2. Step two.\n\n"
+            "What not to do: avoid long lectures.\n\n"
+            "Script: I won't let you hit."
+        )
 
     monkeypatch.setattr("app.main.compose_guidance_with_openai", fake_compose_guidance)
-    assistant_message, _, intent = _compose_assistant_reply_for_route(
+    composed = _compose_assistant_reply_for_route(
         route_kind="ask",
         classifier_intent="general_parenting_advice",
         actions=[],
@@ -128,13 +135,14 @@ def test_compose_assistant_reply_for_route_uses_openai_guidance_for_ask(monkeypa
         symptom_tags=["hitting"],
         question_category="behavior",
     )
-    assert assistant_message.startswith("## Model guidance")
-    assert intent == "question"
+    assert composed.composer_source == "model"
+    assert "What not to do" in composed.assistant_text
+    assert composed.intent == "question"
 
 
 def test_compose_assistant_reply_for_route_falls_back_when_openai_guidance_disabled(monkeypatch) -> None:
     monkeypatch.setattr("app.main.compose_guidance_with_openai", lambda *args, **kwargs: None)
-    assistant_message, _, intent = _compose_assistant_reply_for_route(
+    composed = _compose_assistant_reply_for_route(
         route_kind="ask",
         classifier_intent="general_parenting_advice",
         actions=[],
@@ -143,15 +151,27 @@ def test_compose_assistant_reply_for_route_falls_back_when_openai_guidance_disab
         symptom_tags=["hitting"],
         question_category="behavior",
     )
-    assert assistant_message
-    assert "model guidance" not in assistant_message.lower()
-    assert intent == "question"
+    assert composed.assistant_text
+    assert "model guidance" not in composed.assistant_text.lower()
+    assert composed.intent == "question"
+    assert composed.composer_source == "rule"
+    assert composed.composer_fallback_reason is not None
 
 
 def test_compose_assistant_reply_for_route_uses_openai_guidance_for_mixed(monkeypatch) -> None:
-    monkeypatch.setattr("app.main.compose_guidance_with_openai", lambda *args, **kwargs: "## Model mixed guidance")
+    monkeypatch.setenv("ENABLE_OPENAI_GUIDANCE_COMPOSER", "1")
+    monkeypatch.setattr(
+        "app.main.compose_guidance_with_openai",
+        lambda *args, **kwargs: (
+            "This is common.\n\n"
+            "1. Step one.\n"
+            "2. Step two.\n\n"
+            "What not to do: avoid overreacting.\n\n"
+            "Script: I won't let you hit."
+        ),
+    )
     actions = [_action_from_segment("baby pooped at 3pm", timezone_value="America/Los_Angeles")]
-    assistant_message, _, intent = _compose_assistant_reply_for_route(
+    composed = _compose_assistant_reply_for_route(
         route_kind="mixed",
         classifier_intent="logging",
         actions=actions,
@@ -160,6 +180,7 @@ def test_compose_assistant_reply_for_route_uses_openai_guidance_for_mixed(monkey
         symptom_tags=[],
         question_category="sleep",
     )
-    assert intent == "mixed"
-    assert assistant_message.startswith("Logged:")
-    assert "## Model mixed guidance" in assistant_message
+    assert composed.intent == "mixed"
+    assert composed.assistant_text.startswith("Logged:")
+    assert "What not to do" in composed.assistant_text
+    assert composed.composer_source == "model"

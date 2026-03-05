@@ -298,6 +298,12 @@ export function MessageBubble({
             conversationId={conversationId ?? null}
             messageId={entry.messageId}
             apiBaseUrl={API_BASE_URL}
+            modelVersion={entry.model ?? null}
+            responseMetadata={
+              entry.routeMetadata
+                ? { route_metadata: entry.routeMetadata }
+                : null
+            }
             initialRating={feedback?.rating ?? null}
             initialComment={feedback?.comment ?? ""}
             layout="stacked"

@@ -112,4 +112,28 @@ describe("MessageFeedback", () => {
     const body = JSON.parse(lastCall?.[1]?.body as string);
     expect(body.rating).toBe("up");
   });
+
+  it("includes model and route metadata when provided", async () => {
+    const fetchSpy = mockFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MessageFeedback
+        conversationId={42}
+        messageId="123"
+        apiBaseUrl={apiBaseUrl}
+        modelVersion="gpt-4o-mini"
+        responseMetadata={{
+          route_metadata: { route_kind: "ask", decision_source: "model" },
+        }}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Thumbs up"));
+    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string);
+    expect(body.model_version).toBe("gpt-4o-mini");
+    expect(body.response_metadata).toEqual({
+      route_metadata: { route_kind: "ask", decision_source: "model" },
+    });
+  });
 });

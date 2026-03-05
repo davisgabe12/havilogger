@@ -108,9 +108,12 @@ Sync rule:
 3. OpenAI classifier hook is wired behind `ENABLE_OPENAI_INTENT_CLASSIFIER` and only evaluates ambiguous rule results.
 4. OpenAI ask-route guidance hook is wired behind `ENABLE_OPENAI_GUIDANCE_COMPOSER` with deterministic fallback.
 5. Mixed-route model guidance can now append to deterministic log confirmation when composer flag is enabled.
-6. Deterministic rules remain default authority, with model override only when classifier confidence passes threshold (`OPENAI_INTENT_OVERRIDE_CONFIDENCE`).
-7. Feedback write path no longer depends on supabase upsert conflict support and now uses select/update-or-insert logic.
-8. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+6. Deterministic rules remain default authority, with model override only when classifier confidence passes threshold (`OPENAI_INTENT_OVERRIDE_CONFIDENCE`) and optional rollout percentage (`OPENAI_INTENT_CLASSIFIER_TRAFFIC_PCT`).
+7. Guidance composer now has optional rollout percentage control (`OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT`) and contract validation fallback.
+8. Feedback write path no longer depends on supabase upsert conflict support, uses select/update-or-insert logic, and enriches metadata with assistant intent/session context.
+9. Web feedback components now support optional route metadata + model version submission fields for downstream quality segmentation.
+10. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+11. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
 
 ## Proposed Solution
 

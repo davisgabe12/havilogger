@@ -86,3 +86,30 @@ def test_openai_classifier_respects_override_threshold_env(monkeypatch) -> None:
     # Falls back to rules because threshold is 0.9 and model confidence is 0.88.
     assert result.intent == "general_parenting_advice"
     assert not any(reason.startswith("openai_classifier_override") for reason in result.reasons)
+    assert any(reason.startswith("model_fallback:below_threshold") for reason in result.reasons)
+
+    _, decision, route_metadata = _resolve_route_contract("not sure what to do tonight")
+    assert decision.classifier_fallback_reason is not None
+    assert route_metadata.classifier_fallback_reason is not None
+
+
+def test_openai_classifier_respects_rollout_percentage(monkeypatch) -> None:
+    monkeypatch.setenv("ENABLE_OPENAI_INTENT_CLASSIFIER", "1")
+    monkeypatch.setenv("OPENAI_INTENT_CLASSIFIER_TRAFFIC_PCT", "0")
+
+    called = {"count": 0}
+
+    def fake_classifier(message: str, *, allowed_intents: list[str]):
+        called["count"] += 1
+        return {
+            "intent": "health_sleep_question",
+            "confidence": 0.95,
+            "reason": "should not be called when rollout is 0",
+        }
+
+    monkeypatch.setattr(router_module, "classify_intent_with_openai", fake_classifier)
+    result = classify_intent("not sure what to do tonight")
+
+    assert result.intent == "general_parenting_advice"
+    assert called["count"] == 0
+    assert any(reason == "model_skipped:outside_rollout_bucket" for reason in result.reasons)

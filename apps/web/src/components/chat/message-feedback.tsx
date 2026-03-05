@@ -12,6 +12,8 @@ type MessageFeedbackProps = {
   conversationId: string | null;
   messageId: string | null | undefined;
   apiBaseUrl: string;
+  modelVersion?: string | null;
+  responseMetadata?: Record<string, unknown> | null;
   initialRating?: FeedbackRating;
   initialComment?: string;
   layout?: "overlay" | "stacked";
@@ -28,6 +30,8 @@ type FeedbackPayload = {
   rating: Exclude<FeedbackRating, null>;
   feedback_text?: string | null;
   session_id?: string | null;
+  model_version?: string | null;
+  response_metadata?: Record<string, unknown> | null;
 };
 
 const RETRY_DELAYS_MS = [1200, 2400];
@@ -36,6 +40,8 @@ export function MessageFeedback({
   conversationId,
   messageId,
   apiBaseUrl,
+  modelVersion = null,
+  responseMetadata = null,
   initialRating = null,
   initialComment = "",
   layout = "overlay",
@@ -115,9 +121,15 @@ export function MessageFeedback({
         feedback_text: nextComment.trim() ? nextComment.trim() : null,
         session_id: String(conversationId),
       };
+      if (modelVersion) {
+        payload.model_version = modelVersion;
+      }
+      if (responseMetadata && Object.keys(responseMetadata).length > 0) {
+        payload.response_metadata = responseMetadata;
+      }
       void persistFeedback(payload);
     },
-    [conversationId, messageId, persistFeedback],
+    [conversationId, messageId, modelVersion, persistFeedback, responseMetadata],
   );
 
   const handleRatingSelect = (nextRating: FeedbackRating) => {

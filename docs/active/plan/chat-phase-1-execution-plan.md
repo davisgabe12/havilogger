@@ -42,15 +42,24 @@ This plan is intentionally scoped to message/chat behavior only.
 - `P1-C2` initial classifier arbitration tuning landed:
   - model override confidence threshold is now env-configurable via `OPENAI_INTENT_OVERRIDE_CONFIDENCE`
   - threshold behavior is covered in classifier tests
+- `P1-F2` telemetry and rollout controls landed:
+  - route metadata now includes classifier override/reason/fallback and composer source/fallback
+  - classifier rollout gating added via `OPENAI_INTENT_CLASSIFIER_TRAFFIC_PCT`
+  - guidance composer rollout gating added via `OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT`
+  - feedback API now enriches persisted metadata with assistant intent/session context; web feedback component supports optional model version + route metadata payload fields
+  - quality snapshot script added: [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py)
+- `P1-D2` guidance contract hardening landed:
+  - model guidance output is now validated for structure before use
+  - deterministic fallback is enforced when model guidance is unavailable or contract-invalid
 
 2. In progress:
-- `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and telemetry/reporting hardening not complete yet).
-- `P1-C2` classifier rollout instrumentation and disagreement reporting.
-- `P1-D1` guidance quality contract tuning for long/open-ended asks.
+- `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and cleanup not complete yet).
+- `P1-F2` disagreement-rate reporting from production telemetry.
+- `P1-D2` long/open-ended ask quality tuning with stricter eval gates.
 
 3. Next:
 - `P1-E2` deterministic seed/reset harness integration for GREEN repeatability.
-- `P1-F2` quality segmentation reporting (age band/family size/scenario class).
+- `P1-F2` quality segmentation reporting (age band/family size/scenario class) from live telemetry.
 
 ## Goals
 1. Canonical runtime ownership:

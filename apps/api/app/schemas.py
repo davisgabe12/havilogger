@@ -92,9 +92,15 @@ class ChatRouteMetadata(BaseModel):
     user_intent: str
     classifier_intent: str
     decision_source: str = Field(default="rule")
+    classifier_override: bool = Field(default=False)
+    classifier_reason: Optional[str] = None
+    classifier_fallback_reason: Optional[str] = None
+    rollout_intent_classifier_pct: Optional[float] = Field(default=None, ge=0.0, le=100.0)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     is_question: bool = False
     mixed_logging_segment_count: int = 0
+    composer_source: Optional[str] = None
+    composer_fallback_reason: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

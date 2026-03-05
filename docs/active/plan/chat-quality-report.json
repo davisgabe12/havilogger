@@ -1,0 +1,22 @@
+{
+  "golden": {
+    "version": "phase0-v1",
+    "total_cases": 12,
+    "route_distribution": {
+      "log": 3,
+      "ask": 6,
+      "mixed": 1,
+      "task": 1,
+      "unknown": 1
+    },
+    "guidance": {
+      "count": 4,
+      "average_score": 4.5,
+      "min_score": 4.0,
+      "max_score": 6.0
+    }
+  },
+  "green": {
+    "pass": true
+  }
+}
