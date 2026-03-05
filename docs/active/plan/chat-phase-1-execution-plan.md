@@ -5,6 +5,47 @@ Phase 1 delivers a stable canonical chat runtime with OpenAI integrated for ambi
 
 This plan is intentionally scoped to message/chat behavior only.
 
+## Execution Status (Current Sprint)
+1. Completed:
+- `P1-A1` contract scaffolding landed:
+  - structured route metadata contract added to chat response schema
+  - route contract resolver helper added in API path
+  - routing contract tests added
+- `P1-B1` deterministic write-policy foundation landed:
+  - explicit `route_kind -> persist_actions` policy function
+  - explicit route execution plan object used in `capture_activity`
+  - explicit route write policy object used in `capture_activity`
+  - policy assertions added in routing test suite
+- `P1-A2` partial orchestrator extraction landed:
+  - route execution planning extracted from endpoint body
+  - reply composition-by-route extracted into dedicated helper
+  - composition helper coverage added in hardening tests
+- `P1-E1` GREEN chat gate expansion landed:
+  - end-to-end assertions added for ask/log/mixed route metadata in `test:green`
+  - feedback thumbs up/down network path exercised in GREEN
+  - explicit memory-save and inferred-memory log-shaped turns added to GREEN coverage
+- `P1-F1` feedback persistence hardening landed:
+  - feedback route now uses deterministic select/update-or-insert path (no failing supabase upsert conflict dependency)
+  - supabase-backed feedback route tests added
+- `P1-C1` initial OpenAI classifier hook landed:
+  - ambiguous-intent OpenAI classifier adapter behind `ENABLE_OPENAI_INTENT_CLASSIFIER`
+  - deterministic rules remain default and fallback
+  - model-decision source now exposed via route metadata when override occurs
+  - classifier override tests added
+- `P1-D1` initial OpenAI guidance composer hook landed:
+  - ask-route model composer adapter behind `ENABLE_OPENAI_GUIDANCE_COMPOSER`
+  - deterministic guidance remains fallback when model output is unavailable
+  - composition tests added for model-path + fallback-path behavior
+
+2. In progress:
+- `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and mixed composition model hook not complete yet).
+- `P1-C2` classifier arbitration threshold tuning and rollout instrumentation.
+- `P1-D1` mixed-route guidance model block integration.
+
+3. Next:
+- `P1-E2` deterministic seed/reset harness integration for GREEN repeatability.
+- `P1-F2` quality segmentation reporting (age band/family size/scenario class).
+
 ## Goals
 1. Canonical runtime ownership:
 - `POST /api/v1/activities` executes through one orchestrator path only.

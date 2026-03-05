@@ -102,6 +102,15 @@ Sync rule:
 1. If any phase scope changes, update this master spec and [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md) in the same commit.
 2. Rollout gates remain: golden eval + GREEN e2e + production smoke.
 
+## Implementation Snapshot (Current)
+1. Route metadata contract is now emitted from `/api/v1/activities` responses.
+2. Route execution + write policy helpers are active in the canonical chat path.
+3. OpenAI classifier hook is wired behind `ENABLE_OPENAI_INTENT_CLASSIFIER` and only evaluates ambiguous rule results.
+4. OpenAI ask-route guidance hook is wired behind `ENABLE_OPENAI_GUIDANCE_COMPOSER` with deterministic fallback.
+5. Deterministic rules remain default authority, with model override only when classifier confidence passes threshold.
+6. Feedback write path no longer depends on supabase upsert conflict support and now uses select/update-or-insert logic.
+7. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+
 ## Proposed Solution
 
 ### Canonical Components

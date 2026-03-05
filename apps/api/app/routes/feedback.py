@@ -28,25 +28,59 @@ async def _save_feedback(
     message_id = resolve_optional_uuid(payload.message_id, "message_id")
     if not conversation_id or not message_id:
         raise HTTPException(status_code=400, detail="Invalid feedback identifiers")
-    rows = await auth.supabase.upsert(
+    feedback_payload = {
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "user_id": auth.user_id,
+        "session_id": payload.session_id,
+        "rating": payload.rating,
+        "feedback_text": payload.feedback_text,
+        "model_version": payload.model_version,
+        "response_metadata": payload.response_metadata,
+    }
+
+    existing_rows = await auth.supabase.select(
         "message_feedback",
-        {
+        params={
+            "select": (
+                "id,conversation_id,message_id,user_id,session_id,rating,feedback_text,"
+                "model_version,response_metadata"
+            ),
+            "conversation_id": f"eq.{conversation_id}",
+            "message_id": f"eq.{message_id}",
+            "user_id": f"eq.{auth.user_id}",
+            "limit": "1",
+        },
+    )
+
+    if existing_rows:
+        existing_id = existing_rows[0].get("id")
+        updated_rows = await auth.supabase.update(
+            "message_feedback",
+            feedback_payload,
+            params={"id": f"eq.{existing_id}"},
+        )
+        if updated_rows:
+            return updated_rows[0]
+        return {
+            "id": existing_id,
             "conversation_id": conversation_id,
             "message_id": message_id,
             "user_id": auth.user_id,
-            "session_id": payload.session_id,
             "rating": payload.rating,
             "feedback_text": payload.feedback_text,
-            "model_version": payload.model_version,
-            "response_metadata": payload.response_metadata,
-        },
-        on_conflict="conversation_id,message_id,user_id",
+        }
+
+    created_rows = await auth.supabase.insert(
+        "message_feedback",
+        feedback_payload,
     )
-    return rows[0] if rows else {
+    return created_rows[0] if created_rows else {
         "conversation_id": conversation_id,
         "message_id": message_id,
         "user_id": auth.user_id,
         "rating": payload.rating,
+        "feedback_text": payload.feedback_text,
     }
 
 

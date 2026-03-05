@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.main import (
     _action_from_segment,
+    _compose_assistant_reply_for_route,
     _extract_logging_segments_for_mixed,
     _split_message_into_events,
     build_assistant_message,
@@ -95,3 +96,53 @@ def test_ack_phrase_okay_thanks_is_not_echoed_verbatim() -> None:
         },
     )
     assert assistant_message.strip().lower() != message
+
+
+def test_compose_assistant_reply_for_route_returns_mixed_intent_and_logged_prefix() -> None:
+    message = "baby pooped at 3pm. what should i do if he is waking at night?"
+    actions = [_action_from_segment("baby pooped at 3pm", timezone_value="America/Los_Angeles")]
+    assistant_message, _, intent = _compose_assistant_reply_for_route(
+        route_kind="mixed",
+        classifier_intent="logging",
+        actions=actions,
+        message=message,
+        child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        symptom_tags=[],
+        question_category="sleep",
+    )
+    assert intent == "mixed"
+    assert assistant_message.startswith("Logged:")
+
+
+def test_compose_assistant_reply_for_route_uses_openai_guidance_for_ask(monkeypatch) -> None:
+    def fake_compose_guidance(*args, **kwargs):
+        return "## Model guidance\n\n1. Step one."
+
+    monkeypatch.setattr("app.main.compose_guidance_with_openai", fake_compose_guidance)
+    assistant_message, _, intent = _compose_assistant_reply_for_route(
+        route_kind="ask",
+        classifier_intent="general_parenting_advice",
+        actions=[],
+        message="my child is hitting, what should i do?",
+        child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        symptom_tags=["hitting"],
+        question_category="behavior",
+    )
+    assert assistant_message.startswith("## Model guidance")
+    assert intent == "question"
+
+
+def test_compose_assistant_reply_for_route_falls_back_when_openai_guidance_disabled(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.compose_guidance_with_openai", lambda *args, **kwargs: None)
+    assistant_message, _, intent = _compose_assistant_reply_for_route(
+        route_kind="ask",
+        classifier_intent="general_parenting_advice",
+        actions=[],
+        message="my child is hitting, what should i do?",
+        child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        symptom_tags=["hitting"],
+        question_category="behavior",
+    )
+    assert assistant_message
+    assert "model guidance" not in assistant_message.lower()
+    assert intent == "question"

@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 from dateparser.search import search_dates
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -51,11 +51,13 @@ from .routes import reminders as reminder_routes
 from .routes import tasks as task_routes
 from . import share as share_routes
 from .knowledge_utils import knowledge_pending_prompts
-from .router import classify_intent, has_logging_signals
+from .openai_client import compose_guidance_with_openai
+from .router import IntentResult, classify_intent, has_logging_signals
 from .session_titles import build_session_title_snippet, ensure_unique_session_title
 from .schemas import (
     Action,
     ActionMetadata,
+    ChatRouteMetadata,
     ChatRequest,
     ChatResponse,
     CoreActionType,
@@ -360,6 +362,27 @@ class CreateChildPayload(BaseModel):
     birth_weight_unit: Optional[str] = None
 
 
+class OnboardingCaregiverPayload(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    phone: str
+
+
+class OnboardingChildPayload(BaseModel):
+    name: str
+    birth_date: Optional[str] = ""
+    due_date: Optional[str] = ""
+    birth_weight: Optional[float] = None
+    latest_weight: Optional[float] = None
+    timezone: Optional[str] = ""
+
+
+class OnboardingProfilePayload(BaseModel):
+    caregiver: OnboardingCaregiverPayload
+    child: OnboardingChildPayload
+
+
 class InviteCreatePayload(BaseModel):
     email: str
     role: Optional[str] = None
@@ -567,6 +590,145 @@ class RouteDecision:
     route_to_guidance: bool
     mixed_logging_segments: List[str]
     is_question: bool
+    decision_source: str = "rule"
+    confidence: float = 0.0
+    classifier_intent: str = ""
+
+
+@dataclass
+class RouteExecutionPlan:
+    intent_result: IntentResult
+    route_decision: RouteDecision
+    route_metadata: ChatRouteMetadata
+    route_to_guidance: bool
+    mixed_route: bool
+    user_intent: str
+    allow_activity_writes: bool
+
+
+@dataclass
+class RouteWritePolicy:
+    allow_timeline_activity_writes: bool
+    allow_task_writes: bool
+    allow_explicit_memory_writes: bool
+    allow_inference_memory_writes: bool
+
+
+def _route_metadata_from_decision(decision: RouteDecision) -> ChatRouteMetadata:
+    return ChatRouteMetadata(
+        route_kind=decision.route_kind,
+        user_intent=decision.user_intent,
+        classifier_intent=decision.classifier_intent or decision.user_intent,
+        decision_source=decision.decision_source,
+        confidence=max(0.0, min(1.0, decision.confidence)),
+        is_question=decision.is_question,
+        mixed_logging_segment_count=len(decision.mixed_logging_segments),
+    )
+
+
+def _resolve_route_contract(message: str) -> tuple[IntentResult, RouteDecision, ChatRouteMetadata]:
+    intent_result = classify_intent(message)
+    route_decision = _route_decision_for_message(message, intent_result.intent)
+    route_decision.decision_source = (
+        "model"
+        if any(reason.startswith("openai_classifier_override") for reason in intent_result.reasons)
+        else "rule"
+    )
+    route_decision.confidence = intent_result.confidence
+    route_decision.classifier_intent = intent_result.intent
+    route_metadata = _route_metadata_from_decision(route_decision)
+    return intent_result, route_decision, route_metadata
+
+
+def _should_persist_activity_actions(route_kind: str) -> bool:
+    return route_kind in {"log", "mixed"}
+
+
+def _build_route_execution_plan(message: str) -> RouteExecutionPlan:
+    intent_result, route_decision, route_metadata = _resolve_route_contract(message)
+    return RouteExecutionPlan(
+        intent_result=intent_result,
+        route_decision=route_decision,
+        route_metadata=route_metadata,
+        route_to_guidance=route_decision.route_to_guidance,
+        mixed_route=route_decision.route_kind == "mixed",
+        user_intent=route_decision.user_intent,
+        allow_activity_writes=_should_persist_activity_actions(route_decision.route_kind),
+    )
+
+
+def _build_route_write_policy(*, route_kind: str, classifier_intent: str, has_memory_target: bool) -> RouteWritePolicy:
+    return RouteWritePolicy(
+        allow_timeline_activity_writes=_should_persist_activity_actions(route_kind),
+        allow_task_writes=classifier_intent == "task_request",
+        allow_explicit_memory_writes=has_memory_target,
+        allow_inference_memory_writes=_should_persist_activity_actions(route_kind),
+    )
+
+
+def _compose_assistant_reply_for_route(
+    *,
+    route_kind: str,
+    classifier_intent: str,
+    actions: List[Action],
+    message: str,
+    child_row: Dict[str, Any],
+    symptom_tags: List[str],
+    question_category: str,
+) -> tuple[str, List[str], str]:
+    if route_kind == "ask":
+        model_guidance = compose_guidance_with_openai(
+            message,
+            child_context={
+                "first_name": child_row.get("first_name") or child_row.get("name"),
+                "birth_date": child_row.get("birth_date"),
+                "due_date": child_row.get("due_date"),
+                "timezone": child_row.get("timezone"),
+            },
+            question_category=question_category,
+            symptom_tags=symptom_tags,
+        )
+        if model_guidance:
+            return model_guidance, [], "question"
+
+    if route_kind == "log":
+        assistant_text, _ = build_assistant_message(
+            actions,
+            message,
+            child_data=child_row,
+            context={
+                "intent": "logging",
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": actions,
+            },
+        )
+        return assistant_text, [], "logging"
+    if route_kind == "mixed":
+        assistant_text, ui_nudges = build_assistant_message(
+            actions,
+            message,
+            child_data=child_row,
+            context={
+                "intent": "mixed",
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": actions,
+            },
+        )
+        return assistant_text, ui_nudges, "mixed"
+    assistant_text, ui_nudges = build_assistant_message(
+        [],
+        message,
+        child_data=child_row,
+        context={
+            "intent": classifier_intent,
+            "symptom_tags": symptom_tags,
+            "question_category": question_category,
+            "recent_actions": [],
+        },
+    )
+    return assistant_text, ui_nudges, "question"
 
 
 async def _build_context_bundle(
@@ -808,12 +970,13 @@ async def capture_activity(
     timezone_value = child_row.get("timezone") or payload.timezone
     symptom_tags = message_symptom_tags(payload.message)
     question_category = classify_question_category(payload.message, symptom_tags)
-    intent_result = classify_intent(payload.message)
-    route_decision = _route_decision_for_message(payload.message, intent_result.intent)
-    route_to_guidance = route_decision.route_to_guidance
+    execution_plan = _build_route_execution_plan(payload.message)
+    intent_result = execution_plan.intent_result
+    route_decision = execution_plan.route_decision
+    route_metadata = execution_plan.route_metadata
     mixed_logging_segments = route_decision.mixed_logging_segments
-    mixed_route = route_decision.route_kind == "mixed"
-    user_intent = route_decision.user_intent
+    mixed_route = execution_plan.mixed_route
+    user_intent = execution_plan.user_intent
     logger.info(
         "chat route decision",
         extra={
@@ -823,6 +986,8 @@ async def capture_activity(
             "session_id": conversation_id,
             "classifier_intent": intent_result.intent,
             "route_kind": route_decision.route_kind,
+            "route_decision_source": route_decision.decision_source,
+            "route_confidence": route_decision.confidence,
             "is_question": route_decision.is_question,
             "mixed_logging_segments": len(mixed_logging_segments),
         },
@@ -848,7 +1013,12 @@ async def capture_activity(
         has_prior_messages=context_bundle.has_prior_messages,
     )
     memory_target = detect_memory_save_target(payload.message)
-    if memory_target:
+    route_write_policy = _build_route_write_policy(
+        route_kind=route_decision.route_kind,
+        classifier_intent=intent_result.intent,
+        has_memory_target=bool(memory_target),
+    )
+    if memory_target and route_write_policy.allow_explicit_memory_writes:
         now_iso = _now_iso()
         summary_text = _strip_memory_prefix(payload.message)
         age_weeks = _child_age_weeks(child_row) if child_row else None
@@ -894,8 +1064,9 @@ async def capture_activity(
             user_message_id=user_message.id,
             assistant_message_id=assistant_message.id,
             intent="memory",
+            route_metadata=route_metadata,
         )
-    if intent_result.intent == "task_request":
+    if route_write_policy.allow_task_writes:
         now_iso = _now_iso()
         task_title = extract_task_title(payload.message)
         task_due_at = extract_task_due_at(payload.message, timezone_value)
@@ -938,13 +1109,14 @@ async def capture_activity(
             user_message_id=user_message.id,
             assistant_message_id=assistant_message.id,
             intent="task",
+            route_metadata=route_metadata,
         )
     actions: List[Action] = []
     assistant_text: str
     ui_nudges: List[str] = []
     intent = "logging"
 
-    if not route_to_guidance or mixed_route:
+    if route_write_policy.allow_timeline_activity_writes:
         segments = (
             mixed_logging_segments
             if mixed_route
@@ -995,7 +1167,7 @@ async def capture_activity(
                 },
             )
         inference = _detect_memory_inference(payload.message)
-        if inference:
+        if inference and route_write_policy.allow_inference_memory_writes:
             inference_type, inference_payload, confidence = inference
             await _maybe_create_inference(
                 auth,
@@ -1005,44 +1177,15 @@ async def capture_activity(
                 confidence=confidence,
                 source="chat",
             )
-    if not route_to_guidance:
-        assistant_text, _ = build_assistant_message(
-            actions,
-            payload.message,
-            child_data=child_row,
-            context={
-                "intent": "logging",
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
-                "recent_actions": actions,
-            },
-        )
-    elif mixed_route:
-        assistant_text, ui_nudges = build_assistant_message(
-            actions,
-            payload.message,
-            child_data=child_row,
-            context={
-                "intent": "mixed",
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
-                "recent_actions": actions,
-            },
-        )
-        intent = "mixed"
-    else:
-        assistant_text, ui_nudges = build_assistant_message(
-            [],
-            payload.message,
-            child_data=child_row,
-            context={
-                "intent": intent_result.intent,
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
-                "recent_actions": [],
-            },
-        )
-        intent = "question"
+    assistant_text, ui_nudges, intent = _compose_assistant_reply_for_route(
+        route_kind=route_decision.route_kind,
+        classifier_intent=intent_result.intent,
+        actions=actions,
+        message=payload.message,
+        child_row=child_row,
+        symptom_tags=symptom_tags,
+        question_category=question_category,
+    )
 
     assistant_message = await _insert_conversation_message(
         auth,
@@ -1067,6 +1210,7 @@ async def capture_activity(
         assistant_message_id=assistant_message.id,
         intent=intent,
         ui_nudges=ui_nudges or None,
+        route_metadata=route_metadata,
     )
 
 @app.get("/")
@@ -1800,6 +1944,9 @@ def _route_decision_for_message(message: str, intent_name: str) -> RouteDecision
         route_to_guidance=route_to_guidance,
         mixed_logging_segments=mixed_logging_segments,
         is_question=is_question,
+        decision_source="rule",
+        confidence=0.0,
+        classifier_intent=normalized_intent,
     )
 
 
@@ -1890,7 +2037,7 @@ async def _upsert_child_profile(
     birth_date: Optional[str],
     due_date: Optional[str],
     gender: Optional[str],
-) -> None:
+) -> Optional[str]:
     child_payload: Dict[str, Any] = {
         "first_name": _normalize_text(payload.first_name),
         "last_name": _normalize_text(payload.last_name),
@@ -1918,7 +2065,7 @@ async def _upsert_child_profile(
             },
         )
         if updated:
-            return
+            return str(updated[0].get("id") or child_id)
 
     existing_children = await auth.supabase.select(
         "children",
@@ -1930,23 +2077,27 @@ async def _upsert_child_profile(
         },
     )
     if existing_children:
+        existing_child_id = str(existing_children[0]["id"])
         await auth.supabase.update(
             "children",
             child_payload,
             params={
-                "id": f"eq.{existing_children[0]['id']}",
+                "id": f"eq.{existing_child_id}",
                 "family_id": f"eq.{auth.family_id}",
             },
         )
-        return
+        return existing_child_id
 
-    await auth.supabase.insert(
+    created = await auth.supabase.insert(
         "children",
         {
             **child_payload,
             "family_id": auth.family_id,
         },
     )
+    if created:
+        return str(created[0].get("id"))
+    return None
 
 
 @app.get("/api/v1/settings", response_model=SettingsResponse)
@@ -1994,7 +2145,7 @@ async def update_settings(
             },
         )
 
-    await _upsert_child_profile(
+    _ = await _upsert_child_profile(
         auth=auth,
         payload=payload.child,
         birth_date=birth_date,
@@ -2006,6 +2157,106 @@ async def update_settings(
     selected_child_id = resolve_optional_uuid(payload.child.id, "child_id") if payload.child.id else None
     if not selected_child_id and child_id_header:
         selected_child_id = resolve_optional_uuid(child_id_header, "child_id")
+    return _build_settings_response(caregiver_data, children_data, selected_child_id)
+
+
+def _validate_required_text(value: Optional[str], field_label: str) -> str:
+    normalized = _normalize_text(value)
+    if not normalized:
+        raise HTTPException(status_code=400, detail=f"{field_label} is required.")
+    return normalized
+
+
+def _validate_weight(value: Optional[float], field_label: str) -> float:
+    if value is None:
+        raise HTTPException(status_code=400, detail=f"{field_label} is required.")
+    if value <= 0:
+        raise HTTPException(status_code=400, detail=f"{field_label} must be greater than 0.")
+    return float(value)
+
+
+@app.post("/api/v1/onboarding/profile", response_model=SettingsResponse)
+async def complete_onboarding_profile(
+    payload: OnboardingProfilePayload,
+    auth: AuthContext = Depends(get_auth_context),
+) -> SettingsResponse:
+    caregiver_first_name = _validate_required_text(
+        payload.caregiver.first_name,
+        "Caregiver first name",
+    )
+    caregiver_last_name = _validate_required_text(
+        payload.caregiver.last_name,
+        "Caregiver last name",
+    )
+    caregiver_email = _validate_required_text(
+        payload.caregiver.email,
+        "Caregiver email",
+    )
+    caregiver_phone = _validate_required_text(
+        payload.caregiver.phone,
+        "Caregiver phone",
+    )
+    if "@" not in caregiver_email:
+        raise HTTPException(status_code=400, detail="Caregiver email is invalid.")
+    phone_digits = re.sub(r"\D", "", caregiver_phone)
+    if len(phone_digits) < 7:
+        raise HTTPException(status_code=400, detail="Caregiver phone is invalid.")
+
+    child_name = _validate_required_text(payload.child.name, "Child name")
+    birth_date = _normalize_text(payload.child.birth_date)
+    due_date = _normalize_text(payload.child.due_date)
+    if not birth_date and not due_date:
+        raise HTTPException(status_code=400, detail="Child date of birth or due date is required.")
+    birth_weight = _validate_weight(payload.child.birth_weight, "Birth weight")
+    latest_weight = _validate_weight(payload.child.latest_weight, "Last known weight")
+    child_timezone = normalize_timezone(payload.child.timezone) or "America/Los_Angeles"
+
+    caregiver_update_payload = {
+        "first_name": caregiver_first_name,
+        "last_name": caregiver_last_name,
+        "email": caregiver_email,
+        "phone": caregiver_phone,
+    }
+    await auth.supabase.update(
+        "family_members",
+        caregiver_update_payload,
+        params={
+            "family_id": f"eq.{auth.family_id}",
+            "user_id": f"eq.{auth.user_id}",
+        },
+    )
+
+    _, existing_children = await _fetch_supabase_settings(auth)
+    existing_child = existing_children[0] if existing_children else {}
+    existing_child_id = _normalize_text(existing_child.get("id"))
+    resolved_gender = _normalize_gender(existing_child.get("gender")) or "unknown"
+    child_payload = ChildProfile(
+        id=existing_child_id,
+        first_name=child_name,
+        last_name=caregiver_last_name,
+        birth_date=birth_date,
+        due_date=due_date,
+        birth_weight=birth_weight,
+        birth_weight_unit=_normalize_text(existing_child.get("birth_weight_unit")) or "lb",
+        latest_weight=latest_weight,
+        latest_weight_date=_normalize_text(existing_child.get("latest_weight_date")) or "",
+        timezone=child_timezone,
+    )
+    selected_child_id = await _upsert_child_profile(
+        auth=auth,
+        payload=child_payload,
+        birth_date=birth_date,
+        due_date=due_date,
+        gender=resolved_gender,
+    )
+
+    caregiver_data, children_data = await _fetch_supabase_settings(auth)
+    caregiver_data = {
+        **(caregiver_data or {}),
+        **caregiver_update_payload,
+    }
+    if not selected_child_id and children_data:
+        selected_child_id = _normalize_text(children_data[0].get("id"))
     return _build_settings_response(caregiver_data, children_data, selected_child_id)
 
 
@@ -2085,6 +2336,7 @@ async def create_child(
 @app.post("/api/v1/invites")
 async def create_invite(
     payload: InviteCreatePayload,
+    request: Request,
     auth: AuthContext = Depends(get_auth_context),
 ) -> dict:
     email = (payload.email or "").strip().lower()
@@ -2098,11 +2350,18 @@ async def create_invite(
             "email": email,
             "role": payload.role or "member",
             "token": token,
+            "invited_by": auth.user_id,
         },
     )
     if not created:
         raise HTTPException(status_code=500, detail="Unable to create invite.")
-    base_url = os.getenv("HAVI_SITE_URL") or os.getenv("NEXT_PUBLIC_SITE_URL") or "https://gethavi.com"
+    request_origin = (request.headers.get("origin") or "").strip()
+    base_url = (
+        os.getenv("HAVI_SITE_URL")
+        or os.getenv("NEXT_PUBLIC_SITE_URL")
+        or request_origin
+        or "https://gethavi.com"
+    )
     return {
         "token": token,
         "family_id": auth.family_id,
@@ -2119,14 +2378,30 @@ async def accept_invite(
     token = (payload.token or "").strip()
     if not token:
         raise HTTPException(status_code=400, detail="Invite token is required.")
-    invites = await user_ctx.supabase.select(
-        "family_invites",
-        params={
-            "select": "id,family_id,email,role,accepted_at",
-            "token": f"eq.{token}",
-            "limit": "1",
-        },
-    )
+    supports_acceptance_tracking = True
+    try:
+        invites = await user_ctx.supabase.select(
+            "family_invites",
+            params={
+                "select": "id,family_id,email,role,accepted_at",
+                "token": f"eq.{token}",
+                "limit": "1",
+            },
+        )
+    except HTTPException as exc:
+        detail = str(exc.detail or "").lower()
+        missing_accepted_at = "accepted_at" in detail and "does not exist" in detail
+        if not missing_accepted_at:
+            raise
+        supports_acceptance_tracking = False
+        invites = await user_ctx.supabase.select(
+            "family_invites",
+            params={
+                "select": "id,family_id,email,role",
+                "token": f"eq.{token}",
+                "limit": "1",
+            },
+        )
     if not invites:
         raise HTTPException(status_code=404, detail="Invite not found.")
     invite = invites[0]
@@ -2147,14 +2422,34 @@ async def accept_invite(
         },
         on_conflict="family_id,user_id",
     )
-    await user_ctx.supabase.update(
-        "family_invites",
-        {
+    if supports_acceptance_tracking:
+        accepted_payload = {
             "accepted_at": _now_iso(),
             "accepted_by_user_id": user_ctx.user_id,
-        },
-        params={"id": f"eq.{invite.get('id')}"},
-    )
+        }
+        try:
+            await user_ctx.supabase.update(
+                "family_invites",
+                accepted_payload,
+                params={"id": f"eq.{invite.get('id')}"},
+            )
+        except HTTPException as exc:
+            detail = str(exc.detail or "").lower()
+            missing_accepted_at = "accepted_at" in detail and "does not exist" in detail
+            missing_accepted_by = "accepted_by_user_id" in detail and "does not exist" in detail
+            if not (missing_accepted_at or missing_accepted_by):
+                raise
+            fallback_payload: Dict[str, Any] = {}
+            if not missing_accepted_at:
+                fallback_payload["accepted_at"] = accepted_payload["accepted_at"]
+            if not missing_accepted_by:
+                fallback_payload["accepted_by_user_id"] = accepted_payload["accepted_by_user_id"]
+            if fallback_payload:
+                await user_ctx.supabase.update(
+                    "family_invites",
+                    fallback_payload,
+                    params={"id": f"eq.{invite.get('id')}"},
+                )
     return {"status": "accepted", "family_id": invite.get("family_id")}
 
 STAGE_GUIDANCE = {

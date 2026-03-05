@@ -87,6 +87,16 @@ class ChatRequest(BaseModel):
     )
 
 
+class ChatRouteMetadata(BaseModel):
+    route_kind: str
+    user_intent: str
+    classifier_intent: str
+    decision_source: str = Field(default="rule")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    is_question: bool = False
+    mixed_logging_segment_count: int = 0
+
+
 class ChatResponse(BaseModel):
     actions: List[Action]
     raw_message: str = Field(description="Original message echoed back for debugging")
@@ -99,6 +109,10 @@ class ChatResponse(BaseModel):
     assistant_message_id: Optional[str] = None
     intent: Optional[str] = Field(default=None, description="Router-derived primary intent")
     ui_nudges: Optional[List[str]] = Field(default=None, description="Optional UI nudges for surfacing outside the main message")
+    route_metadata: Optional[ChatRouteMetadata] = Field(
+        default=None,
+        description="Structured route decision metadata for observability and evals.",
+    )
 
 
 class LoadingMetricsPayload(BaseModel):

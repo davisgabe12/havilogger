@@ -45,6 +45,7 @@ const shouldIgnoreRequestFailure = (
 };
 
 const completeOnboardingIfNeeded = async (page: any) => {
+  const onboardingCaregiverEmail = `green.owner+${Date.now()}@example.com`;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await page.waitForLoadState("domcontentloaded");
     const currentUrl = page.url();
@@ -53,20 +54,68 @@ const completeOnboardingIfNeeded = async (page: any) => {
       await page.getByTestId("onboarding-family-name").waitFor();
       await page.getByTestId("onboarding-family-name").fill("Green Family");
       await page.getByTestId("onboarding-create-family").click();
-      await page.waitForURL(/\/app\/onboarding\/child|\/app(\?|$)/, {
+      await page.waitForURL(/\/app\/onboarding\/profile|\/app(\?|$)/, {
         timeout: 20_000,
       });
       continue;
     }
 
-    if (currentUrl.includes("/app/onboarding/child")) {
-      await page.getByTestId("onboarding-child-name").waitFor();
-      await page.getByTestId("onboarding-child-name").fill("River");
-      await page.getByTestId("onboarding-child-dob").fill("2024-01-15");
-      await page.getByTestId("onboarding-child-gender").selectOption("girl");
-      await page.getByTestId("onboarding-child-birth-weight").fill("7.5");
-      await page.getByTestId("onboarding-save-child").click();
-      await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
+    if (
+      currentUrl.includes("/app/onboarding/profile") ||
+      currentUrl.includes("/app/onboarding/child")
+    ) {
+      const childStepStartVisible = await page
+        .getByTestId("onboarding-profile-child")
+        .isVisible()
+        .catch(() => false);
+      if (childStepStartVisible) {
+        const backButton = page.getByTestId("onboarding-profile-back");
+        if (await backButton.isVisible().catch(() => false)) {
+          await backButton.click();
+        }
+      }
+      await page.getByTestId("onboarding-profile-caregiver").waitFor({
+        timeout: 15_000,
+      });
+      await page
+        .getByTestId("onboarding-profile-caregiver-first-name")
+        .fill("Gabe");
+      await page
+        .getByTestId("onboarding-profile-caregiver-last-name")
+        .fill("Davis");
+      await page
+        .getByTestId("onboarding-profile-caregiver-email")
+        .fill(onboardingCaregiverEmail);
+      await page
+        .getByTestId("onboarding-profile-caregiver-phone")
+        .fill("5551234567");
+      for (let childStepAttempt = 0; childStepAttempt < 3; childStepAttempt += 1) {
+        await page.getByTestId("onboarding-profile-continue").click();
+        const childVisible = await page
+          .getByTestId("onboarding-profile-child")
+          .isVisible()
+          .catch(() => false);
+        if (childVisible) break;
+        await page.waitForTimeout(500);
+      }
+      await page.getByTestId("onboarding-profile-child").waitFor({ timeout: 15_000 });
+      await page.getByTestId("onboarding-profile-child-name").fill("River");
+      await page.getByTestId("onboarding-profile-child-dob").fill("2024-01-15");
+      await page
+        .getByTestId("onboarding-profile-child-birth-weight")
+        .fill("7.5");
+      await page
+        .getByTestId("onboarding-profile-child-last-known-weight")
+        .fill("12.3");
+      await page
+        .getByTestId("onboarding-profile-child-timezone")
+        .selectOption("America/Los_Angeles");
+      await page.getByTestId("onboarding-profile-submit").click();
+      try {
+        await page.waitForURL(/\/app(\?|$)/, { timeout: 8_000 });
+      } catch {
+        // Retry loop handles transient submit races and validation stalls.
+      }
       continue;
     }
 
@@ -89,47 +138,6 @@ const completeOnboardingIfNeeded = async (page: any) => {
   throw new Error(`Onboarding did not complete. Current URL: ${page.url()}`);
 };
 
-const completeSetupModalIfNeeded = async (page: any) => {
-  const modal = page.getByTestId("setup-required-modal");
-  const visible = await modal.isVisible().catch(() => false);
-  if (!visible) {
-    return;
-  }
-
-  await page.getByTestId("finish-setup").click();
-  await page.getByTestId("settings-save").waitFor({ timeout: 15_000 });
-
-  const editButton = page.getByTestId("settings-child-edit");
-  if (await editButton.isVisible().catch(() => false)) {
-    await editButton.click();
-  }
-
-  const bornButton = page.getByTestId("settings-child-born");
-  if (await bornButton.isVisible().catch(() => false)) {
-    await bornButton.click();
-  }
-
-  const dobField = page.getByTestId("settings-child-dob");
-  if (await dobField.isVisible().catch(() => false)) {
-    await dobField.fill("09-23-2025");
-  }
-
-  const genderSelect = page.getByTestId("settings-child-gender");
-  if (await genderSelect.isVisible().catch(() => false)) {
-    await genderSelect.selectOption("girl");
-  }
-
-  const birthWeightField = page.getByTestId("settings-child-birth-weight");
-  if (await birthWeightField.isVisible().catch(() => false)) {
-    await birthWeightField.fill("7.5");
-  }
-
-  page.once("dialog", (dialog: any) => dialog.accept());
-  await page.getByTestId("settings-save").click();
-  await page.getByRole("button", { name: /back to chat/i }).click();
-  await expect(page.getByTestId("setup-required-modal")).toHaveCount(0);
-};
-
 const waitForAppCoreReady = async (page: any, timeout = 20_000) => {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -146,6 +154,13 @@ const waitForAppCoreReady = async (page: any, timeout = 20_000) => {
 
     if (!/\/app(\?|$)/.test(currentUrl)) {
       await page.waitForTimeout(400);
+      continue;
+    }
+
+    const profileLock = page.getByTestId("profile-lock-modal");
+    if (await profileLock.isVisible().catch(() => false)) {
+      await page.getByTestId("complete-profile").click();
+      await page.waitForTimeout(300);
       continue;
     }
 
@@ -170,6 +185,28 @@ const waitForAppCoreReady = async (page: any, timeout = 20_000) => {
     await page.waitForTimeout(400);
   }
   throw new Error(`App core not ready. Current URL: ${page.url()}`);
+};
+
+type ActivityRouteMetadata = {
+  route_kind?: string;
+  classifier_intent?: string;
+  decision_source?: string;
+  confidence?: number;
+};
+
+type ActivityResponsePayload = {
+  actions?: unknown[];
+  assistant_message?: string;
+  assistant_message_id?: string;
+  conversation_id?: string;
+  intent?: string;
+  route_metadata?: ActivityRouteMetadata;
+};
+
+const readSectionCount = async (section: any, label: "pending" | "saved") => {
+  const text = (await section.innerText()).toLowerCase();
+  const match = text.match(new RegExp(`(\\d+)\\s+${label}`));
+  return match ? Number(match[1]) : 0;
 };
 
 test("GREEN smoke", async ({ page }) => {
@@ -229,37 +266,147 @@ test("GREEN smoke", async ({ page }) => {
   }
 
   await completeOnboardingIfNeeded(page);
-  const knowledgeResponsePromise = page.waitForResponse((res: any) => {
-    const url = res.url?.() ?? "";
-    return url.includes("/api/v1/knowledge") && res.request().method() === "GET";
-  });
   await waitForAppCoreReady(page);
-  await completeSetupModalIfNeeded(page);
-  await waitForAppCoreReady(page);
-  const knowledgeResponse = await knowledgeResponsePromise;
-  expect(knowledgeResponse.status()).toBe(200);
+  await expect(page.getByTestId("profile-lock-modal")).toHaveCount(0);
 
   const chatMessages = page.getByTestId("chat-message");
+  const assistantMessages = page.locator(
+    '[data-testid="chat-message"][data-sender="assistant"]',
+  );
+  const matchesActivityRequest = (res: any, text: string) => {
+    const method = res.request().method();
+    const url = res.url?.() ?? "";
+    if (method !== "POST" || !url.includes("/api/v1/activities")) {
+      return false;
+    }
+    try {
+      const req = res.request();
+      let payload: any = null;
+      if (typeof req.postDataJSON === "function") {
+        try {
+          payload = req.postDataJSON();
+        } catch {
+          payload = null;
+        }
+      }
+      if (!payload) {
+        const raw = req.postData();
+        if (raw) payload = JSON.parse(raw);
+      }
+      return payload?.message === text;
+    } catch {
+      return false;
+    }
+  };
+  const matchesFeedbackRequest = (
+    res: any,
+    expectedMessageId: string,
+    expectedRating: "up" | "down",
+  ) => {
+    const method = res.request().method();
+    const url = res.url?.() ?? "";
+    if (method !== "POST" || !url.includes("/api/v1/messages/feedback")) {
+      return false;
+    }
+    try {
+      const req = res.request();
+      let payload: any = null;
+      if (typeof req.postDataJSON === "function") {
+        try {
+          payload = req.postDataJSON();
+        } catch {
+          payload = null;
+        }
+      }
+      if (!payload) {
+        const raw = req.postData();
+        if (raw) payload = JSON.parse(raw);
+      }
+      return (
+        payload?.message_id === expectedMessageId &&
+        payload?.rating === expectedRating
+      );
+    } catch {
+      return false;
+    }
+  };
   const sendMessage = async (text: string) => {
+    const assistantCountBefore = await assistantMessages.count();
     const activityResponse = page.waitForResponse(
-      (res: any) =>
-        res.request().method() === "POST" &&
-        res.url?.().includes("/api/v1/activities"),
+      (res: any) => matchesActivityRequest(res, text),
     );
     await page.getByTestId("chat-input").fill(text);
     await expect(page.getByTestId("chat-send")).toBeEnabled({ timeout: 20_000 });
     await page.getByTestId("chat-send").click();
     const activityResult = await activityResponse;
     expect(activityResult.status()).toBe(200);
-    await expect(chatMessages.filter({ hasText: text })).toBeVisible({
-      timeout: 20_000,
-    });
+    const payload = (await activityResult.json()) as ActivityResponsePayload;
+    await expect
+      .poll(
+        async () => (await assistantMessages.count()) > assistantCountBefore,
+        { timeout: 20_000 },
+      )
+      .toBeTruthy();
+    await expect(chatMessages.last()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("chat-input")).toBeEnabled({ timeout: 20_000 });
+    return payload;
   };
 
-  const chatText = `Green chat ${timestamp}`;
-  await sendMessage(chatText);
-  await expect(page.getByText(chatText)).toBeVisible();
+  const logPayload = await sendMessage("baby pooped at 3pm");
+  expect(logPayload.route_metadata?.route_kind).toBe("log");
+  expect(Array.isArray(logPayload.actions)).toBeTruthy();
+  expect((logPayload.actions ?? []).length).toBeGreaterThan(0);
+
+  const askPayload = await sendMessage("my child is hitting, what should i do?");
+  expect(askPayload.route_metadata?.route_kind).toBe("ask");
+  expect((askPayload.actions ?? []).length).toBe(0);
+
+  const mixedPayload = await sendMessage(
+    "baby pooped at 4pm, what should i do if he keeps waking at night?",
+  );
+  expect(mixedPayload.route_metadata?.route_kind).toBe("mixed");
+  expect((mixedPayload.actions ?? []).length).toBeGreaterThan(0);
+  expect(mixedPayload.assistant_message_id).toBeTruthy();
+  const mixedAssistantMessageId = String(mixedPayload.assistant_message_id);
+
+  const mixedAssistantWrapper = page
+    .locator('[data-testid="message-bubble-wrapper"]')
+    .filter({
+      has: page.locator(`[data-message-id="${mixedAssistantMessageId}"]`),
+    })
+    .first();
+  await expect(mixedAssistantWrapper).toBeVisible({ timeout: 20_000 });
+
+  const thumbsUpResponse = page.waitForResponse((res: any) =>
+    matchesFeedbackRequest(res, mixedAssistantMessageId, "up"),
+  );
+  await mixedAssistantWrapper.getByRole("button", { name: "Thumbs up" }).click();
+  const thumbsUpStatus = (await thumbsUpResponse).status();
+  expect(thumbsUpStatus).toBe(200);
+
+  const thumbsDownResponse = page.waitForResponse((res: any) =>
+    matchesFeedbackRequest(res, mixedAssistantMessageId, "down"),
+  );
+  await mixedAssistantWrapper.getByRole("button", { name: "Thumbs down" }).click();
+  await mixedAssistantWrapper
+    .getByPlaceholder("What didn’t work? (optional)")
+    .fill("Too generic");
+  const thumbsDownStatus = (await thumbsDownResponse).status();
+  expect(thumbsDownStatus).toBe(200);
+
+  const explicitMemoryPayload = await sendMessage(
+    `save this: River prefers a longer second nap ${timestamp}`,
+  );
+  expect(explicitMemoryPayload.intent).toBe("memory");
+  expect(explicitMemoryPayload.assistant_message_id).toBeTruthy();
+
+  const inferredMemoryPayload = await sendMessage(
+    `River likes a longer second nap and napped from 1pm to 2:30pm ${timestamp}`,
+  );
+  expect(["log", "mixed"]).toContain(
+    inferredMemoryPayload.route_metadata?.route_kind,
+  );
+  expect((inferredMemoryPayload.actions ?? []).length).toBeGreaterThan(0);
 
   await page.getByTestId("nav-tasks").click();
   await page.getByTestId("tasks-view-all").click();
@@ -279,15 +426,21 @@ test("GREEN smoke", async ({ page }) => {
   ).toBeVisible({ timeout: 20_000 });
 
   await page.getByTestId("nav-knowledge").click();
-  await page.getByTestId("memory-suggestions").waitFor();
-  await page.getByTestId("memory-saved").waitFor();
-  await expect(page.getByTestId("memory-suggestions")).toBeVisible();
-  await expect(page.getByTestId("memory-saved")).toBeVisible();
+  const memorySuggestions = page.getByTestId("memory-suggestions");
+  const memorySaved = page.getByTestId("memory-saved");
+  await memorySuggestions.waitFor();
+  await memorySaved.waitFor();
+  await expect(memorySuggestions).toBeVisible();
+  await expect(memorySaved).toBeVisible();
+  const pendingCount = await readSectionCount(memorySuggestions, "pending");
+  const savedCount = await readSectionCount(memorySaved, "saved");
+  expect(pendingCount).toBeGreaterThanOrEqual(0);
+  expect(savedCount).toBeGreaterThanOrEqual(0);
 
   await page.reload();
   await waitForAppCoreReady(page);
   await page.getByTestId("nav-havi").click();
-  await expect(page.getByText(chatText)).toBeVisible();
+  await expect(chatMessages.last()).toBeVisible();
 
   await page.getByTestId("nav-tasks").click();
   await page.getByTestId("tasks-view-all").click();

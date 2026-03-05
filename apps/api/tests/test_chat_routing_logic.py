@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from app.main import (
     _action_from_segment,
+    _build_route_execution_plan,
+    _build_route_write_policy,
     _is_question,
+    _resolve_route_contract,
     _route_decision_for_message,
+    _should_persist_activity_actions,
     _should_route_to_guidance,
     build_assistant_message,
     classify_question_category,
     message_symptom_tags,
 )
 from app.router import classify_intent
+from app.schemas import ChatResponse
 
 
 def test_hits_without_question_mark_routes_to_guidance() -> None:
@@ -118,3 +123,72 @@ def test_route_decision_marks_task_before_mixed() -> None:
 
     assert decision.route_kind == "task"
     assert decision.user_intent == "task"
+
+
+def test_resolve_route_contract_exposes_structured_metadata() -> None:
+    intent_result, decision, route_metadata = _resolve_route_contract(
+        "baby pooped at 3pm, what should i do if he is waking at night?"
+    )
+    assert decision.route_kind == "mixed"
+    assert route_metadata.route_kind == "mixed"
+    assert route_metadata.classifier_intent == intent_result.intent
+    assert route_metadata.decision_source == "rule"
+    assert route_metadata.confidence == intent_result.confidence
+    assert route_metadata.mixed_logging_segment_count == 1
+
+
+def test_chat_response_serializes_route_metadata_contract() -> None:
+    payload = ChatResponse(
+        actions=[],
+        raw_message="test",
+        model="havi-local",
+        latency_ms=12,
+        route_metadata={
+            "route_kind": "ask",
+            "user_intent": "question",
+            "classifier_intent": "general_parenting_advice",
+            "decision_source": "rule",
+            "confidence": 0.6,
+            "is_question": True,
+            "mixed_logging_segment_count": 0,
+        },
+    )
+    assert payload.route_metadata is not None
+    assert payload.route_metadata.route_kind == "ask"
+    assert payload.route_metadata.decision_source == "rule"
+
+
+def test_should_persist_activity_actions_policy() -> None:
+    assert _should_persist_activity_actions("log") is True
+    assert _should_persist_activity_actions("mixed") is True
+    assert _should_persist_activity_actions("ask") is False
+    assert _should_persist_activity_actions("task") is False
+
+
+def test_build_route_execution_plan_sets_consistent_contract_fields() -> None:
+    plan = _build_route_execution_plan("woke at 3am, is that normal?")
+    assert plan.route_decision.route_kind == "mixed"
+    assert plan.route_metadata.route_kind == "mixed"
+    assert plan.user_intent == "mixed"
+    assert plan.mixed_route is True
+    assert plan.allow_activity_writes is True
+
+
+def test_build_route_write_policy_respects_memory_and_task_controls() -> None:
+    policy_memory = _build_route_write_policy(
+        route_kind="ask",
+        classifier_intent="general_parenting_advice",
+        has_memory_target=True,
+    )
+    assert policy_memory.allow_explicit_memory_writes is True
+    assert policy_memory.allow_task_writes is False
+    assert policy_memory.allow_timeline_activity_writes is False
+
+    policy_task = _build_route_write_policy(
+        route_kind="task",
+        classifier_intent="task_request",
+        has_memory_target=False,
+    )
+    assert policy_task.allow_task_writes is True
+    assert policy_task.allow_explicit_memory_writes is False
+    assert policy_task.allow_timeline_activity_writes is False

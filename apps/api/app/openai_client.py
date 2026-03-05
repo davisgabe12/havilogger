@@ -86,6 +86,38 @@ Return only JSON that matches the provided schema. Keep assistant_message warm, 
 """
 FALLBACK_PROMPT_SUFFIX = "\nReturn ONLY valid JSON that matches the schema. Do not wrap it in markdown fences."
 
+INTENT_CLASSIFIER_PROMPT = """
+You classify a caregiver message into one intent label.
+Return JSON only with this schema:
+{
+  "intent": string,
+  "confidence": number between 0 and 1,
+  "reason": string
+}
+Rules:
+1) intent must be exactly one of the provided allowed intents.
+2) choose the single best intent for this message.
+3) confidence reflects certainty in the chosen intent.
+4) no markdown, no extra keys.
+"""
+
+GUIDANCE_COMPOSER_PROMPT = """
+You are HAVI, a pediatric guidance assistant.
+Write practical caregiver guidance in concise Markdown.
+
+Output contract:
+1) Start with a short normalization/evidence sentence.
+2) Include 3-5 concrete action steps as a numbered list.
+3) Include a short "What not to do" section.
+4) Include a short reusable script parents can say.
+5) Ask at most 2 targeted follow-up questions.
+
+Safety:
+- Do not provide medical diagnosis.
+- Escalate to pediatrician/urgent care when red-flag symptoms are present.
+- Avoid certainty claims when context is incomplete.
+"""
+
 
 def _json_schema() -> Dict[str, Any]:
     return {
@@ -256,21 +288,8 @@ def _call_chat_completions(
         logger.exception("Unexpected OpenAI response format, falling back to stub", exc_info=exc)
         return _stub_response("Chat completions stub")
 
-    if isinstance(raw_content, str):
-        content = raw_content
-    else:
-        chunks = []
-        for part in raw_content:
-            text = getattr(part, "text", None)
-            if text is None and isinstance(part, dict):
-                text = part.get("text")
-            if text:
-                chunks.append(text)
-        content = "".join(chunks)
-
-    content = content.strip().strip("`")
     try:
-        return json.loads(content)
+        return _parse_json_payload(raw_content)
     except json.JSONDecodeError as exc:
         logger.exception("Failed to parse OpenAI JSON payload, falling back to stub", exc_info=exc)
         return _stub_response("Chat completions stub")
@@ -307,6 +326,179 @@ def _call_responses_api(
     message: str, context_messages: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     return _stub_response("Responses API stub")
+
+
+def _parse_json_payload(raw_content: Any) -> Dict[str, Any]:
+    if isinstance(raw_content, str):
+        content = raw_content
+    else:
+        chunks = []
+        for part in raw_content:
+            text = getattr(part, "text", None)
+            if text is None and isinstance(part, dict):
+                text = part.get("text")
+            if text:
+                chunks.append(text)
+        content = "".join(chunks)
+    content = content.strip().strip("`")
+    return json.loads(content)
+
+
+def _openai_intent_classifier_enabled() -> bool:
+    return os.getenv("ENABLE_OPENAI_INTENT_CLASSIFIER", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _openai_guidance_composer_enabled() -> bool:
+    return os.getenv("ENABLE_OPENAI_GUIDANCE_COMPOSER", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _extract_text_content(raw_content: Any) -> str:
+    if isinstance(raw_content, str):
+        return raw_content.strip()
+    chunks = []
+    for part in raw_content:
+        text = getattr(part, "text", None)
+        if text is None and isinstance(part, dict):
+            text = part.get("text")
+        if text:
+            chunks.append(text)
+    return "".join(chunks).strip()
+
+
+def classify_intent_with_openai(
+    message: str,
+    *,
+    allowed_intents: List[str],
+) -> Optional[Dict[str, Any]]:
+    if not _openai_intent_classifier_enabled():
+        return None
+    text = (message or "").strip()
+    if not text:
+        return None
+
+    try:
+        response = client.chat.completions.create(
+            model=CONFIG.openai_model,
+            messages=[
+                {"role": "system", "content": INTENT_CLASSIFIER_PROMPT},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"message": text, "allowed_intents": allowed_intents},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            temperature=0,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "intent_classifier_schema",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "intent": {"type": "string", "enum": allowed_intents},
+                            "confidence": {"type": "number"},
+                            "reason": {"type": "string"},
+                        },
+                        "required": ["intent", "confidence", "reason"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+        )
+    except APIError as exc:
+        logger.warning("OpenAI intent classifier failed; falling back to rules", exc_info=exc)
+        return None
+    except Exception as exc:
+        logger.warning("Unexpected classifier error; falling back to rules", exc_info=exc)
+        return None
+
+    try:
+        raw_content = response.choices[0].message.content or ""
+    except (AttributeError, IndexError, KeyError) as exc:
+        logger.warning("Unexpected classifier response shape; falling back", exc_info=exc)
+        return None
+
+    try:
+        parsed = _parse_json_payload(raw_content)
+    except json.JSONDecodeError as exc:
+        logger.warning("Classifier payload parse failed; falling back", exc_info=exc)
+        return None
+
+    intent = str(parsed.get("intent") or "").strip()
+    if intent not in allowed_intents:
+        return None
+    confidence = parsed.get("confidence")
+    try:
+        confidence_value = float(confidence)
+    except (TypeError, ValueError):
+        confidence_value = 0.0
+    reason = str(parsed.get("reason") or "model classifier")
+    return {
+        "intent": intent,
+        "confidence": max(0.0, min(1.0, confidence_value)),
+        "reason": reason,
+    }
+
+
+def compose_guidance_with_openai(
+    message: str,
+    *,
+    child_context: Optional[Dict[str, Any]] = None,
+    question_category: Optional[str] = None,
+    symptom_tags: Optional[List[str]] = None,
+) -> Optional[str]:
+    if not _openai_guidance_composer_enabled():
+        return None
+
+    text = (message or "").strip()
+    if not text:
+        return None
+
+    prompt_payload = {
+        "message": text,
+        "question_category": question_category or "generic",
+        "symptom_tags": symptom_tags or [],
+        "child_context": child_context or {},
+    }
+    try:
+        response = client.chat.completions.create(
+            model=CONFIG.openai_model,
+            messages=[
+                {"role": "system", "content": GUIDANCE_COMPOSER_PROMPT},
+                {
+                    "role": "user",
+                    "content": json.dumps(prompt_payload, ensure_ascii=False),
+                },
+            ],
+            temperature=0.2,
+        )
+    except APIError as exc:
+        logger.warning("OpenAI guidance composer failed; falling back", exc_info=exc)
+        return None
+    except Exception as exc:
+        logger.warning("Unexpected guidance composer failure; falling back", exc_info=exc)
+        return None
+
+    try:
+        raw_content = response.choices[0].message.content or ""
+    except (AttributeError, IndexError, KeyError) as exc:
+        logger.warning("Unexpected guidance response shape; falling back", exc_info=exc)
+        return None
+
+    guidance_text = _extract_text_content(raw_content)
+    return guidance_text or None
 
 
 def generate_actions(

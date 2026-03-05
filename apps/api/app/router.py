@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass
 from typing import List
 
+from .openai_client import classify_intent_with_openai
+
 
 @dataclass
 class IntentResult:
@@ -61,6 +63,48 @@ def has_logging_signals(message: str) -> bool:
 
 
 def classify_intent(message: str) -> IntentResult:
+    rule_result = _classify_intent_rules(message)
+    if not _should_try_model_classifier(message, rule_result):
+        return rule_result
+
+    model_result = classify_intent_with_openai(
+        message,
+        allowed_intents=sorted(INTENTS),
+    )
+    if not model_result:
+        return rule_result
+
+    model_intent = str(model_result.get("intent") or "").strip()
+    model_confidence = float(model_result.get("confidence") or 0.0)
+    if model_intent not in INTENTS:
+        return rule_result
+    if model_confidence < 0.65:
+        return rule_result
+
+    reasons = list(rule_result.reasons)
+    reasons.append(
+        "openai_classifier_override"
+        f" ({rule_result.intent} -> {model_intent})"
+    )
+    if model_result.get("reason"):
+        reasons.append(f"openai_reason: {model_result['reason']}")
+    return IntentResult(model_intent, model_confidence, reasons)
+
+
+def _should_try_model_classifier(message: str, rule_result: IntentResult) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    if rule_result.intent in {"saving", "task_request"} and rule_result.confidence >= 0.75:
+        return False
+    if rule_result.intent == "logging" and rule_result.confidence >= 0.8:
+        return False
+    if rule_result.intent == "general_parenting_advice" and rule_result.confidence <= 0.55:
+        return True
+    return rule_result.confidence < 0.6
+
+
+def _classify_intent_rules(message: str) -> IntentResult:
     text = (message or "").strip()
     lower = text.lower()
     reasons: List[str] = []
