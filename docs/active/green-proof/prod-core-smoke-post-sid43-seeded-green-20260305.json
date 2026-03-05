@@ -1,0 +1,55 @@
+{
+  "run_label": "post-sid43-seeded-green-20260305",
+  "timestamp_utc": "2026-03-05T17:33:22Z",
+  "site_base_url": "https://gethavi.com",
+  "api_base_url": "https://api-production-0a5d.up.railway.app",
+  "existing_email": "gdavis12+smoke0303a@gmail.com",
+  "new_email": "gdavis12+prodsmoke20260305093246@gmail.com",
+  "http_checks": {
+    "site_root": "200",
+    "sign_in": "200",
+    "sign_up": "200",
+    "api_health": "200"
+  },
+  "flow_count": 2,
+  "flows": [
+    {
+      "label": "existing-account",
+      "mode": "login",
+      "email": "gdavis12+smoke0303a@gmail.com",
+      "family_id": "7387d724-fbcc-401d-8254-d0a95bbc63c8",
+      "child_id": "89f9af78-81a2-4df4-a59b-3698015d6353",
+      "conversation_id": "142f02c5-ed6a-4c4f-979c-b21d5fd25772",
+      "task_id": "3091cba0-d0cf-4dc4-a7f6-4d98f5b31d42",
+      "auto_title": "Baby pooped 3pm existing-account · Mar 5, 2026",
+      "renamed_title": "Smoke title existing-account 20260305093246",
+      "title_after_follow_up": "Smoke title existing-account 20260305093246",
+      "tracking_intent": "logging",
+      "guidance_intent": "question",
+      "tracking_actions": 1,
+      "guidance_actions": 0,
+      "events_before": 0,
+      "events_after_tracking": 1,
+      "events_after_guidance": 1
+    },
+    {
+      "label": "new-signup",
+      "mode": "signup",
+      "email": "gdavis12+prodsmoke20260305093246@gmail.com",
+      "family_id": "3716b36e-26e2-4345-95fe-3284faebf835",
+      "child_id": "6f8ba712-8634-4c55-b4a2-00699d598167",
+      "conversation_id": "340b954c-05dd-4f13-89bd-1060fb98dfa6",
+      "task_id": "e0603451-ce95-4366-b970-00160948c392",
+      "auto_title": "Baby pooped 3pm new-signup · Mar 5, 2026",
+      "renamed_title": "Smoke title new-signup 20260305093246",
+      "title_after_follow_up": "Smoke title new-signup 20260305093246",
+      "tracking_intent": "logging",
+      "guidance_intent": "question",
+      "tracking_actions": 1,
+      "guidance_actions": 0,
+      "events_before": 0,
+      "events_after_tracking": 1,
+      "events_after_guidance": 1
+    }
+  ]
+}
