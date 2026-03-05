@@ -113,6 +113,7 @@ Sync rule:
 8. Feedback write path no longer depends on supabase upsert conflict support, uses select/update-or-insert logic, enriches metadata with assistant intent/session context, and defaults missing `model_version` to `havi-local`.
 9. Web feedback components now support optional route metadata + model version submission fields for downstream quality segmentation.
 10. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+10a. GREEN feedback assertions now verify outgoing thumbs payload includes `model_version` and route metadata (`response_metadata.route_metadata.route_kind`).
 11. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
 12. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
 

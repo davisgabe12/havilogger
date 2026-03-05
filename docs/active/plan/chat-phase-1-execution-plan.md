@@ -108,6 +108,7 @@ This plan is intentionally scoped to message/chat behavior only.
 - Run results: `1 passed` then `1 passed`.
 - `./scripts/prod_core_smoke.sh` passed on March 5, 2026 for both existing-account and new-signup flows.
 - Artifact: [prod-core-smoke-manual-20260305073727.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-core-smoke-manual-20260305073727.json)
+- GREEN now also asserts feedback request payload includes `model_version` and `response_metadata.route_metadata.route_kind` for thumbs actions.
 
 3. Updated focus:
 - Keep `P1-F2a` telemetry completion and production-side `P1-F2` reporting as active next slices.
