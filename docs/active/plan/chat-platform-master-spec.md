@@ -7,6 +7,9 @@ Core principle: use OpenAI in Phase 1 for interpretation and guidance quality, w
 Execution companion:
 - [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md)
 
+Program status and handoff:
+- [chat-phase-0-1-implementation-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-0-1-implementation-plan.md)
+
 This spec is intentionally focused on message/chat behavior only:
 - user message send
 - routing
@@ -77,9 +80,27 @@ What is constrained or incomplete:
 10. Feedback pipeline records rating and route/model metadata for evaluation.
 
 ### Later (after core stability)
-1. Browse + citation architecture.
-2. Semantic + episodic vector retrieval.
-3. Safe proactive behavior with triggering/confidence guardrails.
+1. Phase 2:
+- persistent memory retrieval across sessions
+- multi-child disambiguation and context ranking
+- session naming and feedback UX hardening
+- architecture seams for browse/vector readiness
+
+2. Phase 3+:
+- browse + citation architecture
+- semantic + episodic vector retrieval
+- safe proactive behavior with triggering/confidence guardrails
+
+## Phasing Alignment (Master vs Phase Plans)
+Master sequencing is authoritative and aligned to execution docs:
+1. Phase 0 (complete): golden harness + baseline gates.
+2. Phase 1 (active): canonical runtime + OpenAI classifier/composer + deterministic write guardrails + GREEN e2e gate.
+3. Phase 2 (next): memory retrieval and context-quality hardening before new external capabilities.
+4. Phase 3+: browse/citations, vector retrieval, and proactive features.
+
+Sync rule:
+1. If any phase scope changes, update this master spec and [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md) in the same commit.
+2. Rollout gates remain: golden eval + GREEN e2e + production smoke.
 
 ## Proposed Solution
 
