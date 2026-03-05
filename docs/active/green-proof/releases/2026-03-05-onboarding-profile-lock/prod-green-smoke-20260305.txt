@@ -1,0 +1,7 @@
+Command:
+cd apps/web && PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green
+
+Result:
+- Running 1 test using 1 worker
+- ✓ tests/smoke/green.smoke.spec.ts:256:5 › GREEN smoke
+- 1 passed

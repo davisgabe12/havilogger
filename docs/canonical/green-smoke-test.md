@@ -120,3 +120,20 @@ creates a tokenized `share_links` row and resolves shared content via the RPC.
 
 GREEN doctor also writes `api.log`, `web.log`, `console-errors.log`, and `failure.txt` into the same
 timestamped folder when failures occur.
+
+## Artifact Hygiene
+
+Use GREEN artifacts in two tiers:
+1. Working/debug artifacts:
+   - `apps/web/test-results*`
+   - timestamped intermediate logs and screenshots during iteration
+2. Release evidence artifacts:
+   - curated bundle under `docs/active/green-proof/releases/<YYYY-MM-DD>-<slice-name>/`
+
+For release evidence, keep only:
+1. one passing GREEN artifact,
+2. one passing production core smoke artifact,
+3. a small screenshot set for critical steps,
+4. a `README.md` with command/result context.
+
+Avoid committing duplicate transient artifact folders from repeated local runs.

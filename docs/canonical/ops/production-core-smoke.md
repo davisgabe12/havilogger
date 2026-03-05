@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 4, 2026
+Last updated: March 5, 2026
 
 # Production Core Smoke (Before/After Gate)
 
@@ -64,6 +64,27 @@ For each release slice, keep both reports (`before` and `after`) and confirm:
 2. Both flows passed.
 3. Guidance-vs-tracking invariant stayed intact.
 4. Title invariants stayed intact (`auto_title`, `renamed_title`, `title_after_follow_up` in report).
+
+## Release Evidence Curation (Required)
+
+For each shipped slice, create one canonical proof bundle:
+
+`docs/active/green-proof/releases/<YYYY-MM-DD>-<slice-name>/`
+
+Minimum contents:
+1. One production core smoke JSON (`before` or `after` depending on release stage; prefer both when available).
+2. One production GREEN pass artifact (log/text summary or UI smoke JSON).
+3. A small screenshot set (3-8 images) that demonstrates the critical user journey.
+4. A short `README.md` with:
+   - commit SHA,
+   - commands run,
+   - pass/fail outcome,
+   - any caveats.
+
+Do not commit raw iterative artifacts as release evidence:
+1. Repeated manual smoke JSONs with no release decision context.
+2. Temporary Playwright output folders.
+3. Large duplicate screenshot sets from debugging loops.
 
 ## Environment Overrides
 
