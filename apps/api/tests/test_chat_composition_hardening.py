@@ -146,3 +146,20 @@ def test_compose_assistant_reply_for_route_falls_back_when_openai_guidance_disab
     assert assistant_message
     assert "model guidance" not in assistant_message.lower()
     assert intent == "question"
+
+
+def test_compose_assistant_reply_for_route_uses_openai_guidance_for_mixed(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.compose_guidance_with_openai", lambda *args, **kwargs: "## Model mixed guidance")
+    actions = [_action_from_segment("baby pooped at 3pm", timezone_value="America/Los_Angeles")]
+    assistant_message, _, intent = _compose_assistant_reply_for_route(
+        route_kind="mixed",
+        classifier_intent="logging",
+        actions=actions,
+        message="baby pooped at 3pm, what should i do if he keeps waking at night?",
+        child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        symptom_tags=[],
+        question_category="sleep",
+    )
+    assert intent == "mixed"
+    assert assistant_message.startswith("Logged:")
+    assert "## Model mixed guidance" in assistant_message

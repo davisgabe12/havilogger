@@ -36,11 +36,17 @@ This plan is intentionally scoped to message/chat behavior only.
   - ask-route model composer adapter behind `ENABLE_OPENAI_GUIDANCE_COMPOSER`
   - deterministic guidance remains fallback when model output is unavailable
   - composition tests added for model-path + fallback-path behavior
+- `P1-D1` mixed-route model guidance block landed:
+  - mixed turns now compose deterministic logged confirmation + model guidance block when enabled
+  - deterministic mixed composition remains fallback
+- `P1-C2` initial classifier arbitration tuning landed:
+  - model override confidence threshold is now env-configurable via `OPENAI_INTENT_OVERRIDE_CONFIDENCE`
+  - threshold behavior is covered in classifier tests
 
 2. In progress:
-- `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and mixed composition model hook not complete yet).
-- `P1-C2` classifier arbitration threshold tuning and rollout instrumentation.
-- `P1-D1` mixed-route guidance model block integration.
+- `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and telemetry/reporting hardening not complete yet).
+- `P1-C2` classifier rollout instrumentation and disagreement reporting.
+- `P1-D1` guidance quality contract tuning for long/open-ended asks.
 
 3. Next:
 - `P1-E2` deterministic seed/reset harness integration for GREEN repeatability.

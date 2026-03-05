@@ -107,9 +107,10 @@ Sync rule:
 2. Route execution + write policy helpers are active in the canonical chat path.
 3. OpenAI classifier hook is wired behind `ENABLE_OPENAI_INTENT_CLASSIFIER` and only evaluates ambiguous rule results.
 4. OpenAI ask-route guidance hook is wired behind `ENABLE_OPENAI_GUIDANCE_COMPOSER` with deterministic fallback.
-5. Deterministic rules remain default authority, with model override only when classifier confidence passes threshold.
-6. Feedback write path no longer depends on supabase upsert conflict support and now uses select/update-or-insert logic.
-7. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+5. Mixed-route model guidance can now append to deterministic log confirmation when composer flag is enabled.
+6. Deterministic rules remain default authority, with model override only when classifier confidence passes threshold (`OPENAI_INTENT_OVERRIDE_CONFIDENCE`).
+7. Feedback write path no longer depends on supabase upsert conflict support and now uses select/update-or-insert logic.
+8. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
 
 ## Proposed Solution
 

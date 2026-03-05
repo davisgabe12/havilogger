@@ -676,15 +676,17 @@ def _compose_assistant_reply_for_route(
     symptom_tags: List[str],
     question_category: str,
 ) -> tuple[str, List[str], str]:
+    child_context = {
+        "first_name": child_row.get("first_name") or child_row.get("name"),
+        "birth_date": child_row.get("birth_date"),
+        "due_date": child_row.get("due_date"),
+        "timezone": child_row.get("timezone"),
+    }
+
     if route_kind == "ask":
         model_guidance = compose_guidance_with_openai(
             message,
-            child_context={
-                "first_name": child_row.get("first_name") or child_row.get("name"),
-                "birth_date": child_row.get("birth_date"),
-                "due_date": child_row.get("due_date"),
-                "timezone": child_row.get("timezone"),
-            },
+            child_context=child_context,
             question_category=question_category,
             symptom_tags=symptom_tags,
         )
@@ -705,6 +707,27 @@ def _compose_assistant_reply_for_route(
         )
         return assistant_text, [], "logging"
     if route_kind == "mixed":
+        log_confirmation, _ = build_assistant_message(
+            actions,
+            message,
+            child_data=child_row,
+            context={
+                "intent": "logging",
+                "symptom_tags": symptom_tags,
+                "question_category": question_category,
+                "recent_actions": actions,
+            },
+        )
+        model_guidance = compose_guidance_with_openai(
+            message,
+            child_context=child_context,
+            question_category=question_category,
+            symptom_tags=symptom_tags,
+        )
+        if model_guidance:
+            merged = f"{log_confirmation}\n\n{model_guidance}".strip()
+            return merged, [], "mixed"
+
         assistant_text, ui_nudges = build_assistant_message(
             actions,
             message,

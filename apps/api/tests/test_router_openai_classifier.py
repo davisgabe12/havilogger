@@ -67,3 +67,22 @@ def test_route_contract_marks_model_decision_source_on_classifier_override(monke
 
     assert decision.decision_source == "model"
     assert route_metadata.decision_source == "model"
+
+
+def test_openai_classifier_respects_override_threshold_env(monkeypatch) -> None:
+    monkeypatch.setenv("ENABLE_OPENAI_INTENT_CLASSIFIER", "1")
+    monkeypatch.setenv("OPENAI_INTENT_OVERRIDE_CONFIDENCE", "0.9")
+
+    def fake_classifier(message: str, *, allowed_intents: list[str]):
+        return {
+            "intent": "health_sleep_question",
+            "confidence": 0.88,
+            "reason": "below configured threshold",
+        }
+
+    monkeypatch.setattr(router_module, "classify_intent_with_openai", fake_classifier)
+    result = classify_intent("not sure what to do tonight")
+
+    # Falls back to rules because threshold is 0.9 and model confidence is 0.88.
+    assert result.intent == "general_parenting_advice"
+    assert not any(reason.startswith("openai_classifier_override") for reason in result.reasons)

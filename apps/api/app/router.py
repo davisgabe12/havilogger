@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from typing import List
@@ -78,7 +79,7 @@ def classify_intent(message: str) -> IntentResult:
     model_confidence = float(model_result.get("confidence") or 0.0)
     if model_intent not in INTENTS:
         return rule_result
-    if model_confidence < 0.65:
+    if model_confidence < _model_override_threshold():
         return rule_result
 
     reasons = list(rule_result.reasons)
@@ -102,6 +103,15 @@ def _should_try_model_classifier(message: str, rule_result: IntentResult) -> boo
     if rule_result.intent == "general_parenting_advice" and rule_result.confidence <= 0.55:
         return True
     return rule_result.confidence < 0.6
+
+
+def _model_override_threshold() -> float:
+    raw = os.getenv("OPENAI_INTENT_OVERRIDE_CONFIDENCE", "0.65").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.65
+    return max(0.0, min(1.0, value))
 
 
 def _classify_intent_rules(message: str) -> IntentResult:
