@@ -1,0 +1,68 @@
+{
+  "run_id": "20260305153947",
+  "generated_at": "2026-03-05T15:39:49Z",
+  "mode": "reset",
+  "apply": false,
+  "guardrails": {
+    "allow_shared_db": false,
+    "marker": "[GREEN-SEED]"
+  },
+  "scope": {
+    "family_name": "GREEN E2E Family [GREEN-SEED]",
+    "seed_owner_email": "gdavis12+greenowner@gethavi.test",
+    "seed_invitee_email": "gdavis12+greeninvitee@gethavi.test"
+  },
+  "supabase": {
+    "url": "https://kskfvpimrjztbyrtfsai.supabase.co"
+  },
+  "reset": {
+    "tables": {
+      "family_invites": {
+        "found": 1,
+        "deleted": 0
+      },
+      "tasks": {
+        "found": 1,
+        "deleted": 0
+      },
+      "timeline_events": {
+        "found": 0,
+        "deleted": 0
+      },
+      "conversation_sessions": {
+        "found": 1,
+        "deleted": 0
+      },
+      "conversation_messages_by_marker": {
+        "found": 2,
+        "deleted": 0
+      },
+      "conversation_messages_by_session": {
+        "found": 2,
+        "deleted": 0
+      },
+      "children": {
+        "found": 2,
+        "deleted": 0
+      },
+      "family_members": {
+        "found": 2,
+        "deleted": 0
+      },
+      "families": {
+        "found": 1,
+        "deleted": 0
+      }
+    }
+  },
+  "seed": {
+    "owner_user_id": null,
+    "invitee_user_id": null,
+    "family_id": null,
+    "child_primary_id": null,
+    "child_secondary_id": null,
+    "session_id": null,
+    "task_id": null,
+    "invite_id": null
+  }
+}

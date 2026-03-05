@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 3, 2026
+Last updated: March 5, 2026
 
 # HAVI GREEN smoke test (local)
 
@@ -55,8 +55,9 @@ For deterministic GREEN prep, use:
 `docs/canonical/testing/green-seed-reset.md`
 
 Current status (March 4, 2026):
-1. Slice 1 is implemented: `scripts/green_seed_reset.sh reset` with strict guardrails and JSON reporting.
-2. `seed` and `reset-seed` modes are planned and intentionally not implemented yet.
+1. Harness supports `reset`, `seed`, and `reset-seed`.
+2. `reset` is dry-run by default; mutating modes require `GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1`.
+3. `scripts/e2e_green.sh` and `scripts/green-doctor.mjs` can invoke harness with `GREEN_USE_SEED=1`.
 
 ## Troubleshooting
 - If Playwright cannot bind to `localhost:3001` (EPERM/EADDRINUSE), stop any running dev server or set `PLAYWRIGHT_BASE_URL` to an already-running web server (this skips starting web/api servers) and rerun `npm run test:green`.

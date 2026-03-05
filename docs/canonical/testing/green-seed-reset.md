@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 4, 2026
+Last updated: March 5, 2026
 
 # GREEN Seed/Reset Harness
 
@@ -11,14 +11,15 @@ Purpose: make local GREEN runs reproducible by preparing deterministic test stat
 
 ## Modes
 
-1. `reset` (implemented in slice 1)
-2. `seed` (planned)
-3. `reset-seed` (planned)
+1. `reset`
+2. `seed`
+3. `reset-seed`
 
-Slice 1 behavior:
+Current behavior:
 1. Finds only GREEN-scoped records.
-2. Default is dry-run (no mutation).
-3. Writes JSON proof report to `docs/active/green-proof/`.
+2. `reset` defaults to dry-run (no mutation) unless `GREEN_SEED_APPLY=1`.
+3. `seed` and `reset-seed` are mutating and require `GREEN_SEED_APPLY=1`.
+4. Writes JSON proof report to `docs/active/green-proof/`.
 
 ## Safety Interlocks
 
@@ -52,6 +53,20 @@ cd /Users/gabedavis/Desktop/projects/havilogger
 GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1 ./scripts/green_seed_reset.sh reset
 ```
 
+Apply seed (creates deterministic baseline fixtures):
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1 ./scripts/green_seed_reset.sh seed
+```
+
+Apply reset + seed (recommended deterministic baseline prep):
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1 ./scripts/green_seed_reset.sh reset-seed
+```
+
 Custom marker or emails:
 
 ```bash
@@ -71,13 +86,39 @@ Each run writes:
 Report includes:
 1. `run_id`, `generated_at`, `mode`, `apply`
 2. Supabase URL used
-3. table-level `found` and `deleted` counts for:
+3. reset table-level `found` and `deleted` counts for:
 - `family_invites`
 - `tasks`
 - `timeline_events`
 - `conversation_sessions`
 - `conversation_messages_by_marker`
 - `conversation_messages_by_session`
+ - `children`
+ - `family_members`
+ - `families`
+4. Seed IDs when `seed`/`reset-seed` succeeds:
+ - `owner_user_id`
+ - `invitee_user_id`
+ - `family_id`
+ - `child_primary_id`
+ - `child_secondary_id`
+ - `session_id`
+ - `task_id`
+ - `invite_id`
+
+## GREEN Runner Integration
+
+1. `scripts/e2e_green.sh` supports:
+ - `GREEN_USE_SEED=1` to run harness before Playwright
+ - `GREEN_SKIP_SEED=1` to force skip
+ - `GREEN_SEED_MODE=reset-seed|seed|reset`
+2. `scripts/green-doctor.mjs` supports the same flags.
+3. Recommended deterministic local run:
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+GREEN_USE_SEED=1 GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1 ./scripts/e2e_green.sh
+```
 
 ## Troubleshooting
 
@@ -86,4 +127,4 @@ Report includes:
 2. `Refusing to mutate shared Supabase...`:
 - expected unless `GREEN_ALLOW_SHARED_DB=1` is set.
 3. `Mode 'seed' is not implemented...`:
-- expected in slice 1; this will be added in SID-43 slice 2.
+- no longer applicable; use `GREEN_SEED_APPLY=1` for mutating modes.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn, execSync } from "child_process";
+import { spawn, spawnSync, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -56,6 +56,9 @@ const webPort = Number(process.env.GREEN_WEB_PORT || 3001);
 const apiPort = Number(process.env.GREEN_API_PORT || 8001);
 const webUrl = `http://127.0.0.1:${webPort}`;
 const apiUrl = `http://127.0.0.1:${apiPort}`;
+const greenUseSeed = process.env.GREEN_USE_SEED === "1";
+const greenSkipSeed = process.env.GREEN_SKIP_SEED === "1";
+const greenSeedMode = process.env.GREEN_SEED_MODE || "reset-seed";
 
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const proofDir = path.join(repoRoot, "docs", "green-proof", timestamp);
@@ -194,6 +197,24 @@ const run = async () => {
       `Servers not ready (api=${apiReady}, web=${webReady}). Logs: ${proofDir}`,
     );
     process.exit(1);
+  }
+
+  if (greenSkipSeed) {
+    console.log("[green-doctor] GREEN_SKIP_SEED=1 -> skipping deterministic seed harness.");
+  } else if (greenUseSeed) {
+    console.log(`[green-doctor] Running deterministic seed harness mode=${greenSeedMode}...`);
+    const seed = spawnSync("./scripts/green_seed_reset.sh", [greenSeedMode], {
+      cwd: repoRoot,
+      env: { ...process.env },
+      stdio: "inherit",
+    });
+    if (seed.status !== 0) {
+      cleanup();
+      console.error(`[green-doctor] seed harness failed (exit ${seed.status ?? "unknown"})`);
+      process.exit(seed.status ?? 1);
+    }
+  } else {
+    console.log("[green-doctor] GREEN_USE_SEED!=1 -> running without deterministic seed harness.");
   }
 
   console.log("[green-doctor] Servers ready. Running GREEN test...");

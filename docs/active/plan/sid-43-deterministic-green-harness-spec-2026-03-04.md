@@ -1,7 +1,16 @@
 Status: active-plan
-Last updated: March 4, 2026
+Last updated: March 5, 2026
 
 # SID-43 Plan: Deterministic GREEN Seed/Reset Harness
+
+## Implementation Progress (March 5, 2026)
+
+1. Slice 1 completed:
+   - `scripts/green_seed_reset.sh` reset mode + guardrails + JSON reporting.
+2. Slice 2 completed:
+   - `seed` and `reset-seed` implemented with deterministic fixtures and auth-user provisioning.
+3. Slice 3 in progress:
+   - optional harness integration into `scripts/e2e_green.sh` and `scripts/green-doctor.mjs` via `GREEN_USE_SEED`.
 
 ## Goal + Success Metrics
 

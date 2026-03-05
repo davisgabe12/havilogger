@@ -23,6 +23,7 @@ import { type FeedbackRating } from "@/components/chat/message-feedback";
 import { MessageBubble, CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type {
   ChatEntry,
+  ChatRouteMetadata,
   ChipTemplate,
   ConversationMessage,
   MessageFeedbackEntry,
@@ -248,6 +249,7 @@ type ApiResponse = {
   user_message_id?: string;
   assistant_message_id?: string;
   intent?: string;
+  route_metadata?: ChatRouteMetadata;
 };
 
 const metadata: Metadata = {
@@ -2371,6 +2373,8 @@ export default function Home() {
           text: summary,
           messageId: data.assistant_message_id ? String(data.assistant_message_id
           ) : undefined,
+          model: data.model,
+          routeMetadata: data.route_metadata ?? null,
           createdAt: new Date().toISOString(),
           senderType: "assistant",
           senderName: "HAVI",

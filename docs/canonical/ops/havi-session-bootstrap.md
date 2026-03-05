@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 4, 2026
+Last updated: March 5, 2026
 
 # Havi Session Bootstrap
 
@@ -105,6 +105,13 @@ Deterministic GREEN prep (slice 1 reset mode):
 ```bash
 cd /Users/gabedavis/Desktop/projects/havilogger
 ./scripts/green_seed_reset.sh reset
+```
+
+Deterministic GREEN run (seed + smoke):
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+GREEN_USE_SEED=1 GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1 ./scripts/e2e_green.sh
 ```
 
 Runbook:

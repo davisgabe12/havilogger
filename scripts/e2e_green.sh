@@ -22,6 +22,9 @@ WEB_CANDIDATES=(3001 3002 3003 3010 3011 3100)
 FORCE_RESTART="${FORCE_RESTART:-0}"
 API_PORT="${API_PORT:-}"
 WEB_PORT="${WEB_PORT:-}"
+GREEN_USE_SEED="${GREEN_USE_SEED:-0}"
+GREEN_SKIP_SEED="${GREEN_SKIP_SEED:-0}"
+GREEN_SEED_MODE="${GREEN_SEED_MODE:-reset-seed}"
 export GREEN_EXISTING_EMAIL="${GREEN_EXISTING_EMAIL:-gdavis12+smoke0303a@gmail.com}"
 export GREEN_EXISTING_PASSWORD="${GREEN_EXISTING_PASSWORD:-Lev2025!}"
 
@@ -83,6 +86,26 @@ wait_for_url() {
     fi
     sleep 1
   done
+}
+
+maybe_run_green_seed() {
+  if [[ "$GREEN_SKIP_SEED" == "1" ]]; then
+    echo "[e2e] GREEN_SKIP_SEED=1 -> skipping deterministic seed harness"
+    return 0
+  fi
+  if [[ "$GREEN_USE_SEED" != "1" ]]; then
+    echo "[e2e] GREEN_USE_SEED!=1 -> running without deterministic seed harness"
+    return 0
+  fi
+
+  local seed_script="${ROOT_DIR}/scripts/green_seed_reset.sh"
+  if [[ ! -x "$seed_script" ]]; then
+    echo "[e2e] missing executable seed script: $seed_script" >&2
+    return 1
+  fi
+
+  echo "[e2e] running deterministic seed harness mode=${GREEN_SEED_MODE}"
+  (cd "$ROOT_DIR" && "$seed_script" "$GREEN_SEED_MODE")
 }
 
 print_logs_on_failure() {
@@ -171,6 +194,11 @@ if [[ "$WEB_STATUS" == "restarted" ]]; then
     print_logs_on_failure
     exit 1
   fi
+fi
+
+if ! maybe_run_green_seed; then
+  print_logs_on_failure
+  exit 1
 fi
 
 cd "$WEB_DIR"
