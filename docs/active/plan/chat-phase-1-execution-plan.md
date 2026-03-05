@@ -49,6 +49,10 @@ This plan is intentionally scoped to message/chat behavior only.
   - feedback API now enriches persisted metadata with assistant intent/session context; web feedback component supports optional model version + route metadata payload fields
   - feedback API now defaults `model_version` to `havi-local` when omitted and derives `assistant_route_kind` from stored assistant intent
   - quality snapshot script added: [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py)
+- `P1-F1` feedback client-state hardening landed:
+  - Gemini-style terminal retry state machine added in web feedback UI (`idle`, `submitting`, `retry_wait`, `retrying`, `failed`)
+  - explicit terminal error + manual retry CTA added to prevent stuck thumbs actions
+  - component tests added for exhausted-retry terminal state and manual retry recovery
 - `P1-F2` quality reporting baseline landed:
   - golden quality snapshot now includes segmentation by scenario class, age band, and family size
   - golden quality snapshot now includes route disagreement and classifier fallback/override summaries
@@ -63,8 +67,9 @@ This plan is intentionally scoped to message/chat behavior only.
 - `P1-D2` long/open-ended ask quality tuning with stricter eval gates.
 
 3. Next:
-- `P1-E2` deterministic seed/reset harness integration for GREEN repeatability.
-- `P1-F2` quality segmentation reporting (age band/family size/scenario class) from live telemetry.
+- complete `P1-A2` endpoint extraction/cleanup so one orchestrator path is unambiguous in code ownership.
+- complete production telemetry aggregation for disagreement-rate and fallback-rate reporting.
+- tighten long/open-ended ask quality gates in golden scenarios and keep GREEN/prod smoke stable.
 
 ## Execution Log (March 5, 2026)
 1. Shipped:
@@ -73,30 +78,36 @@ This plan is intentionally scoped to message/chat behavior only.
   - guidance contract validation fallback
   - feedback metadata enrichment path
   - quality snapshot report script and current output artifact
+- Commit `83c9843` on `main` shipped:
+  - feedback UI terminal retry state machine + manual retry action
+  - message feedback component tests for terminal-failure and recovery flows
 
 2. Gate results:
 - API targeted suite passed on March 5, 2026:
   - `cd apps/api && ../../.venv/bin/pytest tests/test_router_openai_classifier.py tests/test_feedback_route_supabase.py tests/test_chat_routing_logic.py tests/test_chat_composition_hardening.py tests/test_assistant_message.py tests/test_golden_phase0_harness.py -q`
   - Result: `34 passed`.
-- GREEN smoke failed on March 5, 2026 in onboarding:
+- GREEN smoke currently passing with onboarding hardening:
   - `cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green`
-  - Failure point: timeout waiting for `data-testid="onboarding-profile-child"`.
+  - Result: consecutive pass runs after caregiver-field revalidation fix.
 
 3. Updated risk call:
-- Current blocking risk for full Phase 1 gate confidence is GREEN onboarding determinism, not chat API regression.
+- Current blocking risks for full Phase 1 completion are production telemetry rollup and final orchestrator cleanup, not feedback UI state handling.
+
+4. Service/UI split note:
+- The latest feedback hardening slice (`83c9843`) is UI + component-test only.
+- Feedback service-layer changes remain in prior slice `a0de612` (`apps/api/app/routes/feedback.py` + supabase route tests).
 
 ## Immediate Next Slice
-1. `P1-E2a` GREEN determinism hardening:
-- stabilize onboarding selector contract and seed/reset behavior.
-- require two consecutive local GREEN passes before marking this slice done.
-
-2. `P1-F2a` telemetry completion:
+1. `P1-F2a` telemetry completion:
 - finalize web chat entry wiring for route metadata/model propagation in the canonical chat page without bundling unrelated UI refactors.
 - verify thumbs payload captures model/version/route metadata end-to-end in network assertions.
 
-3. `P1-F2b` reporting:
+2. `P1-F2b` reporting:
 - add disagreement-rate and fallback-rate aggregation from route metadata logs.
 - publish segmented quality snapshot (age band, family size, scenario class) using the script output path.
+
+3. `P1-A2b` orchestrator cleanup:
+- complete extraction of remaining endpoint-inline branching so `/api/v1/activities` remains the single explicit orchestrator entry with no shadow behavior.
 
 ## Progress Update (March 5, 2026, later run)
 1. `P1-E2a` completed:
@@ -310,7 +321,16 @@ Out of scope:
   - [feedback.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/routes/feedback.py)
   - [message-feedback.tsx](/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/message-feedback.tsx)
 
-2. `P1-F2` Quality reporting
+2. `P1-F1b` Feedback client-state machine hardening
+- Deliverables:
+  - explicit terminal retry state in thumbs flow
+  - manual retry control when persistence fails after retry budget
+  - stable optimistic/terminal UI transitions for thumbs up/down
+- Primary files:
+  - [message-feedback.tsx](/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/message-feedback.tsx)
+  - [message-feedback.test.tsx](/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/__tests__/message-feedback.test.tsx)
+
+3. `P1-F2` Quality reporting
 - Deliverables:
   - scorecard segmentation by age band, family size, scenario class
   - classifier fallback rate and disagreement rate tracking

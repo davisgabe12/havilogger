@@ -7,9 +7,6 @@ Core principle: use OpenAI in Phase 1 for interpretation and guidance quality, w
 Execution companion:
 - [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md)
 
-Program status and handoff:
-- [chat-phase-0-1-implementation-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-0-1-implementation-plan.md)
-
 This spec is intentionally focused on message/chat behavior only:
 - user message send
 - routing
@@ -112,16 +109,19 @@ Sync rule:
 7. Guidance composer now has optional rollout percentage control (`OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT`) and contract validation fallback.
 8. Feedback write path no longer depends on supabase upsert conflict support, uses select/update-or-insert logic, enriches metadata with assistant intent/session context, and defaults missing `model_version` to `havi-local`.
 9. Web feedback components now support optional route metadata + model version submission fields for downstream quality segmentation.
-10. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
-10a. GREEN feedback assertions now verify outgoing thumbs payload includes `model_version` and route metadata (`response_metadata.route_metadata.route_kind`).
-11. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
-12. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
+10. Web feedback UI now uses an explicit terminal retry state machine (`idle`, `submitting`, `retry_wait`, `retrying`, `failed`) with a manual retry action, preventing stuck in-progress states on repeated failures.
+11. Feedback component tests now verify both terminal failure rendering and manual retry recovery behavior.
+12. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+13. GREEN feedback assertions now verify outgoing thumbs payload includes `model_version` and route metadata (`response_metadata.route_metadata.route_kind`).
+14. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
+15. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:
 - `363a7ed`: route contracts, model hooks, feedback write fix, GREEN chat gate expansion.
 - `0d36f7d`: mixed-route model guidance path and configurable classifier threshold.
 - `3aeaa00`: rollout-aware classifier/composer telemetry, guidance contract fallback hardening, feedback metadata enrichment, quality snapshot script.
+- `83c9843`: feedback UI terminal retry state machine and manual retry flow, with component test coverage for failure and recovery.
 
 2. Validation evidence:
 - API targeted gate passed on March 5, 2026:
