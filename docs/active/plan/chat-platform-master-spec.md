@@ -115,6 +115,22 @@ Sync rule:
 10. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
 11. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
 
+## Execution Progress (March 5, 2026)
+1. Landed commits:
+- `363a7ed`: route contracts, model hooks, feedback write fix, GREEN chat gate expansion.
+- `0d36f7d`: mixed-route model guidance path and configurable classifier threshold.
+- `3aeaa00`: rollout-aware classifier/composer telemetry, guidance contract fallback hardening, feedback metadata enrichment, quality snapshot script.
+
+2. Validation evidence:
+- API targeted gate passed on March 5, 2026:
+  - `cd apps/api && ../../.venv/bin/pytest tests/test_router_openai_classifier.py tests/test_feedback_route_supabase.py tests/test_chat_routing_logic.py tests/test_chat_composition_hardening.py tests/test_assistant_message.py tests/test_golden_phase0_harness.py -q`
+  - Result: `34 passed`.
+- GREEN smoke on current local tree failed on March 5, 2026 at onboarding selector wait (`onboarding-profile-child`), indicating an onboarding flow instability outside the committed chat backend slice.
+
+3. Current sequencing implication:
+- Phase 1 chat runtime hardening has progressed as planned.
+- GREEN determinism and onboarding stabilization remain required before widening rollout gates.
+
 ## Proposed Solution
 
 ### Canonical Components

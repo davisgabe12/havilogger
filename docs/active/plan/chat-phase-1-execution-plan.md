@@ -61,6 +61,38 @@ This plan is intentionally scoped to message/chat behavior only.
 - `P1-E2` deterministic seed/reset harness integration for GREEN repeatability.
 - `P1-F2` quality segmentation reporting (age band/family size/scenario class) from live telemetry.
 
+## Execution Log (March 5, 2026)
+1. Shipped:
+- Commit `3aeaa00` on `main` shipped:
+  - classifier/composer rollout telemetry and fallback metadata
+  - guidance contract validation fallback
+  - feedback metadata enrichment path
+  - quality snapshot report script and current output artifact
+
+2. Gate results:
+- API targeted suite passed on March 5, 2026:
+  - `cd apps/api && ../../.venv/bin/pytest tests/test_router_openai_classifier.py tests/test_feedback_route_supabase.py tests/test_chat_routing_logic.py tests/test_chat_composition_hardening.py tests/test_assistant_message.py tests/test_golden_phase0_harness.py -q`
+  - Result: `34 passed`.
+- GREEN smoke failed on March 5, 2026 in onboarding:
+  - `cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green`
+  - Failure point: timeout waiting for `data-testid="onboarding-profile-child"`.
+
+3. Updated risk call:
+- Current blocking risk for full Phase 1 gate confidence is GREEN onboarding determinism, not chat API regression.
+
+## Immediate Next Slice
+1. `P1-E2a` GREEN determinism hardening:
+- stabilize onboarding selector contract and seed/reset behavior.
+- require two consecutive local GREEN passes before marking this slice done.
+
+2. `P1-F2a` telemetry completion:
+- finalize web chat entry wiring for route metadata/model propagation in the canonical chat page without bundling unrelated UI refactors.
+- verify thumbs payload captures model/version/route metadata end-to-end in network assertions.
+
+3. `P1-F2b` reporting:
+- add disagreement-rate and fallback-rate aggregation from route metadata logs.
+- publish segmented quality snapshot (age band, family size, scenario class) using the script output path.
+
 ## Goals
 1. Canonical runtime ownership:
 - `POST /api/v1/activities` executes through one orchestrator path only.
