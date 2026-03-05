@@ -48,13 +48,17 @@ This plan is intentionally scoped to message/chat behavior only.
   - guidance composer rollout gating added via `OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT`
   - feedback API now enriches persisted metadata with assistant intent/session context; web feedback component supports optional model version + route metadata payload fields
   - quality snapshot script added: [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py)
+- `P1-F2` quality reporting baseline landed:
+  - golden quality snapshot now includes segmentation by scenario class, age band, and family size
+  - golden quality snapshot now includes route disagreement and classifier fallback/override summaries
+  - coverage fields for age band/family size/classifier reasons are emitted from golden harness rows
 - `P1-D2` guidance contract hardening landed:
   - model guidance output is now validated for structure before use
   - deterministic fallback is enforced when model guidance is unavailable or contract-invalid
 
 2. In progress:
 - `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and cleanup not complete yet).
-- `P1-F2` disagreement-rate reporting from production telemetry.
+- `P1-F2` disagreement-rate and fallback-rate reporting from production telemetry.
 - `P1-D2` long/open-ended ask quality tuning with stricter eval gates.
 
 3. Next:
@@ -103,7 +107,26 @@ This plan is intentionally scoped to message/chat behavior only.
 - Run results: `1 passed` then `1 passed`.
 
 3. Updated focus:
-- Keep `P1-F2a` telemetry completion and `P1-F2b` reporting as active next slices.
+- Keep `P1-F2a` telemetry completion and production-side `P1-F2` reporting as active next slices.
+
+## Progress Update (March 5, 2026, reporting baseline)
+1. `P1-F2b` baseline reporting completed:
+- Extended [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py) to include:
+  - `scenario_class_distribution`
+  - `age_band_distribution`
+  - `family_size_distribution`
+  - `route_disagreement`
+  - `classifier` fallback/override summary
+- Extended golden harness rows in [test_golden_phase0_harness.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_golden_phase0_harness.py) with `age_band`, `family_size`, `expected_route_kind`, and `classifier_reasons`.
+
+2. Current artifact values:
+- [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json)
+  - route disagreement: `0 / 11`
+  - classifier override rate: `0.0`
+  - classifier fallback/skip rate: `1.0`
+
+3. Remaining work in this area:
+- production telemetry ingestion and dashboards for disagreement/fallback rates.
 
 ## Goals
 1. Canonical runtime ownership:

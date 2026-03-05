@@ -82,6 +82,8 @@ def _evaluate_case(case: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "id": case["id"],
             "scenario_class": case["scenario_class"],
+            "age_band": case.get("age_band"),
+            "family_size": case.get("family_size"),
             "feedback_payload_valid": payload.rating in {"up", "down"},
         }
 
@@ -128,8 +130,12 @@ def _evaluate_case(case: Dict[str, Any]) -> Dict[str, Any]:
     result = {
         "id": case["id"],
         "scenario_class": case["scenario_class"],
+        "age_band": case.get("age_band"),
+        "family_size": case.get("family_size"),
         "message": message,
+        "expected_route_kind": (case.get("expected_current") or {}).get("route_kind"),
         "classifier_intent": intent_result.intent,
+        "classifier_reasons": list(intent_result.reasons),
         "route_kind": decision.route_kind,
         "memory_target": memory_target,
         "memory_inference_signal": memory_inference,

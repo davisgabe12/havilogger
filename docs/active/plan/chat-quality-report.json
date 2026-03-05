@@ -9,6 +9,43 @@
       "task": 1,
       "unknown": 1
     },
+    "scenario_class_distribution": {
+      "short_log": 1,
+      "short_ask": 2,
+      "mixed_intent": 2,
+      "long_open_ended_guidance": 1,
+      "multi_event_times": 1,
+      "explicit_memory_save": 1,
+      "inferred_memory": 1,
+      "task_request": 1,
+      "guidance_format": 1,
+      "feedback_action": 1
+    },
+    "age_band_distribution": {
+      "newborn": 1,
+      "young_infant": 3,
+      "older_infant": 3,
+      "toddler": 4,
+      "early_preschool": 1
+    },
+    "family_size_distribution": {
+      "1": 6,
+      "2": 4,
+      "3": 2
+    },
+    "route_disagreement": {
+      "comparable_count": 11,
+      "mismatch_count": 0,
+      "mismatch_rate": 0.0,
+      "mismatch_ids": []
+    },
+    "classifier": {
+      "evaluated_count": 11,
+      "override_count": 0,
+      "fallback_or_skipped_count": 11,
+      "override_rate": 0.0,
+      "fallback_or_skipped_rate": 1.0
+    },
     "guidance": {
       "count": 4,
       "average_score": 4.5,

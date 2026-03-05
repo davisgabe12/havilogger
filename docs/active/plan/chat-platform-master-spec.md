@@ -114,6 +114,7 @@ Sync rule:
 9. Web feedback components now support optional route metadata + model version submission fields for downstream quality segmentation.
 10. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
 11. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
+12. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:
@@ -134,6 +135,10 @@ Sync rule:
 4. GREEN follow-up (March 5, 2026, later run):
 - Onboarding smoke flow hardened in [green.smoke.spec.ts](/Users/gabedavis/Desktop/projects/havilogger/apps/web/tests/smoke/green.smoke.spec.ts) by asserting/re-filling caregiver fields before retrying continue.
 - GREEN gate now passed twice consecutively in local validation.
+
+5. Reporting follow-up (March 5, 2026, later run):
+- Quality snapshot baseline now includes segmented distributions and disagreement/fallback analytics from golden harness output.
+- Remaining gap is production-side telemetry aggregation (not just golden-harness artifacts).
 
 ## Proposed Solution
 
