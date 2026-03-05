@@ -255,7 +255,7 @@ export const useFamilyGuard = (options?: {
 
       if (finalDecision.type === "redirect") {
         if (
-          finalDecision.to === "/app/onboarding/child" &&
+          finalDecision.to === "/app/onboarding/profile" &&
           (count ?? 0) === 0 &&
           attempt + 1 < maxAttempts
         ) {

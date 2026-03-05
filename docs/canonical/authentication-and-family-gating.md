@@ -27,11 +27,20 @@ selection work together to keep the app in a valid state.
 
 ## 4. Onboarding + Abandonment Behavior
 - If a user logs in with zero families, they are sent to `/app/onboarding/family`.
-- If a user has a family but no children, they are sent to `/app/onboarding/child`.
+- If a user has a family but no child profile, they are sent to `/app/onboarding/profile`.
+- `/app/onboarding/profile` collects required fields:
+  - caregiver: first name, last name, email, phone
+  - child: name (Unknown allowed), DOB or due date, birth weight, last known weight, timezone
+- Timezone follows existing behavior: auto-detected, editable, no separate confirmation interaction.
 - If onboarding is abandoned mid-flow, the guard resumes the next required step
   on the next login.
 - There is no separate onboarding state table; state is derived from
   memberships, the active family cookie, and child presence.
+
+App-use lock fallback:
+- Users can still land on `/app` if route flow degrades.
+- Core app usage is locked until required profile fields are complete.
+- Lock CTA routes back to `/app/onboarding/profile`.
 
 ## 5. Route Gating Rules
 Protected routes only load when the user is ready to use the product.
@@ -43,7 +52,7 @@ State machine (high level):
 - Logged in, N>1 families, no cookie -> `/app/select-family`
 - Cookie set, not a member -> clear cookie -> `/app/select-family` (or
   `/app/onboarding/family` if memberships = 0)
-- Active family set, 0 children -> `/app/onboarding/child`
+- Active family set, 0 children -> `/app/onboarding/profile`
 - Otherwise -> allow request
 
 Public routes remain accessible:
@@ -60,6 +69,7 @@ Public routes remain accessible:
 
 ## 7. Invariants
 - The app never runs without an active family.
+- Required profile fields are completed before core app use.
 - The API never 500s due to missing family or child context.
 - DB constraints define truth for required child dates.
 - Guards resume incomplete onboarding deterministically based on data.

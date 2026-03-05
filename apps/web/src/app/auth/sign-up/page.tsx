@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 const SignupPage = () => {
   const router = useRouter();
@@ -86,28 +87,32 @@ const SignupPage = () => {
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <label className="block text-sm font-medium">
-              Email
+            <Field>
+              <FieldLabel htmlFor="signup-email" required>
+                Email
+              </FieldLabel>
               <Input
-                className="mt-2"
+                id="signup-email"
                 type="email"
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Password
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="signup-password" required>
+                Password
+              </FieldLabel>
               <Input
-                className="mt-2"
+                id="signup-password"
                 type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
               />
-            </label>
+            </Field>
             {error ? (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}

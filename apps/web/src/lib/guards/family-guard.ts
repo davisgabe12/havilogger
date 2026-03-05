@@ -48,7 +48,7 @@ export const decideFamilyGuard = ({
   }
 
   if (childCount === 0) {
-    return { type: "redirect", to: "/app/onboarding/child" };
+    return { type: "redirect", to: "/app/onboarding/profile" };
   }
 
   return { type: "allow" };

@@ -238,6 +238,17 @@ const sortTasksByDueAndCreated = (tasks: TaskItem[]): TaskItem[] => {
   });
 };
 
+const parsePositiveNumber = (value: unknown): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+};
+
 type ApiResponse = {
   actions: Action[];
   assistant_message?: string;
@@ -748,7 +759,7 @@ export default function Home() {
   );
   const [profilePromptCount, setProfilePromptCount] = useState(0);
   const [routineEligible, setRoutineEligible] = useState(false);
-  const isComposerLocked = [
+  const isComposerBusy = [
     "sending",
     "thinking_short",
     "thinking_rich",
@@ -1058,57 +1069,120 @@ export default function Home() {
     [childTimezone, getTimezoneLabel],
   );
 
-  const computeMissingExpectationFields = useCallback(() => {
+  const computeMissingProfileFields = useCallback(() => {
     const missing: string[] = [];
+    if (!caregiverFirstName.trim()) {
+      missing.push("caregiver first name");
+    }
+    if (!caregiverLastName.trim()) {
+      missing.push("caregiver last name");
+    }
+    if (!caregiverEmail.trim()) {
+      missing.push("caregiver email");
+    }
+    if (!caregiverPhone.trim()) {
+      missing.push("caregiver phone");
+    }
+    if (!(childFirstName || activeChildName).trim()) {
+      missing.push("child name");
+    }
     const hasBirthDate = Boolean(childDob);
     const hasDueDate = Boolean(childDueDate);
     if (!hasBirthDate && !hasDueDate) {
       missing.push("birth date or due date");
     }
-    if (!childGender) {
-      missing.push("gender");
-    }
-    if (hasBirthDate && !childBirthWeight) {
+    if (!childBirthWeight) {
       missing.push("birth weight");
+    }
+    if (!childLatestWeight) {
+      missing.push("last known weight");
+    }
+    if (!childTimezone) {
+      missing.push("timezone");
     }
     return missing;
   }, [
+    activeChildName,
+    caregiverEmail,
+    caregiverFirstName,
+    caregiverLastName,
+    caregiverPhone,
     childBirthWeight,
     childDob,
     childDueDate,
-    childGender,
+    childFirstName,
+    childLatestWeight,
+    childTimezone,
   ]);
 
   const missingProfileFields = useMemo(
-    () => computeMissingExpectationFields(),
-    [computeMissingExpectationFields],
+    () => computeMissingProfileFields(),
+    [computeMissingProfileFields],
   );
+  const caregiverProfileIncomplete = useMemo(
+    () =>
+      !caregiverFirstName.trim() ||
+      !caregiverLastName.trim() ||
+      !caregiverEmail.trim() ||
+      !caregiverPhone.trim(),
+    [caregiverEmail, caregiverFirstName, caregiverLastName, caregiverPhone],
+  );
+  const hasAtLeastOneCompleteChild = useMemo(() => {
+    const hasCompleteShape = (
+      child: Partial<ChildProfile> & { name?: string | null },
+    ) => {
+      const childName =
+        (child.first_name ?? child.name ?? "").toString().trim();
+      const childHasDate = Boolean(
+        (child.birth_date ?? "").toString().trim() ||
+          (child.due_date ?? "").toString().trim(),
+      );
+      const birthWeight = parsePositiveNumber(child.birth_weight);
+      const latestWeight = parsePositiveNumber(child.latest_weight);
+      const childTimezone = (child.timezone ?? "").toString().trim();
+      return Boolean(
+        childName &&
+          childHasDate &&
+          birthWeight &&
+          latestWeight &&
+          childTimezone,
+      );
+    };
+
+    if (childrenList.length > 0) {
+      return childrenList.some((child) => hasCompleteShape(child));
+    }
+
+    return hasCompleteShape({
+      first_name: childFirstName || activeChildName,
+      birth_date: childDob,
+      due_date: childDueDate,
+      birth_weight: childBirthWeight,
+      latest_weight: childLatestWeight,
+      timezone: childTimezone,
+    });
+  }, [
+    activeChildName,
+    childBirthWeight,
+    childDob,
+    childDueDate,
+    childFirstName,
+    childLatestWeight,
+    childTimezone,
+    childrenList,
+  ]);
   const resolvedCoreChildId =
     [activeChildId, primaryChildId].find(isValidChildId) ?? null;
   const hasResolvedCoreChild = Boolean(resolvedCoreChildId);
-  const needsCaregiverSetup =
-    !caregiverFirstName && !caregiverLastName && !caregiverEmail;
   const profileIncomplete =
-    missingProfileFields.length > 0 || needsCaregiverSetup;
-  const showSignupPrompt =
-    settingsHydrated &&
-    !settingsLoading &&
-    !hasResolvedCoreChild;
-  const showSetupNudgeBanner =
-    settingsHydrated &&
-    !settingsLoading &&
-    hasResolvedCoreChild &&
-    profileIncomplete &&
-    activePanel !== "settings";
-  const appCoreReady = settingsHydrated && hasResolvedCoreChild;
+    caregiverProfileIncomplete || !hasAtLeastOneCompleteChild;
+  const profileAccessLocked = settingsHydrated && profileIncomplete;
+  const appCoreReady =
+    settingsHydrated && hasResolvedCoreChild && !profileAccessLocked;
+  const isComposerLocked = isComposerBusy || profileAccessLocked;
   const hardErrorLower = hardErrorMessage?.toLowerCase() ?? "";
   const showNewChatButton = hardErrorLower.includes("start a new chat");
-  const showSignupButton =
-    showSignupPrompt &&
-    (hardErrorLower.includes("profile") ||
-      hardErrorLower.includes("settings") ||
-      hardErrorLower.includes("child") ||
-      hardErrorLower.includes("select an active child"));
+  const showSignupButton = profileAccessLocked;
   const homeChildName = childFirstName?.trim() || "your child";
   const homeGreeting = buildTimeGreeting();
   const homeAgeLabel = formatHomeAgeLabel(childDob, childDueDate);
@@ -1572,11 +1646,9 @@ export default function Home() {
   }, [activeChildId, fetchHistory]);
 
   const openSignupPanel = useCallback(() => {
-    setActivePanel("settings");
     setNavOpen(false);
-    setShowCaregiverForm(true);
-    setShowChildForm(true);
-  }, []);
+    router.push("/app/onboarding/profile");
+  }, [router]);
 
   const clearActiveFamilyCookie = useCallback(async () => {
     await fetch("/api/active-family", {
@@ -2225,6 +2297,11 @@ export default function Home() {
     ) => {
       const textToSend = (overrideText ?? message).trim();
       if (!textToSend) return;
+      if (profileAccessLocked) {
+        setHardErrorMessage("Complete your required profile fields before using chat.");
+        setConversationState("error_hard");
+        return;
+      }
       if (
         ["sending", "thinking_short", "thinking_rich", "streaming_response"].includes(
           conversationState,
@@ -2422,6 +2499,7 @@ export default function Home() {
       primaryChildId,
       message,
       pendingCategoryHint,
+      profileAccessLocked,
       postClientMetrics,
       questionCategory,
       refreshConversationTitle,
@@ -2671,7 +2749,7 @@ export default function Home() {
       };
 
       if (chip.requiresProfile) {
-        const missing = computeMissingExpectationFields();
+        const missing = computeMissingProfileFields();
         if (missing.length) {
           echoUser();
           setProfilePromptCount((prev) => prev + 1);
@@ -2679,7 +2757,7 @@ export default function Home() {
             id: newId(),
             role: "havi",
             text:
-              "To personalize expectations, I’ll need a birth date or due date, gender, and birth weight if they’re born. Share them here or add everything in Settings.",
+              "Complete your required profile details first, then I can personalize this for you.",
             createdAt: new Date().toISOString(),
           });
           return;
@@ -2716,10 +2794,8 @@ export default function Home() {
     },
     [
       appendEntry,
-      childFirstName,
-      computeMissingExpectationFields,
+      computeMissingProfileFields,
       fillTemplate,
-      hasAnyLog,
       routineEligible,
       sendMessage,
       setMessage,
@@ -3253,21 +3329,6 @@ export default function Home() {
               {guard.error}
             </div>
           ) : null}
-          {showSetupNudgeBanner ? (
-            <div
-              className="mb-4 rounded-md border border-border/60 bg-muted/50 px-3 py-2 text-sm"
-              data-testid="setup-nudge-banner"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-muted-foreground">
-                  Add a few profile details for more personalized guidance.
-                </p>
-                <Button size="sm" variant="outline" onClick={openSignupPanel}>
-                  Finish setup
-                </Button>
-              </div>
-            </div>
-          ) : null}
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>Active child</span>
             <select
@@ -3404,7 +3465,7 @@ export default function Home() {
                 ) : null}
                 {showSignupButton ? (
                   <Button size="sm" variant="outline" onClick={openSignupPanel}>
-                    Sign up
+                    Complete profile
                   </Button>
                 ) : null}
               </div>
@@ -5163,18 +5224,18 @@ export default function Home() {
         </div>
       ) : null}
 
-      {showSignupPrompt && activePanel !== "settings" ? (
+      {profileAccessLocked ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-          data-testid="setup-required-modal"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4"
+          data-testid="profile-lock-modal"
         >
           <div className="w-full max-w-md space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
             <div className="space-y-1">
               <p className="text-base font-semibold">
-                Finish setup to personalize HAVI
+                Complete profile to use HAVI
               </p>
               <p className="text-sm text-muted-foreground">
-                Select a child in setup before chatting so HAVI can route updates correctly.
+                You can open the app, but chat, tasks, and timeline stay locked until required profile fields are complete.
               </p>
             </div>
             {missingProfileFields.length ? (
@@ -5186,9 +5247,9 @@ export default function Home() {
               <Button
                 size="sm"
                 onClick={openSignupPanel}
-                data-testid="finish-setup"
+                data-testid="complete-profile"
               >
-                Finish setup
+                Complete profile
               </Button>
             </div>
           </div>

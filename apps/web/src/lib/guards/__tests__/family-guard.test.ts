@@ -56,7 +56,7 @@ describe("decideFamilyGuard", () => {
     expect(decision).toEqual({ type: "clearCookie", to: "/app/select-family" });
   });
 
-  it("redirects to /app/onboarding/child when active family has no children", () => {
+  it("redirects to /app/onboarding/profile when active family has no children", () => {
     const decision = decideFamilyGuard({
       isAuthenticated: true,
       memberships: ["family-1"],
@@ -64,7 +64,7 @@ describe("decideFamilyGuard", () => {
       childCount: 0,
     });
 
-    expect(decision).toEqual({ type: "redirect", to: "/app/onboarding/child" });
+    expect(decision).toEqual({ type: "redirect", to: "/app/onboarding/profile" });
   });
 
   it("allows access when active family has at least one child", () => {

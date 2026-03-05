@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase/client";
 
@@ -67,7 +68,7 @@ export default function OnboardingFamilyPage() {
           throw new Error("We couldn’t set your active family. Try again.");
         }
 
-        router.replace("/app/onboarding/child");
+        router.replace("/app/onboarding/profile");
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           setError("The request was interrupted. Please try again.");
@@ -93,10 +94,10 @@ export default function OnboardingFamilyPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <form className="space-y-4" onSubmit={handleCreateFamily}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="family-name">
-                Family name
-              </label>
+            <Field>
+              <FieldLabel htmlFor="family-name" required>
+                Family care name
+              </FieldLabel>
               <Input
                 id="family-name"
                 data-testid="onboarding-family-name"
@@ -104,9 +105,10 @@ export default function OnboardingFamilyPage() {
                 onChange={(event) => setFamilyName(event.target.value)}
                 placeholder="The Rivera family"
                 autoComplete="off"
+                required
               />
-            </div>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            </Field>
+            {error ? <FieldError>{error}</FieldError> : null}
             <Button
               type="submit"
               className="w-full"
