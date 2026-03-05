@@ -1,0 +1,203 @@
+{
+  "version": "phase0-v1",
+  "results": [
+    {
+      "id": "log_short_newborn",
+      "scenario_class": "short_log",
+      "message": "baby pooped at 3pm",
+      "classifier_intent": "logging",
+      "route_kind": "log",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [
+        "baby pooped at 3pm"
+      ],
+      "action_count": 1,
+      "assistant_preview": "Logged: Dirty diaper at 5:00 PM PST."
+    },
+    {
+      "id": "ask_short_young_infant",
+      "scenario_class": "short_ask",
+      "message": "is loud breathing normal at night?",
+      "classifier_intent": "chit_chat",
+      "route_kind": "ask",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "For around week 10, Lev can aim for: \u2022 CDC milestones: rolling attempts, hand-to-mouth play, and more intentional coos become common. \u2022 AAP/APA guidance: AAP highlights predictable nap blocks, bedtime routines, and plent",
+      "guidance_contract": {
+        "checks": {
+          "has_evidence_framing": true,
+          "has_context_filter": true,
+          "has_action_steps": false,
+          "has_avoidance_or_red_flags": false,
+          "has_reusable_script_signal": false,
+          "follow_up_question_limit_ok": true,
+          "scan_friendly_shape": true
+        },
+        "score": 4,
+        "question_count": 1
+      }
+    },
+    {
+      "id": "mixed_older_infant",
+      "scenario_class": "mixed_intent",
+      "message": "baby pooped at 3pm, what should i do if he is waking at night?",
+      "classifier_intent": "logging",
+      "route_kind": "mixed",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [
+        "baby pooped at 3pm"
+      ],
+      "action_count": 1,
+      "assistant_preview": "Logged: Dirty diaper at 5:00 PM PST. Based on your recent logs (Dirty diaper at 5:00 PM PST), For around week 34, Lev can aim for: \u2022 CDC milestones: expect bigger leaps in babbling, rolling, and tracking caregivers acros"
+    },
+    {
+      "id": "guidance_long_toddler",
+      "scenario_class": "long_open_ended_guidance",
+      "message": "i want a schedule for my toddler, he is on 2 naps. make one.",
+      "classifier_intent": "general_parenting_advice",
+      "route_kind": "ask",
+      "memory_target": null,
+      "memory_inference_signal": true,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "For around week 104, Noah can aim for: \u2022 CDC milestones: expect bigger leaps in babbling, rolling, and tracking caregivers across the room. \u2022 AAP/APA guidance: AAP suggests leaning into daily routines, floor play, and pl",
+      "guidance_contract": {
+        "checks": {
+          "has_evidence_framing": true,
+          "has_context_filter": true,
+          "has_action_steps": false,
+          "has_avoidance_or_red_flags": false,
+          "has_reusable_script_signal": false,
+          "follow_up_question_limit_ok": true,
+          "scan_friendly_shape": true
+        },
+        "score": 4,
+        "question_count": 1
+      }
+    },
+    {
+      "id": "multi_event_times_older_infant",
+      "scenario_class": "multi_event_times",
+      "message": "1am diaper, 3am feed 3 oz, then slept till 6",
+      "classifier_intent": "logging",
+      "route_kind": "log",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [
+        "1am diaper, 3am feed 3 oz,",
+        "slept till 6"
+      ],
+      "action_count": 2,
+      "assistant_preview": "Logged: Dirty diaper at 12:00 AM PST, sleep at 5:00 PM PST."
+    },
+    {
+      "id": "memory_explicit_toddler",
+      "scenario_class": "explicit_memory_save",
+      "message": "save this: Noah likes a longer second nap",
+      "classifier_intent": "saving",
+      "route_kind": "log",
+      "memory_target": "user",
+      "memory_inference_signal": true,
+      "logging_segments": [
+        "save this: Noah likes a longer second nap"
+      ],
+      "action_count": 1,
+      "assistant_preview": "Got it - I'll remember that."
+    },
+    {
+      "id": "memory_inferred_signal_toddler",
+      "scenario_class": "inferred_memory",
+      "message": "Noah likes a longer second nap.",
+      "classifier_intent": "general_parenting_advice",
+      "route_kind": "ask",
+      "memory_target": null,
+      "memory_inference_signal": true,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "For around week 108, Noah can aim for: \u2022 CDC milestones: expect bigger leaps in babbling, rolling, and tracking caregivers across the room. \u2022 AAP/APA guidance: AAP suggests leaning into daily routines, floor play, and pl"
+    },
+    {
+      "id": "task_request_two_kids",
+      "scenario_class": "task_request",
+      "message": "remind me to call the pediatrician after nap",
+      "classifier_intent": "task_request",
+      "route_kind": "task",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "Got it - I added that to tasks."
+    },
+    {
+      "id": "guidance_format_hitting_toddler_two_kids",
+      "scenario_class": "guidance_format",
+      "message": "my child is hitting. what should i do?",
+      "classifier_intent": "health_sleep_question",
+      "route_kind": "ask",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "Hitting can be a common cause-and-effect test. 1) Stay calm and block the swing so no one gets hurt. 2) Label \u201cgentle hands\u201d and guide a soft touch so your child knows what to do instead. 3) Redirect to a pillow, stuffed",
+      "guidance_contract": {
+        "checks": {
+          "has_evidence_framing": true,
+          "has_context_filter": false,
+          "has_action_steps": true,
+          "has_avoidance_or_red_flags": true,
+          "has_reusable_script_signal": true,
+          "follow_up_question_limit_ok": true,
+          "scan_friendly_shape": true
+        },
+        "score": 6,
+        "question_count": 0
+      }
+    },
+    {
+      "id": "short_ask_early_preschool_three_kids",
+      "scenario_class": "short_ask",
+      "message": "what milestones should i look for now?",
+      "classifier_intent": "milestone_expectations",
+      "route_kind": "ask",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "For around week 220, Mia can aim for: \u2022 CDC milestones: expect bigger leaps in babbling, rolling, and tracking caregivers across the room. \u2022 AAP/APA guidance: AAP suggests leaning into daily routines, floor play, and ple",
+      "guidance_contract": {
+        "checks": {
+          "has_evidence_framing": true,
+          "has_context_filter": true,
+          "has_action_steps": false,
+          "has_avoidance_or_red_flags": false,
+          "has_reusable_script_signal": false,
+          "follow_up_question_limit_ok": true,
+          "scan_friendly_shape": true
+        },
+        "score": 4,
+        "question_count": 1
+      }
+    },
+    {
+      "id": "mixed_three_kids_disambiguation_probe",
+      "scenario_class": "mixed_intent",
+      "message": "Noah slept at 1, Emma woke at 2, is that normal?",
+      "classifier_intent": "general_parenting_advice",
+      "route_kind": "ask",
+      "memory_target": null,
+      "memory_inference_signal": false,
+      "logging_segments": [],
+      "action_count": 0,
+      "assistant_preview": "For around week 14, Noah can aim for: \u2022 CDC milestones: expect bigger leaps in babbling, rolling, and tracking caregivers across the room. \u2022 AAP/APA guidance: AAP suggests leaning into daily routines, floor play, and ple"
+    },
+    {
+      "id": "feedback_contract_case",
+      "scenario_class": "feedback_action",
+      "feedback_payload_valid": true
+    }
+  ]
+}

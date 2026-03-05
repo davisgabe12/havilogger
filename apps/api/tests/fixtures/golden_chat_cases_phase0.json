@@ -1,0 +1,185 @@
+{
+  "version": "phase0-v1",
+  "cases": [
+    {
+      "id": "log_short_newborn",
+      "scenario_class": "short_log",
+      "family_size": 1,
+      "age_band": "newborn",
+      "child_name": "Lev",
+      "child_age_weeks": 2,
+      "message": "baby pooped at 3pm",
+      "expected_current": {
+        "route_kind": "log",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "min_action_count": 1,
+        "assistant_starts_with": "Logged:"
+      }
+    },
+    {
+      "id": "ask_short_young_infant",
+      "scenario_class": "short_ask",
+      "family_size": 1,
+      "age_band": "young_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 10,
+      "message": "is loud breathing normal at night?",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "mixed_older_infant",
+      "scenario_class": "mixed_intent",
+      "family_size": 1,
+      "age_band": "older_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 34,
+      "message": "baby pooped at 3pm, what should i do if he is waking at night?",
+      "expected_current": {
+        "route_kind": "mixed",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "min_action_count": 1,
+        "assistant_starts_with": "Logged:"
+      }
+    },
+    {
+      "id": "guidance_long_toddler",
+      "scenario_class": "long_open_ended_guidance",
+      "family_size": 2,
+      "age_band": "toddler",
+      "child_name": "Noah",
+      "child_age_weeks": 104,
+      "message": "i want a schedule for my toddler, he is on 2 naps. make one.",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": true,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "multi_event_times_older_infant",
+      "scenario_class": "multi_event_times",
+      "family_size": 2,
+      "age_band": "older_infant",
+      "child_name": "Emma",
+      "child_age_weeks": 40,
+      "message": "1am diaper, 3am feed 3 oz, then slept till 6",
+      "expected_current": {
+        "route_kind": "log",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "min_action_count": 2,
+        "assistant_starts_with": "Logged:"
+      }
+    },
+    {
+      "id": "memory_explicit_toddler",
+      "scenario_class": "explicit_memory_save",
+      "family_size": 1,
+      "age_band": "toddler",
+      "child_name": "Noah",
+      "child_age_weeks": 108,
+      "message": "save this: Noah likes a longer second nap",
+      "expected_current": {
+        "route_kind": "log",
+        "memory_target": "user",
+        "memory_inference_signal": true
+      }
+    },
+    {
+      "id": "memory_inferred_signal_toddler",
+      "scenario_class": "inferred_memory",
+      "family_size": 1,
+      "age_band": "toddler",
+      "child_name": "Noah",
+      "child_age_weeks": 108,
+      "message": "Noah likes a longer second nap.",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": true,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "task_request_two_kids",
+      "scenario_class": "task_request",
+      "family_size": 2,
+      "age_band": "young_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 12,
+      "message": "remind me to call the pediatrician after nap",
+      "expected_current": {
+        "route_kind": "task",
+        "memory_target": null,
+        "memory_inference_signal": false
+      }
+    },
+    {
+      "id": "guidance_format_hitting_toddler_two_kids",
+      "scenario_class": "guidance_format",
+      "family_size": 2,
+      "age_band": "toddler",
+      "child_name": "Noah",
+      "child_age_weeks": 100,
+      "message": "my child is hitting. what should i do?",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "short_ask_early_preschool_three_kids",
+      "scenario_class": "short_ask",
+      "family_size": 3,
+      "age_band": "early_preschool",
+      "child_name": "Mia",
+      "child_age_weeks": 220,
+      "message": "what milestones should i look for now?",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "mixed_three_kids_disambiguation_probe",
+      "scenario_class": "mixed_intent",
+      "family_size": 3,
+      "age_band": "young_infant",
+      "child_name": "Noah",
+      "child_age_weeks": 14,
+      "message": "Noah slept at 1, Emma woke at 2, is that normal?",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "feedback_contract_case",
+      "scenario_class": "feedback_action",
+      "family_size": 1,
+      "age_band": "older_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 28,
+      "feedback_payload": {
+        "conversation_id": "11111111-1111-4111-8111-111111111111",
+        "message_id": "22222222-2222-4222-8222-222222222222",
+        "rating": "up",
+        "feedback_text": "Helpful answer."
+      }
+    }
+  ]
+}
