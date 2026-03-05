@@ -8,6 +8,12 @@ Goal: verify auth + onboarding + /app load with Supabase-backed settings.
 For production before/after gating, use:
 `docs/canonical/ops/production-core-smoke.md`
 
+For deterministic production UI release gating (two consecutive passes), run:
+
+```bash
+HAVI_UI_SMOKE_LABEL=release-<change-name> ./scripts/prod_ui_smoke_gate.sh
+```
+
 ## Prereqs
 - API running on `http://127.0.0.1:8000`
 - Web running on `http://localhost:3001`
@@ -61,7 +67,7 @@ Current status (March 4, 2026):
 - Marketing `/` is unauthenticated and renders without app UI.
 - Sign-up UI works in both instant and email-confirmation-required modes.
 - Sign-in, sign-out, and forgot-password success state.
-- Family onboarding (create family + child) with Supabase persistence.
+- Family onboarding (create family + required profile) with Supabase persistence.
 - Multi-child creation and active-child switching with scoped tasks/timeline/chat.
 - Invite flow (create invite link, accept as second user, access verified).
 - Timeline events are stored with timezone-aware timestamps and render with timezone context.
@@ -84,17 +90,19 @@ creates a tokenized `share_links` row and resolves shared content via the RPC.
 2) `/auth/sign-up` → create account.
 3) `/auth/sign-in` → sign in; lands at `/app`.
 4) If no family → `/app/onboarding/family`:
-   - Create family, redirects to `/app/onboarding/child`.
-5) If no child → `/app/onboarding/child`:
-   - Enter birth date OR due date.
-   - Select gender.
-   - If birth date used → enter birth weight.
+   - Create family, redirects to `/app/onboarding/profile`.
+5) Required profile step `/app/onboarding/profile`:
+   - Caregiver: first name, last name, email, phone.
+   - Child: name (Unknown allowed), DOB or due date, birth weight, last known weight, timezone.
    - Submit → redirects to `/app`.
-6) Refresh `/app`:
+6) If profile is incomplete and `/app` is reached:
+   - Profile lock modal appears.
+   - `Complete profile` CTA routes back to `/app/onboarding/profile`.
+7) Refresh `/app`:
    - No onboarding loop.
    - Settings show saved values.
-7) Sign out → `/auth/sign-in`.
-8) Signed out visiting `/app` → redirect to `/auth/sign-in`.
+8) Sign out → `/auth/sign-in`.
+9) Signed out visiting `/app` → redirect to `/auth/sign-in`.
 
 ## API verification (devtools)
 - All API calls hit `http://127.0.0.1:8000/api/v1/*`

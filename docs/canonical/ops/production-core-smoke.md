@@ -41,11 +41,22 @@ Skill wrapper (equivalent):
 /Users/gabedavis/.codex/skills/havi-prod-core-smoke/scripts/run.sh after-<change-name>
 ```
 
+Deterministic production UI gate (two consecutive GREEN passes):
+
+```bash
+HAVI_UI_SMOKE_LABEL=after-<change-name> ./scripts/prod_ui_smoke_gate.sh
+```
+
 ## Evidence Artifacts
 
 Each run writes a report:
 
 `docs/active/green-proof/prod-core-smoke-<label>.json`
+
+UI gate writes:
+
+`docs/active/green-proof/prod-ui-smoke-<label>.json`
+`docs/active/green-proof/prod-ui-smoke-<label>/run-<n>.log`
 
 For each release slice, keep both reports (`before` and `after`) and confirm:
 

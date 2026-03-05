@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-03-05T05:45:57Z",
+  "label": "after-onboarding-profile-submit-fix-20260304",
+  "base_url": "https://gethavi.com",
+  "required_consecutive_passes": 2,
+  "gate_pass": true,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "pass",
+      "started_at": "2026-03-05T05:44:25Z",
+      "ended_at": "2026-03-05T05:45:17Z",
+      "exit_code": 0,
+      "log_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-onboarding-profile-submit-fix-20260304/run-1.log",
+      "report_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-onboarding-profile-submit-fix-20260304/run-1-report.json"
+    },
+    {
+      "attempt": 2,
+      "status": "pass",
+      "started_at": "2026-03-05T05:45:17Z",
+      "ended_at": "2026-03-05T05:45:57Z",
+      "exit_code": 0,
+      "log_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-onboarding-profile-submit-fix-20260304/run-2.log",
+      "report_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-onboarding-profile-submit-fix-20260304/run-2-report.json"
+    }
+  ]
+}

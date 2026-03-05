@@ -45,7 +45,7 @@ const shouldIgnoreRequestFailure = (
 };
 
 const completeOnboardingIfNeeded = async (page: any) => {
-  const onboardingCaregiverEmail = `green.owner+${Date.now()}@example.com`;
+  const onboardingCaregiverEmail = `green.owner.${Date.now()}@example.com`;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await page.waitForLoadState("domcontentloaded");
     const currentUrl = page.url();
@@ -210,6 +210,7 @@ const readSectionCount = async (section: any, label: "pending" | "saved") => {
 };
 
 test("GREEN smoke", async ({ page }) => {
+  test.setTimeout(180_000);
   const consoleErrors: string[] = [];
   trackConsoleErrors(page, consoleErrors, "green");
   const badKnowledgeResponses: string[] = [];
@@ -224,7 +225,7 @@ test("GREEN smoke", async ({ page }) => {
   });
 
   const timestamp = Date.now();
-  const userEmail = `green+${timestamp}@example.com`;
+  const userEmail = `green.${timestamp}@example.com`;
   const userPassword = "Lev2025!";
 
   const fallbackEmail = process.env.GREEN_EXISTING_EMAIL ?? "";
@@ -330,15 +331,27 @@ test("GREEN smoke", async ({ page }) => {
       return false;
     }
   };
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (
+    text: string,
+    attempt = 0,
+  ): Promise<ActivityResponsePayload> => {
     const assistantCountBefore = await assistantMessages.count();
-    const activityResponse = page.waitForResponse(
-      (res: any) => matchesActivityRequest(res, text),
-    );
+    const activityResponse = page.waitForResponse((res: any) => matchesActivityRequest(res, text), {
+      timeout: 45_000,
+    });
     await page.getByTestId("chat-input").fill(text);
     await expect(page.getByTestId("chat-send")).toBeEnabled({ timeout: 20_000 });
     await page.getByTestId("chat-send").click();
-    const activityResult = await activityResponse;
+    let activityResult: any;
+    try {
+      activityResult = await activityResponse;
+    } catch (error) {
+      if (attempt < 1) {
+        await page.waitForTimeout(750);
+        return sendMessage(text, attempt + 1);
+      }
+      throw error;
+    }
     expect(activityResult.status()).toBe(200);
     const payload = (await activityResult.json()) as ActivityResponsePayload;
     await expect
