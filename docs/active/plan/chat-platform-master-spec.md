@@ -135,6 +135,7 @@ Sync rule:
 4. GREEN follow-up (March 5, 2026, later run):
 - Onboarding smoke flow hardened in [green.smoke.spec.ts](/Users/gabedavis/Desktop/projects/havilogger/apps/web/tests/smoke/green.smoke.spec.ts) by asserting/re-filling caregiver fields before retrying continue.
 - GREEN gate now passed twice consecutively in local validation.
+- Production core smoke also passed on March 5, 2026 for both existing-account and new-signup flows.
 
 5. Reporting follow-up (March 5, 2026, later run):
 - Quality snapshot baseline now includes segmented distributions and disagreement/fallback analytics from golden harness output.

@@ -105,6 +105,8 @@ This plan is intentionally scoped to message/chat behavior only.
 2. Validation evidence:
 - `cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green` passed twice consecutively on March 5, 2026.
 - Run results: `1 passed` then `1 passed`.
+- `./scripts/prod_core_smoke.sh` passed on March 5, 2026 for both existing-account and new-signup flows.
+- Artifact: [prod-core-smoke-manual-20260305073727.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-core-smoke-manual-20260305073727.json)
 
 3. Updated focus:
 - Keep `P1-F2a` telemetry completion and production-side `P1-F2` reporting as active next slices.
