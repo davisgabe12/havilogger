@@ -4,6 +4,9 @@
 HAVI should run one canonical chat pipeline that is explicit, testable, and context-grounded on every turn.  
 Core principle: use OpenAI in Phase 1 for interpretation and guidance quality, while deterministic code remains the authority for data writes and safety boundaries.
 
+Execution companion:
+- [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md)
+
 This spec is intentionally focused on message/chat behavior only:
 - user message send
 - routing
@@ -251,6 +254,7 @@ Safety/quality requirements:
 3. Enable for a controlled cohort, compare quality/write error deltas.
 4. Promote after gate thresholds are met across age/family slices.
 5. Add guidance-format contract tests for high-frequency asks (sleep, hitting, schedule, feeding concerns).
+6. Require GREEN e2e pass and production smoke pass alongside golden eval gates before rollout expansion.
 
 ## Open Questions
 1. Should inferred memory confirmations be visible inline every time, or bundled via UI nudges?

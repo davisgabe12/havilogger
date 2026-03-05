@@ -1,5 +1,17 @@
 # HAVI Chat Phase 0 + Phase 1 Implementation Plan
 
+## Status Snapshot
+1. Phase 0 is complete and committed:
+- Harness: [test_golden_phase0_harness.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_golden_phase0_harness.py)
+- Fixture: [golden_chat_cases_phase0.json](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/fixtures/golden_chat_cases_phase0.json)
+- Baseline: [chat-phase0-golden-baseline.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase0-golden-baseline.json)
+
+2. Phase 1 execution is now tracked in dedicated doc:
+- [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md)
+
+3. Phase 2 outline is included in:
+- [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md)
+
 ## Goal
 Deliver a stable, context-aware chat core with OpenAI integrated safely in the canonical path, while preserving deterministic data integrity for logs, timeline, tasks, and memory writes.
 
@@ -274,3 +286,8 @@ Acceptance criteria:
 1. Create Phase 0 task list from this plan (dataset schema, runner, assertion modules, CI target).
 2. Create Phase 1 task list from this plan (orchestrator, router adapter, composer adapter, guardrails, telemetry).
 3. Map each task to acceptance tests before implementation starts.
+
+## Updated Handoff
+Phase 0 tasks above are complete. Active execution should now follow:
+1. [chat-phase-1-execution-plan.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md) for implementation slices and gates.
+2. [chat-platform-master-spec.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-platform-master-spec.md) for architecture and response contract.
