@@ -29,3 +29,5 @@ If a canonical doc is no longer accurate, move it to `docs/archive/` or update i
    - `docs/canonical/design/homepage-surface-system.md`
 3. Homepage Phase A delivery constraints:
    - `docs/canonical/design/homepage-modernization-phase-a.md`
+4. Form field system contract:
+   - `docs/canonical/design/form-field-system.md`
