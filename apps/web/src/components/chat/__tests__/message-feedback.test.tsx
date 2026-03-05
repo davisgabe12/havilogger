@@ -136,4 +136,65 @@ describe("MessageFeedback", () => {
       route_metadata: { route_kind: "ask", decision_source: "model" },
     });
   });
+
+  it("shows terminal error after retry budget is exhausted", async () => {
+    jest.useFakeTimers();
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
+      .mockRejectedValue(new Error("network"));
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <MessageFeedback
+        conversationId={42}
+        messageId="123"
+        apiBaseUrl={apiBaseUrl}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Thumbs up"));
+    await act(async () => {
+      jest.advanceTimersByTime(1200);
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(2400);
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("Couldn’t save feedback.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry feedback" })).toBeInTheDocument();
+    expect(screen.queryByText("Retrying…")).not.toBeInTheDocument();
+  });
+
+  it("recovers when user retries from terminal error", async () => {
+    jest.useFakeTimers();
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <MessageFeedback
+        conversationId={42}
+        messageId="123"
+        apiBaseUrl={apiBaseUrl}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Thumbs up"));
+    await act(async () => {
+      jest.advanceTimersByTime(1200);
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(2400);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Retry feedback" }));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(screen.queryByText("Couldn’t save feedback.")).not.toBeInTheDocument();
+  });
 });

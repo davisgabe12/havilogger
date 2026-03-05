@@ -35,6 +35,16 @@ type FeedbackPayload = {
 };
 
 const RETRY_DELAYS_MS = [1200, 2400];
+type PersistStatus = "idle" | "submitting" | "retry_wait" | "retrying" | "failed";
+
+class FeedbackPersistError extends Error {
+  retryable: boolean;
+
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.retryable = retryable;
+  }
+}
 
 export function MessageFeedback({
   conversationId,
@@ -53,7 +63,7 @@ export function MessageFeedback({
 }: MessageFeedbackProps) {
   const [rating, setRating] = useState<FeedbackRating>(initialRating);
   const [comment, setComment] = useState(initialComment);
-  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [status, setStatus] = useState<PersistStatus>("idle");
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<number | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
@@ -80,32 +90,40 @@ export function MessageFeedback({
   const persistFeedback = useCallback(
     async (payload: FeedbackPayload, isRetry = false) => {
       pendingPayloadRef.current = payload;
+      if (retryTimerRef.current) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       if (!isRetry) {
         retryCountRef.current = 0;
       }
-      setStatus("saving");
+      setStatus(isRetry ? "retrying" : "submitting");
       try {
         const res = await apiFetch(`${apiBaseUrl}/api/v1/messages/feedback`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error("Unable to save feedback");
+        if (!res.ok) {
+          const retryable = res.status >= 500 || res.status === 429;
+          throw new FeedbackPersistError("Unable to save feedback", retryable);
+        }
         setStatus("idle");
-      } catch {
-        setStatus("error");
-        if (retryCountRef.current < RETRY_DELAYS_MS.length) {
+      } catch (error) {
+        const retryable =
+          error instanceof FeedbackPersistError ? error.retryable : true;
+        if (retryable && retryCountRef.current < RETRY_DELAYS_MS.length) {
           const delay = RETRY_DELAYS_MS[retryCountRef.current];
           retryCountRef.current += 1;
-          if (retryTimerRef.current) {
-            window.clearTimeout(retryTimerRef.current);
-          }
+          setStatus("retry_wait");
           retryTimerRef.current = window.setTimeout(() => {
             if (pendingPayloadRef.current) {
               void persistFeedback(pendingPayloadRef.current, true);
             }
           }, delay);
+          return;
         }
+        setStatus("failed");
       }
     },
     [apiBaseUrl],
@@ -170,6 +188,8 @@ export function MessageFeedback({
     isStacked ? "w-full" : "w-full max-w-[220px]",
   );
   const hasFeedbackTarget = Boolean(messageId && conversationId);
+  const showRetryingHint = status === "retry_wait" || status === "retrying";
+  const showTerminalError = status === "failed";
 
   if (!hasFeedbackTarget && !beforeButtons) {
     return null;
@@ -207,8 +227,27 @@ export function MessageFeedback({
             >
               <ThumbsDown className="h-3 w-3" />
             </button>
-            {status === "error" ? (
+            {showRetryingHint ? (
               <span className="text-[10px] text-muted-foreground">Retrying…</span>
+            ) : null}
+            {showTerminalError ? (
+              <>
+                <span className="text-[10px] text-muted-foreground">
+                  Couldn’t save feedback.
+                </span>
+                <button
+                  type="button"
+                  aria-label="Retry feedback"
+                  className={cn(buttonBase, "text-[10px]")}
+                  onClick={() => {
+                    if (pendingPayloadRef.current) {
+                      void persistFeedback(pendingPayloadRef.current);
+                    }
+                  }}
+                >
+                  Try again
+                </button>
+              </>
             ) : null}
           </>
         ) : null}
