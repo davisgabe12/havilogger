@@ -131,6 +131,10 @@ Sync rule:
 - Phase 1 chat runtime hardening has progressed as planned.
 - GREEN determinism and onboarding stabilization remain required before widening rollout gates.
 
+4. GREEN follow-up (March 5, 2026, later run):
+- Onboarding smoke flow hardened in [green.smoke.spec.ts](/Users/gabedavis/Desktop/projects/havilogger/apps/web/tests/smoke/green.smoke.spec.ts) by asserting/re-filling caregiver fields before retrying continue.
+- GREEN gate now passed twice consecutively in local validation.
+
 ## Proposed Solution
 
 ### Canonical Components

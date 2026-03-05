@@ -46,6 +46,22 @@ const shouldIgnoreRequestFailure = (
 
 const completeOnboardingIfNeeded = async (page: any) => {
   const onboardingCaregiverEmail = `green.owner.${Date.now()}@example.com`;
+  const ensureCaregiverValues = async () => {
+    const firstName = page.getByTestId("onboarding-profile-caregiver-first-name");
+    const lastName = page.getByTestId("onboarding-profile-caregiver-last-name");
+    const email = page.getByTestId("onboarding-profile-caregiver-email");
+    const phone = page.getByTestId("onboarding-profile-caregiver-phone");
+
+    await firstName.fill("Gabe");
+    await lastName.fill("Davis");
+    await email.fill(onboardingCaregiverEmail);
+    await phone.fill("5551234567");
+
+    await expect(firstName).toHaveValue("Gabe");
+    await expect(lastName).toHaveValue("Davis");
+    await expect(email).toHaveValue(onboardingCaregiverEmail);
+    await expect(phone).toHaveValue("5551234567");
+  };
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await page.waitForLoadState("domcontentloaded");
     const currentUrl = page.url();
@@ -77,18 +93,7 @@ const completeOnboardingIfNeeded = async (page: any) => {
       await page.getByTestId("onboarding-profile-caregiver").waitFor({
         timeout: 15_000,
       });
-      await page
-        .getByTestId("onboarding-profile-caregiver-first-name")
-        .fill("Gabe");
-      await page
-        .getByTestId("onboarding-profile-caregiver-last-name")
-        .fill("Davis");
-      await page
-        .getByTestId("onboarding-profile-caregiver-email")
-        .fill(onboardingCaregiverEmail);
-      await page
-        .getByTestId("onboarding-profile-caregiver-phone")
-        .fill("5551234567");
+      await ensureCaregiverValues();
       for (let childStepAttempt = 0; childStepAttempt < 3; childStepAttempt += 1) {
         await page.getByTestId("onboarding-profile-continue").click();
         const childVisible = await page
@@ -96,6 +101,13 @@ const completeOnboardingIfNeeded = async (page: any) => {
           .isVisible()
           .catch(() => false);
         if (childVisible) break;
+        const caregiverVisible = await page
+          .getByTestId("onboarding-profile-caregiver")
+          .isVisible()
+          .catch(() => false);
+        if (caregiverVisible) {
+          await ensureCaregiverValues();
+        }
         await page.waitForTimeout(500);
       }
       await page.getByTestId("onboarding-profile-child").waitFor({ timeout: 15_000 });

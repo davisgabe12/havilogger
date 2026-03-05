@@ -93,6 +93,18 @@ This plan is intentionally scoped to message/chat behavior only.
 - add disagreement-rate and fallback-rate aggregation from route metadata logs.
 - publish segmented quality snapshot (age band, family size, scenario class) using the script output path.
 
+## Progress Update (March 5, 2026, later run)
+1. `P1-E2a` completed:
+- GREEN onboarding helper now re-validates caregiver field values before each continue attempt to prevent empty-email stalls.
+- File: [green.smoke.spec.ts](/Users/gabedavis/Desktop/projects/havilogger/apps/web/tests/smoke/green.smoke.spec.ts)
+
+2. Validation evidence:
+- `cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green` passed twice consecutively on March 5, 2026.
+- Run results: `1 passed` then `1 passed`.
+
+3. Updated focus:
+- Keep `P1-F2a` telemetry completion and `P1-F2b` reporting as active next slices.
+
 ## Goals
 1. Canonical runtime ownership:
 - `POST /api/v1/activities` executes through one orchestrator path only.
