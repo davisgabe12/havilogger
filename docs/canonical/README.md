@@ -13,13 +13,21 @@ This folder contains the current source of truth for Havi behavior.
 4. Current Supabase schema and migration references.
 5. Production verification runbooks (for example, `ops/production-core-smoke.md`).
 6. Deployment/release runbooks (for example, `ops/deploy-and-release.md`).
+7. Completed shipped spec snapshots in `completed-specs/` (point-in-time implementation record).
 
 ## What does not belong here
 
 1. Draft plans with unresolved decisions.
-2. Historical notes kept for context only.
+2. Draft plans/specs with unresolved decisions.
 
 If a canonical doc is no longer accurate, move it to `docs/archive/` or update it in the same change.
+
+## Canonical Spec Types
+
+1. Evergreen source-of-truth docs:
+   - `design/`, `ops/`, `product/`, testing and architecture docs.
+2. Completed shipped spec snapshots:
+   - `completed-specs/` for "what we shipped at the time" records.
 
 ## Design System Canonical Sources
 
