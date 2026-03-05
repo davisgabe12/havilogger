@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from ..supabase import AuthContext, get_auth_context, resolve_optional_uuid
 
 router = APIRouter()
+DEFAULT_MODEL_VERSION = "havi-local"
 
 
 class MessageFeedbackPayload(BaseModel):
@@ -19,6 +20,19 @@ class MessageFeedbackPayload(BaseModel):
     feedback_text: Optional[str] = None
     model_version: Optional[str] = None
     response_metadata: Optional[Dict[str, Any]] = None
+
+
+def _route_kind_from_assistant_intent(intent: Optional[str]) -> Optional[str]:
+    normalized = (intent or "").strip().lower()
+    if not normalized:
+        return None
+    if normalized == "logging":
+        return "log"
+    if normalized == "mixed":
+        return "mixed"
+    if normalized == "question":
+        return "ask"
+    return "unknown"
 
 
 async def _enrich_feedback_metadata(
@@ -45,7 +59,11 @@ async def _enrich_feedback_metadata(
         if message_rows:
             message_row = message_rows[0]
             if message_row.get("intent"):
-                metadata.setdefault("assistant_intent", message_row.get("intent"))
+                assistant_intent = str(message_row.get("intent"))
+                metadata.setdefault("assistant_intent", assistant_intent)
+                derived_route_kind = _route_kind_from_assistant_intent(assistant_intent)
+                if derived_route_kind:
+                    metadata.setdefault("assistant_route_kind", derived_route_kind)
             if message_row.get("session_id"):
                 metadata.setdefault("session_id", message_row.get("session_id"))
     except Exception:
@@ -69,6 +87,8 @@ async def _save_feedback(
         message_id=message_id,
         payload=payload,
     )
+    model_version = (payload.model_version or "").strip() or DEFAULT_MODEL_VERSION
+    response_metadata.setdefault("model_version", model_version)
     feedback_payload = {
         "conversation_id": conversation_id,
         "message_id": message_id,
@@ -76,7 +96,7 @@ async def _save_feedback(
         "session_id": payload.session_id,
         "rating": payload.rating,
         "feedback_text": payload.feedback_text,
-        "model_version": payload.model_version,
+        "model_version": model_version,
         "response_metadata": response_metadata,
     }
 

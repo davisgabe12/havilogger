@@ -47,13 +47,27 @@ def _build_auth_ctx(fake: FakeSupabase) -> AuthContext:
 
 
 def test_feedback_create_inserts_when_no_existing_row() -> None:
-    fake = FakeSupabase(select_queue=[[], []])
+    conversation_id = str(uuid4())
+    message_id = str(uuid4())
+    fake = FakeSupabase(
+        select_queue=[
+            [
+                {
+                    "id": message_id,
+                    "session_id": conversation_id,
+                    "intent": "question",
+                    "created_at": "2026-03-05T00:00:00+00:00",
+                }
+            ],
+            [],
+        ]
+    )
     auth_ctx = _build_auth_ctx(fake)
     app.dependency_overrides[get_auth_context] = lambda: auth_ctx
     client = TestClient(app)
     payload = {
-        "conversation_id": str(uuid4()),
-        "message_id": str(uuid4()),
+        "conversation_id": conversation_id,
+        "message_id": message_id,
         "rating": "up",
         "feedback_text": "Helpful",
     }
@@ -66,23 +80,36 @@ def test_feedback_create_inserts_when_no_existing_row() -> None:
         assert len(fake.insert_calls) == 1
         assert len(fake.update_calls) == 0
         inserted_payload = fake.insert_calls[0][1]
+        assert inserted_payload.get("model_version") == "havi-local"
         metadata = inserted_payload.get("response_metadata") or {}
         assert metadata.get("conversation_id") == payload["conversation_id"]
         assert metadata.get("assistant_message_id") == payload["message_id"]
+        assert metadata.get("assistant_intent") == "question"
+        assert metadata.get("assistant_route_kind") == "ask"
+        assert metadata.get("model_version") == "havi-local"
     finally:
         app.dependency_overrides.clear()
 
 
 def test_feedback_create_updates_when_existing_row_found() -> None:
+    conversation_id = str(uuid4())
+    message_id = str(uuid4())
     existing_id = str(uuid4())
     fake = FakeSupabase(
         select_queue=[
-            [],
+            [
+                {
+                    "id": message_id,
+                    "session_id": conversation_id,
+                    "intent": "logging",
+                    "created_at": "2026-03-05T00:00:00+00:00",
+                }
+            ],
             [
                 {
                     "id": existing_id,
-                    "conversation_id": str(uuid4()),
-                    "message_id": str(uuid4()),
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
                     "user_id": str(uuid4()),
                     "rating": "up",
                 }
@@ -93,8 +120,8 @@ def test_feedback_create_updates_when_existing_row_found() -> None:
     app.dependency_overrides[get_auth_context] = lambda: auth_ctx
     client = TestClient(app)
     payload = {
-        "conversation_id": str(uuid4()),
-        "message_id": str(uuid4()),
+        "conversation_id": conversation_id,
+        "message_id": message_id,
         "rating": "down",
         "feedback_text": "Needs work",
     }
@@ -107,5 +134,10 @@ def test_feedback_create_updates_when_existing_row_found() -> None:
         assert len(fake.select_calls) == 2
         assert len(fake.insert_calls) == 0
         assert len(fake.update_calls) == 1
+        updated_payload = fake.update_calls[0][1]
+        assert updated_payload.get("model_version") == "havi-local"
+        metadata = updated_payload.get("response_metadata") or {}
+        assert metadata.get("assistant_intent") == "logging"
+        assert metadata.get("assistant_route_kind") == "log"
     finally:
         app.dependency_overrides.clear()

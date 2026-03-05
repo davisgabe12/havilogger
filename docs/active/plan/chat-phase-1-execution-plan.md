@@ -47,6 +47,7 @@ This plan is intentionally scoped to message/chat behavior only.
   - classifier rollout gating added via `OPENAI_INTENT_CLASSIFIER_TRAFFIC_PCT`
   - guidance composer rollout gating added via `OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT`
   - feedback API now enriches persisted metadata with assistant intent/session context; web feedback component supports optional model version + route metadata payload fields
+  - feedback API now defaults `model_version` to `havi-local` when omitted and derives `assistant_route_kind` from stored assistant intent
   - quality snapshot script added: [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py)
 - `P1-F2` quality reporting baseline landed:
   - golden quality snapshot now includes segmentation by scenario class, age band, and family size
