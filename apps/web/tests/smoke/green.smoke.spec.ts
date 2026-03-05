@@ -44,6 +44,22 @@ const shouldIgnoreRequestFailure = (
   return false;
 };
 
+const readRequestPayload = (request: any): any => {
+  let payload: any = null;
+  if (typeof request.postDataJSON === "function") {
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      payload = null;
+    }
+  }
+  if (!payload) {
+    const raw = request.postData();
+    if (raw) payload = JSON.parse(raw);
+  }
+  return payload;
+};
+
 const completeOnboardingIfNeeded = async (page: any) => {
   const onboardingCaregiverEmail = `green.owner.${Date.now()}@example.com`;
   const ensureCaregiverValues = async () => {
@@ -51,16 +67,28 @@ const completeOnboardingIfNeeded = async (page: any) => {
     const lastName = page.getByTestId("onboarding-profile-caregiver-last-name");
     const email = page.getByTestId("onboarding-profile-caregiver-email");
     const phone = page.getByTestId("onboarding-profile-caregiver-phone");
-
-    await firstName.fill("Gabe");
-    await lastName.fill("Davis");
-    await email.fill(onboardingCaregiverEmail);
-    await phone.fill("5551234567");
-
-    await expect(firstName).toHaveValue("Gabe");
-    await expect(lastName).toHaveValue("Davis");
-    await expect(email).toHaveValue(onboardingCaregiverEmail);
-    await expect(phone).toHaveValue("5551234567");
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await firstName.fill("Gabe");
+      await lastName.fill("Davis");
+      await email.fill(onboardingCaregiverEmail);
+      await phone.fill("5551234567");
+      await page.waitForTimeout(150);
+      const values = await Promise.all([
+        firstName.inputValue().catch(() => ""),
+        lastName.inputValue().catch(() => ""),
+        email.inputValue().catch(() => ""),
+        phone.inputValue().catch(() => ""),
+      ]);
+      if (
+        values[0] === "Gabe" &&
+        values[1] === "Davis" &&
+        values[2] === onboardingCaregiverEmail &&
+        values[3] === "5551234567"
+      ) {
+        return;
+      }
+    }
+    throw new Error("Unable to stabilize caregiver onboarding field values.");
   };
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await page.waitForLoadState("domcontentloaded");
@@ -294,18 +322,7 @@ test("GREEN smoke", async ({ page }) => {
     }
     try {
       const req = res.request();
-      let payload: any = null;
-      if (typeof req.postDataJSON === "function") {
-        try {
-          payload = req.postDataJSON();
-        } catch {
-          payload = null;
-        }
-      }
-      if (!payload) {
-        const raw = req.postData();
-        if (raw) payload = JSON.parse(raw);
-      }
+      const payload = readRequestPayload(req);
       return payload?.message === text;
     } catch {
       return false;
@@ -323,18 +340,7 @@ test("GREEN smoke", async ({ page }) => {
     }
     try {
       const req = res.request();
-      let payload: any = null;
-      if (typeof req.postDataJSON === "function") {
-        try {
-          payload = req.postDataJSON();
-        } catch {
-          payload = null;
-        }
-      }
-      if (!payload) {
-        const raw = req.postData();
-        if (raw) payload = JSON.parse(raw);
-      }
+      const payload = readRequestPayload(req);
       return (
         payload?.message_id === expectedMessageId &&
         payload?.rating === expectedRating
@@ -406,8 +412,14 @@ test("GREEN smoke", async ({ page }) => {
     matchesFeedbackRequest(res, mixedAssistantMessageId, "up"),
   );
   await mixedAssistantWrapper.getByRole("button", { name: "Thumbs up" }).click();
-  const thumbsUpStatus = (await thumbsUpResponse).status();
+  const thumbsUpRes = await thumbsUpResponse;
+  const thumbsUpStatus = thumbsUpRes.status();
+  const thumbsUpPayload = readRequestPayload(thumbsUpRes.request());
   expect(thumbsUpStatus).toBe(200);
+  expect(thumbsUpPayload?.model_version).toBeTruthy();
+  expect(
+    thumbsUpPayload?.response_metadata?.route_metadata?.route_kind,
+  ).toBe("mixed");
 
   const thumbsDownResponse = page.waitForResponse((res: any) =>
     matchesFeedbackRequest(res, mixedAssistantMessageId, "down"),
@@ -416,8 +428,14 @@ test("GREEN smoke", async ({ page }) => {
   await mixedAssistantWrapper
     .getByPlaceholder("What didn’t work? (optional)")
     .fill("Too generic");
-  const thumbsDownStatus = (await thumbsDownResponse).status();
+  const thumbsDownRes = await thumbsDownResponse;
+  const thumbsDownStatus = thumbsDownRes.status();
+  const thumbsDownPayload = readRequestPayload(thumbsDownRes.request());
   expect(thumbsDownStatus).toBe(200);
+  expect(thumbsDownPayload?.model_version).toBeTruthy();
+  expect(
+    thumbsDownPayload?.response_metadata?.route_metadata?.route_kind,
+  ).toBe("mixed");
 
   const explicitMemoryPayload = await sendMessage(
     `save this: River prefers a longer second nap ${timestamp}`,
