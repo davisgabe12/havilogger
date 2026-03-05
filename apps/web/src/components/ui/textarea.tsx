@@ -1,18 +1,27 @@
-import * as React from "react"
+import * as React from "react";
+import type { VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { fieldControlVariants } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+type TextareaProps = React.ComponentProps<"textarea"> &
+  VariantProps<typeof fieldControlVariants>;
+
+function Textarea({ className, status, ...props }: TextareaProps) {
+  const ariaInvalid = props["aria-invalid"] ?? status === "error";
   return (
     <textarea
       data-slot="textarea"
+      data-status={status}
+      aria-invalid={ariaInvalid}
       className={cn(
-        "havi-input field-sizing-content min-h-16 shadow-xs transition-[color,box-shadow] text-base md:text-sm aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        fieldControlVariants({ status }),
+        "field-sizing-content min-h-16 shadow-xs",
         className
       )}
       {...props}
     />
-  )
+  );
 }
 
-export { Textarea }
+export { Textarea };

@@ -25,6 +25,20 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
   - Focus: `--havi-ring`.
   - Tooltip: `--havi-tooltip-bg`, `--havi-tooltip-fg`, `--havi-tooltip-border`.
   - Status: `--havi-status-success`, `--havi-status-warning`, `--havi-status-destructive`.
+  - Form fields:
+    - Surfaces/text: `--havi-field-bg`, `--havi-field-text`, `--havi-field-placeholder`.
+    - Borders/focus: `--havi-field-border`, `--havi-field-border-hover`, `--havi-field-border-focus`, `--havi-field-ring`.
+    - Disabled: `--havi-field-disabled-bg`, `--havi-field-disabled-text`.
+    - Field copy: `--havi-field-label`, `--havi-field-hint`.
+  - Showcase surfaces (generic, not marketing-only):
+    - Bands/surfaces: `--havi-surface-band-bg`, `--havi-surface-band-border`, `--havi-surface-elevated-bg`, `--havi-surface-elevated-strong`, `--havi-surface-hero-frame`.
+    - Accent/glow: `--havi-accent-warm`, `--havi-accent-warm-soft`, `--havi-accent-sky`, `--havi-accent-coral`, `--havi-accent-mint`, `--havi-accent-sky-soft`, `--havi-accent-coral-soft`, `--havi-accent-mint-soft`, `--havi-glow-soft`.
+    - Light canvas + feature framing: `--havi-canvas-soft`, `--havi-canvas-soft-border`, `--havi-canvas-paper`, `--havi-feature-frame-border`, `--havi-feature-shadow`.
+    - Media surfaces (generic): `--havi-media-surface`, `--havi-media-border-soft`, `--havi-media-shadow-soft`.
+    - Signal contrast tokens: `--havi-signal-positive-bg`, `--havi-signal-positive-border`, `--havi-signal-negative-bg`, `--havi-signal-negative-border`.
+    - Compatibility aliases remain available for existing marketing classes:
+      - `--havi-marketing-band-bg`, `--havi-marketing-band-border`, `--havi-marketing-elevated-bg`, `--havi-marketing-elevated-strong`.
+      - `--havi-marketing-accent`, `--havi-marketing-accent-soft`, `--havi-marketing-glow`.
   - Destructive semantics: `--havi-destructive-bg`, `--havi-destructive-fg`.
   - Charts: `--havi-chart-1` … `--havi-chart-5`.
 
@@ -98,13 +112,11 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 
 ## Select / Dropdown Rules
 
-- Native selects should use the shared HAVI select style:
-  - Class: `havi-select`
-  - Maps to:
-    - Surface: `bg-popover`, `text-popover-foreground`.
-    - Border: `border-border/60`.
-    - Hover: `bg-muted`.
-    - Focus: `ring-2 ring-ring`, `outline-none`.
+- Native selects should use the shared HAVI select primitive:
+  - Component: `apps/web/src/components/ui/select.tsx` (`Select`).
+  - Base class: `havi-select`.
+  - State model: `default`, `success`, `warning`, `error` via `status` prop, plus `aria-invalid` handling.
+  - Maps to form-field tokens for surface, border, focus ring, and disabled treatment.
 - Usage:
   - Timeline child selector (`timeline-panel.tsx`).
   - Settings dropdowns (relationship, weight units, timezone) in `app/page.tsx`.
@@ -114,7 +126,11 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 
 - Canonical text input + textarea style:
   - Class: `havi-input` (defined in `apps/web/src/app/globals.css`).
-  - Component wrapper: `Input` + `InputMessage` in `apps/web/src/components/ui/input.tsx` for status states.
+  - Status model source: `apps/web/src/components/ui/field.tsx` (`fieldControlVariants`, `fieldMessageVariants`).
+  - Component wrappers:
+    - `Input` + `InputMessage` in `apps/web/src/components/ui/input.tsx`
+    - `Textarea` in `apps/web/src/components/ui/textarea.tsx`
+    - `Select` in `apps/web/src/components/ui/select.tsx`
   - Applies to:
     - Chat composer textarea (`Textarea` component in `components/ui/textarea.tsx`).
     - Settings form fields (`EditableField` in `app/page.tsx`).
@@ -122,13 +138,37 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
     - Invite caregiver modal email field in `app/page.tsx`.
     - Brand artifact input on `/brand`.
 - Visual behavior:
-  - Full-width, rounded, calm surface (`bg-card`) with semantic border (`border-input`).
-  - Placeholder text uses `text-muted-foreground`.
-  - Focus state uses `ring-ring` and `border-ring`; no default browser outline.
+  - Full-width, rounded, calm surface backed by field tokens (`--havi-field-*`).
+  - Consistent hover, focus, invalid, and disabled states across input/select/textarea.
+  - Placeholder text uses `--havi-field-placeholder`.
 - Usage rules:
   - Do: compose spacing (`mt-1`, grid gaps) outside the input via parent layout.
   - Do: use `havi-input` for all primary text inputs and textareas unless a component has a very specific visual spec.
   - Don’t: hand-apply per-field padding, borders, or focus colors for standard forms.
+
+## Form Composition Primitives
+
+- Use `apps/web/src/components/ui/field.tsx` primitives for standard form composition:
+  - `Field` (layout wrapper),
+  - `FieldLabel`,
+  - `FieldHint`,
+  - `FieldMessage`,
+  - `FieldError`.
+- This keeps label tone, helper copy, and error message spacing consistent without per-screen custom classes.
+
+## Form State Rules
+
+For every text/select/textarea field:
+1. `default`: tokenized surface + border + focus ring.
+2. `success`: status border/ring + success helper text where useful.
+3. `warning`: caution border/ring + warning helper text.
+4. `error`: destructive border/ring + explicit inline error text.
+5. `disabled`: non-interactive cursor + disabled surface/text token treatment.
+
+Preferred usage:
+- Set `status` for deliberate state styling.
+- Set `aria-invalid="true"` when validation fails to guarantee assistive semantics.
+- Keep field-level errors inline instead of only top-of-form banners.
 
 ## Primary App Container Rules
 
@@ -215,3 +255,24 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
     - `apps/web/scripts/dev-safe.js` uses CommonJS `require()` (3 errors).
     - Several `react-hooks/exhaustive-deps` and `no-unused-vars` warnings in `apps/web/src/app/page.tsx` and `apps/web/src/components/timeline/timeline-panel.tsx`.
   - No new lint categories introduced by the brand/theming work.
+
+## Homepage Contract (Phase A)
+
+Canonical sources:
+1. System primitives, tokens, guardrails:
+   - `docs/canonical/design/homepage-surface-system.md`
+2. Phase scope and delivery constraints:
+   - `docs/canonical/design/homepage-modernization-phase-a.md`
+
+Contract summary:
+1. Scope remains homepage-only (`apps/web/src/app/page.tsx`) for Phase A.
+2. Narrative order remains fixed:
+   - `home-section-hero`
+   - `home-section-problem`
+   - `home-section-features`
+   - `home-section-comparison`
+   - `home-section-proof`
+   - `home-section-benefits`
+   - `home-section-closing`
+3. Hero copy and CTA routes are locked by the Phase A doc.
+4. `howItWorks` content seam remains non-rendered in Phase A.

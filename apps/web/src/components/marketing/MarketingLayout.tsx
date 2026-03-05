@@ -26,33 +26,33 @@ export function MarketingLayout({ children }: MarketingLayoutProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="border-b border-border/60">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-5">
-          <Link href="/" className="inline-flex items-center gap-2">
+      <header className="havi-marketing-header">
+        <div className="havi-marketing-header-inner">
+          <Link href="/" className="havi-marketing-brand-link">
             <HaviWordmark />
           </Link>
-          <nav className="hidden items-center gap-6 text-sm md:flex">
+          <nav className="havi-marketing-nav hidden md:flex" aria-label="Primary navigation">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="havi-marketing-nav-link"
               >
                 {link.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
+          <div className="havi-marketing-header-actions">
+            <Button variant="ghost" size="sm" className="havi-marketing-header-signin" asChild>
               <Link href="/auth/sign-in">Sign in</Link>
             </Button>
-            <Button size="sm" asChild>
-              <Link href="/auth/sign-up">Get started</Link>
+            <Button size="sm" className="havi-marketing-header-cta" asChild>
+              <Link href="/auth/sign-up">Start now</Link>
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
-              className="md:hidden"
+              className="havi-marketing-menu-button md:hidden"
               onClick={() => setMenuOpen((open) => !open)}
               aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
             >
@@ -62,16 +62,16 @@ export function MarketingLayout({ children }: MarketingLayoutProps) {
         </div>
         <div
           className={cn(
-            "border-t border-border/60 px-6 py-4 md:hidden",
+            "havi-marketing-mobile-panel md:hidden",
             menuOpen ? "block" : "hidden",
           )}
         >
-          <nav className="flex flex-col gap-4 text-sm">
+          <nav className="flex flex-col gap-4 text-sm" aria-label="Mobile navigation">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="havi-marketing-nav-link"
                 onClick={() => setMenuOpen(false)}
               >
                 {link.label}

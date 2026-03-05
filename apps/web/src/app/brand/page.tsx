@@ -4,7 +4,9 @@ import type { CSSProperties } from "react";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldHint, FieldLabel } from "@/components/ui/field";
 import { Input, InputMessage } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function BrandPage() {
@@ -67,21 +69,48 @@ export default function BrandPage() {
 
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-wide">Form inputs + states</p>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Default</p>
+            <div className="space-y-2">
+              <FieldLabel>Default</FieldLabel>
               <Input placeholder="Type to see focus ring…" />
               <InputMessage>Clear, calm helper text.</InputMessage>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Warning</p>
+            <div className="space-y-2">
+              <FieldLabel>Warning</FieldLabel>
               <Input status="warning" defaultValue="Remember to save." />
               <InputMessage status="warning">Needs a quick review before continuing.</InputMessage>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Error</p>
+            <div className="space-y-2">
+              <FieldLabel>Error</FieldLabel>
               <Input status="error" defaultValue="" placeholder="Missing required info" />
               <InputMessage status="error">Please add a valid email address.</InputMessage>
             </div>
+            <Field>
+              <FieldLabel htmlFor="brand-select-demo">Select state</FieldLabel>
+              <Select id="brand-select-demo" defaultValue="">
+                <option value="">Choose one</option>
+                <option value="morning">Morning routine</option>
+                <option value="night">Night routine</option>
+              </Select>
+              <FieldHint>Select uses the same field tokens and focus behavior as input.</FieldHint>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="brand-select-error">Select error</FieldLabel>
+              <Select id="brand-select-error" status="error" defaultValue="">
+                <option value="">Missing selection</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </Select>
+              <InputMessage status="error">Please choose an option.</InputMessage>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="brand-textarea-demo">Textarea state</FieldLabel>
+              <Textarea
+                id="brand-textarea-demo"
+                status="warning"
+                placeholder="Use this area to verify cursor, selection, and focus styles."
+              />
+              <InputMessage status="warning">Textarea shares the same warning border/ring pattern.</InputMessage>
+            </Field>
           </div>
 
           <div className="space-y-2">

@@ -1,11 +1,12 @@
 # HAVI Type Scale (v1)
 
-Principle: calm, legible, restrained. Default to system fonts.
+Principle: calm, legible, restrained. Default to design-system fonts.
 
 ## Typeface
-- Primary: system-ui stack
-  - apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif
-- Optional later: Inter (only if needed for cross-platform consistency)
+- UI/body: Manrope (`--havi-font-sans`)
+- Display/headline: Sora (`--havi-font-display`)
+- Fallback stack:
+  - "Avenir Next", "Segoe UI", sans-serif
 
 ## Color pairing
 - Default text uses the softened foreground token (`--havi-text`) to keep contrast calm.
