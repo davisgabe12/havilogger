@@ -199,7 +199,11 @@ const waitForAppCoreReady = async (page: any, timeout = 20_000) => {
 
     const profileLock = page.getByTestId("profile-lock-modal");
     if (await profileLock.isVisible().catch(() => false)) {
-      await page.getByTestId("complete-profile").click();
+      try {
+        await page.getByTestId("complete-profile").click({ timeout: 2_000 });
+      } catch {
+        // Profile lock can re-render while routing to onboarding. Retry loop handles it.
+      }
       await page.waitForTimeout(300);
       continue;
     }

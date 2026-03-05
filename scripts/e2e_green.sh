@@ -170,10 +170,13 @@ echo "WEB: :${WEB_PORT} (${WEB_STATUS})"
 if [[ "$API_STATUS" == "restarted" ]]; then
   (
     cd "$ROOT_DIR/apps/api"
+    if [[ "$API_PORT" == "8000" ]]; then
+      exec "$API_CMD"
+    fi
     set -a
     source .env.local
     set +a
-    python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port "$API_PORT"
+    exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT"
   ) >/tmp/havi-api.log 2>&1 &
   API_PID=$!
   API_STARTED=1
