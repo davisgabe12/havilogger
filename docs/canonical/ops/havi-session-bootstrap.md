@@ -124,6 +124,9 @@ HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh
 HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh
 ```
 
+Deployment + release checklist (canonical):
+`/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/deploy-and-release.md`
+
 5. Railway deploy fallback for sandboxed sessions:
 If `npx @railway/cli ...` fails with DNS (`ENOTFOUND`) in sandboxed Codex runs, use a cached CLI binary and run with elevated network permissions.
 

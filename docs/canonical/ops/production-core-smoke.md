@@ -5,6 +5,9 @@ Last updated: March 5, 2026
 
 Use this fast smoke gate before and after major changes to confirm Havi core behavior does not degrade.
 
+For end-to-end deploy/release sequencing (push -> verify -> smoke -> evidence), see:
+`docs/canonical/ops/deploy-and-release.md`
+
 ## Scope
 
 1. Existing account flow.
