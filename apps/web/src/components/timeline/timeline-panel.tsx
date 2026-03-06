@@ -5,6 +5,7 @@ import { ActivitySquare, Droplets, Milk, Moon, Ruler } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api-base-url";
 import { mockTimelineEvents } from "./timeline-data";
 import {
   TimelineEvent,
@@ -39,9 +40,6 @@ const TYPE_ICONS: Record<TimelineEventType, React.ElementType> = {
   activity: ActivitySquare,
   growth: Ruler,
 };
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 type TimelinePanelProps = {
   childName?: string;

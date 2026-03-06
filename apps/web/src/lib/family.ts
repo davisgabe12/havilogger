@@ -1,8 +1,6 @@
 import { supabase } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { API_BASE_URL } from "@/lib/api-base-url";
 
 export const ACTIVE_FAMILY_COOKIE_NAME = "havi_active_family_id";
 

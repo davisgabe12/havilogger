@@ -30,6 +30,7 @@ import type {
 } from "@/components/chat/types";
 import { chipLibrary } from "@/components/chat/chips";
 import { buildHaviModelRequest } from "@/lib/havi-model-request";
+import { API_BASE_URL } from "@/lib/api-base-url";
 import { supabase } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import {
@@ -395,8 +396,6 @@ const CHIP_CATEGORY_HINTS: Record<string, LoadingCategory> = {
   symptom_followup: "health",
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
 const FIRST_CHAT_SEEN_KEY = "havi_first_chat_seen";
 const HOME_EXPECTATION_WEEK_KEY = "havi_home_expected_week";
