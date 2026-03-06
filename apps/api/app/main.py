@@ -2968,6 +2968,14 @@ _TASK_DATE_REGEX = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
 _TASK_TIME_REGEX = r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b"
 _TASK_DATE_PATTERN = re.compile(_TASK_DATE_REGEX)
 _TASK_TIME_PATTERN = re.compile(_TASK_TIME_REGEX, re.IGNORECASE)
+_EVENT_LOCAL_TIME_PATTERN = re.compile(
+    r"\b(?:at|from|around|about)?\s*(\d{1,2})(?::([0-5]\d))?\s*(am|pm)\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_EVENT_DATE_WORD_PATTERN = re.compile(
+    r"\b(yesterday|today|tomorrow|tonight|last|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    re.IGNORECASE,
+)
 
 
 _DATE_HINT_WORDS = {
@@ -2998,6 +3006,35 @@ def _has_date_hint(text: str) -> bool:
     if re.search(r"\d", lower):
         return True
     return any(word in lower for word in _DATE_HINT_WORDS)
+
+
+def _has_explicit_event_date_context(text: str) -> bool:
+    if _TASK_DATE_PATTERN.search(text):
+        return True
+    return bool(_EXPLICIT_EVENT_DATE_WORD_PATTERN.search(text))
+
+
+def _parse_local_time_on_base_date(
+    message: str,
+    base_local: datetime,
+) -> Optional[datetime]:
+    match = _EVENT_LOCAL_TIME_PATTERN.search(message)
+    if not match:
+        return None
+    hour_str, minute_str, meridiem = match.groups()
+    try:
+        hour = int(hour_str)
+        minute = int(minute_str or "0")
+    except ValueError:
+        return None
+    if hour < 1 or hour > 12:
+        return None
+    meridiem = (meridiem or "").lower()
+    if meridiem == "pm" and hour != 12:
+        hour += 12
+    if meridiem == "am" and hour == 12:
+        hour = 0
+    return base_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
 def _build_dateparser_settings(
@@ -3135,6 +3172,17 @@ def extract_event_start(
     except Exception:
         tzinfo = timezone.utc
     base = base_time or datetime.now(tzinfo)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=tzinfo)
+    else:
+        base = base.astimezone(tzinfo)
+    explicit_date_context = _has_explicit_event_date_context(message)
+    # dateparser.search_dates currently misses common "3pm"/"3:15pm" forms in this stack.
+    # Prefer deterministic local-time parsing when the message does not specify a date.
+    if not explicit_date_context:
+        local_time = _parse_local_time_on_base_date(message, base)
+        if local_time:
+            return local_time.astimezone(timezone.utc).isoformat()
     parsed_dt = _parse_natural_datetime(message, tz_name, base)
     if parsed_dt:
         if parsed_dt.tzinfo is None:
