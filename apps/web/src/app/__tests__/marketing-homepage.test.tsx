@@ -16,7 +16,7 @@ describe("Marketing homepage", () => {
 
     expect(
       screen.getByText(
-        "Havi captures what happens, remembers it, and keeps your care team aligned so you can focus on your child.",
+        "Track sleep, feeding, diapers, behavior, and routines in one shared thread. Talk with Havi like a partner to decide what to do next.",
       ),
     ).toBeInTheDocument();
 
@@ -40,10 +40,6 @@ describe("Marketing homepage", () => {
       "href",
       "/stories",
     );
-    expect(screen.queryByText("The pace of parenthood")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("One memory. One plan. One calmer day."),
-    ).not.toBeInTheDocument();
   });
 
   it("keeps the section narrative order fixed", () => {
@@ -55,10 +51,10 @@ describe("Marketing homepage", () => {
     expect(sections).toEqual([
       "home-section-hero",
       "home-section-problem",
-      "home-section-features",
       "home-section-comparison",
-      "home-section-proof",
       "home-section-benefits",
+      "home-section-evidence",
+      "home-section-testimonials",
       "home-section-closing",
     ]);
   });
@@ -69,52 +65,54 @@ describe("Marketing homepage", () => {
     expect(
       screen.getByRole("heading", {
         level: 3,
-        name: "Capture moments in conversation",
+        name: "Track everything in one place",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         level: 3,
-        name: "Keep family context in one place",
+        name: "Get support through every phase",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         level: 3,
-        name: "Spot changes early",
+        name: "Get guidance tailored to your child",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         level: 3,
-        name: "Coordinate care with less back-and-forth",
+        name: "Keep your village in sync",
       }),
     ).toBeInTheDocument();
   });
 
-  it("renders the hero focal object", () => {
+  it("renders the hero focal object and comparison module", () => {
     render(<MarketingHomePage />);
     expect(screen.getByTestId("home-hero-object")).toBeInTheDocument();
-  });
-
-  it("renders the before-and-with comparison module", () => {
-    render(<MarketingHomePage />);
     expect(screen.getByTestId("home-comparison-grid")).toBeInTheDocument();
-    expect(screen.getByText("Without Havi")).toBeInTheDocument();
-    expect(screen.getByText("With Havi")).toBeInTheDocument();
-    expect(screen.queryByText("Thread-hopping for updates")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Today without Havi").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("With Havi").length).toBeGreaterThan(0);
   });
 
-  it("renders real product screenshots", () => {
+  it("renders the new product screenshots and testimonial grid", () => {
     render(<MarketingHomePage />);
+
     expect(
-      screen.getAllByAltText("Havi chat capturing a family update").length,
-    ).toBeGreaterThan(0);
+      screen.getByAltText("Havi chat thread with parent updates and guidance"),
+    ).toBeInTheDocument();
+    expect(screen.getByAltText("Havi timeline companion view")).toBeInTheDocument();
     expect(
-      screen.getAllByAltText("Havi timeline showing saved family events").length,
-    ).toBeGreaterThan(0);
+      screen.getByAltText("Havi timeline showing pattern clarity"),
+    ).toBeInTheDocument();
     expect(
-      screen.getAllByAltText("Havi task view with a created task").length,
-    ).toBeGreaterThan(0);
+      screen.getByAltText("Havi tasks showing coordinated follow-through"),
+    ).toBeInTheDocument();
+
+    expect(screen.getByTestId("home-testimonials-grid")).toBeInTheDocument();
+    expect(screen.getByText("Nina, Brooklyn, NY")).toBeInTheDocument();
+    expect(screen.getByText("Ethan, Austin, TX")).toBeInTheDocument();
+    expect(screen.getByText("Marisol, San Diego, CA")).toBeInTheDocument();
   });
 });

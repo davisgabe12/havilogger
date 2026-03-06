@@ -32,14 +32,14 @@ Canonical design-system reference for this phase:
 
 1. Keep the locked hero copy:
    - H1: `Parenthood moves fast. Stay ahead and present with Havi.`
-   - Subhead: `Havi captures what happens, remembers it, and keeps your care team aligned so you can focus on your child.`
+   - Subhead: `Track sleep, feeding, diapers, behavior, and routines in one shared thread. Talk with Havi like a partner to decide what to do next.`
 2. Keep narrative order:
    - hero
    - problem
-   - feature gallery
    - comparison
-   - proof
    - benefits
+   - evidence
+   - testimonials
    - closing CTA
 3. Add visible visual hierarchy:
    - tonal section contrast
@@ -105,10 +105,11 @@ Keep a typed content object in `apps/web/src/app/page.tsx` with:
    - Section order fixed.
    - CTA href targets unchanged.
    - Hero visual object renders.
+   - Testimonial section renders with three attributions.
 2. Smoke (`tests/smoke/homepage.smoke.spec.ts`):
    - Hero heading visible.
    - Hero CTA navigates to `/auth/sign-up`.
-   - Mobile hierarchy still contains required benefits.
+   - Mobile hierarchy still contains required benefits and proof CTA contract.
 3. Build:
    - `npm run build` must pass for `apps/web`.
 

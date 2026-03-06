@@ -269,10 +269,15 @@ Contract summary:
 2. Narrative order remains fixed:
    - `home-section-hero`
    - `home-section-problem`
-   - `home-section-features`
    - `home-section-comparison`
-   - `home-section-proof`
    - `home-section-benefits`
+   - `home-section-evidence`
+   - `home-section-testimonials`
    - `home-section-closing`
-3. Hero copy and CTA routes are locked by the Phase A doc.
-4. `howItWorks` content seam remains non-rendered in Phase A.
+3. Locked hero copy:
+   - `Parenthood moves fast. Stay ahead and present with Havi.`
+   - `Track sleep, feeding, diapers, behavior, and routines in one shared thread. Talk with Havi like a partner to decide what to do next.`
+4. CTA routes are fixed:
+   - primary: `/auth/sign-up`
+   - secondary: `/stories`
+5. `howItWorks` content seam remains non-rendered in Phase A.

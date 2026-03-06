@@ -5,156 +5,143 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-type HomepageProofPoint = {
-  value: string;
-  label: string;
-  detail: string;
-  tone: "warm" | "fresh" | "focus";
-};
-
 type HomepageBenefit = {
   title: string;
   body: string;
 };
 
+type HomepageEvidenceShot = {
+  src: string;
+  alt: string;
+  title: string;
+  caption: string;
+  crop: "timeline" | "task";
+};
+
+type HomepageTestimonial = {
+  quote: string;
+  name: string;
+  city: string;
+};
+
 type HomepageContent = {
+  heroKicker: string;
+  headline: string;
+  subhead: string;
   problemTitle: string;
   problemBody: string;
   comparisonWithout: string[];
   comparisonWith: string[];
-  headline: string;
-  subhead: string;
-  proofPoints: HomepageProofPoint[];
-  productShots: Array<{
+  comparisonCompanion: {
     src: string;
     alt: string;
     title: string;
     caption: string;
-    crop: "chat" | "timeline" | "task";
-  }>;
+  };
+  benefitsTitle: string;
   benefits: HomepageBenefit[];
+  trustLine: string;
+  trustBody: string;
+  evidenceShots: HomepageEvidenceShot[];
+  testimonials: HomepageTestimonial[];
   closingTitle: string;
   closingBody: string;
   primaryCtaLabel: string;
   secondaryCtaLabel: string;
-  howItWorks?: Array<{
-    title: string;
-    detail: string;
-  }>;
 };
 
 const homepageContent: HomepageContent = {
-  problemTitle: "Caring is not the hard part. Keeping everyone aligned is.",
-  problemBody:
-    "When updates are scattered, families spend time reconstructing what happened instead of deciding what to do next.",
-  comparisonWithout: [
-    "Updates are scattered across texts and apps.",
-    "Parents repeat the same context again and again.",
-    "Changes are spotted late.",
-  ],
-  comparisonWith: [
-    "Updates stay in one shared thread.",
-    "Parents and helpers work from the same context.",
-    "Changes are spotted early with clear next steps.",
-  ],
+  heroKicker: "The partner parents have been waiting for",
   headline: "Parenthood moves fast. Stay ahead and present with Havi.",
   subhead:
-    "Havi captures what happens, remembers it, and keeps your care team aligned so you can focus on your child.",
-  proofPoints: [
+    "Track sleep, feeding, diapers, behavior, and routines in one shared thread. Talk with Havi like a partner to decide what to do next.",
+  problemTitle: "The hardest part isn\'t caring. It\'s carrying every detail.",
+  problemBody:
+    "When updates live across texts, apps, and memory, families spend energy reconstructing what happened instead of deciding what to do next.",
+  comparisonWithout: [
+    "Updates are scattered across chats and notes.",
+    "Parents repeat the same context over and over.",
+    "Questions pile up at the worst moment.",
+    "Plans drift between partners and helpers.",
+  ],
+  comparisonWith: [
+    "Sleep, feeding, diapers, behavior, and routines stay in one thread.",
+    "Havi remembers key details so everyone starts aligned.",
+    "Ask in conversation and get next steps tailored to your child.",
+    "Reminders, updates, and tasks stay in sync across your village.",
+  ],
+  comparisonCompanion: {
+    src: "/brand/product/comparison-companion.png",
+    alt: "Havi timeline companion view",
+    title: "Shared context at a glance",
+    caption: "One timeline keeps every handoff grounded in the same story.",
+  },
+  benefitsTitle: "How parents use Havi every day",
+  benefits: [
     {
-      value: "Shared right away",
-      label: "Everyone sees the same update",
-      detail:
-        "From feeding notes to behavior questions, everyone works from one thread.",
-      tone: "warm",
+      title: "Track everything in one place",
+      body: "Sleep, feeding, diapers, behavior, routines, and notes stay in one thread.",
     },
     {
-      value: "Remembered for you",
-      label: "No one repeats the same story",
-      detail:
-        "Havi keeps family context ready when you need it.",
-      tone: "fresh",
+      title: "Get support through every phase",
+      body: "From sleepless nights to wild mornings, Havi stays with your family.",
     },
     {
-      value: "Actionable next steps",
-      label: "Patterns turn into clear plans",
-      detail:
-        "Move from a moment to the next decision with less guesswork.",
-      tone: "focus",
+      title: "Get guidance tailored to your child",
+      body: "From tantrums to transitions, get next steps shaped to your child and context.",
+    },
+    {
+      title: "Keep your village in sync",
+      body: "Share updates, reminders, and plans so everyone knows what\'s happening and what\'s next.",
     },
   ],
-  productShots: [
+  trustLine: "Built on child-development literature and expert-informed guidance.",
+  trustBody:
+    "Track daily moments in one shared place. Then talk with Havi like a partner to surface insights, bring in guidance, and decide what to do next.",
+  evidenceShots: [
     {
-      src: "/brand/product/chat-messages.png",
-      alt: "Havi chat capturing a family update",
-      title: "Capture in chat",
-      caption: "Track moments naturally through conversation.",
-      crop: "chat",
-    },
-    {
-      src: "/brand/product/timeline-event.png",
-      alt: "Havi timeline showing saved family events",
-      title: "See the timeline",
-      caption: "Keep family memory visible as patterns emerge.",
+      src: "/brand/product/proof-pattern-clarity.png",
+      alt: "Havi timeline showing pattern clarity",
+      title: "See what changed",
+      caption: "Patterns become visible across days, not just isolated moments.",
       crop: "timeline",
     },
     {
-      src: "/brand/product/task-created.png",
-      alt: "Havi task view with a created task",
-      title: "Act with clarity",
-      caption: "Turn insights into shared tasks in seconds.",
+      src: "/brand/product/proof-task-coordination.png",
+      alt: "Havi tasks showing coordinated follow-through",
+      title: "Turn insight into action",
+      caption: "Create tasks and reminders from conversation in seconds.",
       crop: "task",
     },
   ],
-  benefits: [
+  testimonials: [
     {
-      title: "Capture moments in conversation",
-      body: "Log what happened as you talk. No forms to fill.",
+      quote:
+        "We stopped repeating the same update in three chats. Now everyone sees the same story and we decide faster.",
+      name: "Nina",
+      city: "Brooklyn, NY",
     },
     {
-      title: "Keep family context in one place",
-      body: "Havi remembers key details so everyone starts from the same picture.",
+      quote:
+        "I track things in seconds while I\'m in the moment, and Havi helps me connect what changed across the week.",
+      name: "Ethan",
+      city: "Austin, TX",
     },
     {
-      title: "Spot changes early",
-      body: "See patterns sooner and decide next steps with more confidence.",
-    },
-    {
-      title: "Coordinate care with less back-and-forth",
-      body: "Share reminders and plans so everyone knows what to do.",
+      quote:
+        "It feels like a calm teammate. I ask one question and get a clear next step instead of spiraling.",
+      name: "Marisol",
+      city: "San Diego, CA",
     },
   ],
-  closingTitle: "Stop carrying every detail on your own.",
+  closingTitle: "Now parents can be present. Havi handles the mental load.",
   closingBody:
-    "Start with one conversation. Havi keeps context and next steps in one place each day.",
+    "Start with one conversation. Havi keeps context, guidance, and next steps in one place each day.",
   primaryCtaLabel: "Start now",
   secondaryCtaLabel: "Read stories",
-  // Reserved seam for Phase B. Do not render in this phase.
-  howItWorks: [
-    {
-      title: "Capture",
-      detail: "Log moments fast through natural conversation.",
-    },
-    {
-      title: "Understand",
-      detail: "Havi connects context and surfaces what changed.",
-    },
-    {
-      title: "Coordinate",
-      detail: "Share plans and reminders with your care team.",
-    },
-  ],
 };
 
 export default function MarketingHomePage() {
-  const heroShot = homepageContent.productShots[0] ?? {
-    src: "/brand/product/chat-messages.png",
-    alt: "Havi product interface",
-    title: "Capture in chat",
-    caption: "Track moments naturally through conversation.",
-    crop: "chat" as const,
-  };
-
   const comparisonRows = homepageContent.comparisonWithout.map((without, index) => ({
     without,
     with: homepageContent.comparisonWith[index] ?? "",
@@ -168,6 +155,7 @@ export default function MarketingHomePage() {
             <div className="havi-hero-frame">
               <div className="havi-showcase-grid">
                 <div className="havi-content-stack">
+                  <p className="havi-text-kicker">{homepageContent.heroKicker}</p>
                   <h1 className="havi-text-hero">{homepageContent.headline}</h1>
                   <p className="havi-text-subhead">{homepageContent.subhead}</p>
                   <div className="havi-actions-row">
@@ -182,24 +170,22 @@ export default function MarketingHomePage() {
                       </Link>
                     </Button>
                   </div>
-                  <p className="havi-hero-trust">
-                    Private by default. Built for real family life.
-                  </p>
+                  <p className="havi-hero-trust">Private by default. Built for real family life.</p>
                 </div>
                 <aside className="havi-showcase-object" data-testid="home-hero-object">
                   <div className="havi-hero-product-stage">
                     <div className="havi-product-shot-media havi-product-shot-media-hero havi-feature-focus">
                       <Image
-                        src={heroShot.src}
-                        alt={heroShot.alt}
+                        src="/brand/product/hero-chat-thread.png"
+                        alt="Havi chat thread with parent updates and guidance"
                         fill
                         sizes="(max-width: 768px) 100vw, 560px"
                         className="havi-feature-crop havi-feature-crop-chat"
                         priority
                       />
                     </div>
-                    <p className="havi-marketing-hero-row-title">{heroShot.title}</p>
-                    <p className="havi-marketing-hero-row-detail">{heroShot.caption}</p>
+                    <p className="havi-marketing-hero-row-title">Real thread, real context</p>
+                    <p className="havi-marketing-hero-row-detail">One conversation captures what happened and what to do next.</p>
                   </div>
                 </aside>
               </div>
@@ -207,29 +193,88 @@ export default function MarketingHomePage() {
           </div>
         </section>
 
-        <section
-          className="havi-section-block havi-section-plain havi-section-compact"
-          data-testid="home-section-problem"
-        >
+        <section className="havi-section-block havi-section-plain havi-section-compact" data-testid="home-section-problem">
           <div className="havi-container-wide">
-            <div className="havi-content-block">
+            <div className="havi-content-block havi-content-block-problem">
               <h2 className="havi-problem-title">{homepageContent.problemTitle}</h2>
               <p className="havi-text-body">{homepageContent.problemBody}</p>
             </div>
           </div>
         </section>
 
-        <section className="havi-section-block havi-canvas-band-light havi-section-feature-gallery" data-testid="home-section-features">
+        <section className="havi-section-block havi-canvas-band-soft" data-testid="home-section-comparison">
           <div className="havi-container-wide">
-            <div className="havi-product-shot-grid">
-              {homepageContent.productShots.map((shot) => (
+            <div className="havi-content-block">
+              <h2 className="havi-text-title">See the difference in a real day</h2>
+              <p className="havi-text-body">Left is the default scramble. Right is the same day with shared context and clear next steps.</p>
+            </div>
+            <div className="havi-comparison-layout" data-testid="home-comparison-grid">
+              <div>
+                <div className="havi-comparison-columns-head">
+                  <p className="havi-comparison-column-title">Today without Havi</p>
+                  <p className="havi-comparison-column-title">With Havi</p>
+                </div>
+                <div className="havi-comparison-rows">
+                  {comparisonRows.map((row) => (
+                    <div key={`${row.without}-${row.with}`} className="havi-comparison-row">
+                      <article className="havi-comparison-item havi-comparison-item-without">
+                        <p className="havi-comparison-item-label md:hidden">Today without Havi</p>
+                        <p className="havi-comparison-item-copy">{row.without}</p>
+                      </article>
+                      <article className="havi-comparison-item havi-comparison-item-with">
+                        <p className="havi-comparison-item-label md:hidden">With Havi</p>
+                        <p className="havi-comparison-item-copy">{row.with}</p>
+                      </article>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <aside className="havi-comparison-companion" data-testid="home-comparison-companion">
+                <div className="havi-product-shot-media">
+                  <Image
+                    src={homepageContent.comparisonCompanion.src}
+                    alt={homepageContent.comparisonCompanion.alt}
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 420px"
+                    className="havi-feature-crop havi-feature-crop-timeline"
+                  />
+                </div>
+                <p className="havi-marketing-card-title mt-4">{homepageContent.comparisonCompanion.title}</p>
+                <p className="havi-marketing-card-body">{homepageContent.comparisonCompanion.caption}</p>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section className="havi-section-block havi-canvas-band-light" data-testid="home-section-benefits">
+          <div className="havi-container-wide">
+            <div className="havi-content-block">
+              <h2 className="havi-text-title">{homepageContent.benefitsTitle}</h2>
+            </div>
+            <div className="havi-benefits-grid">
+              {homepageContent.benefits.map((benefit) => (
+                <Card key={benefit.title} className="havi-showcase-card">
+                  <CardContent className="p-5">
+                    <h3 className="havi-marketing-card-title">{benefit.title}</h3>
+                    <p className="havi-marketing-card-body">{benefit.body}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="havi-section-block havi-canvas-band-soft" data-testid="home-section-evidence">
+          <div className="havi-container-wide">
+            <div className="havi-proof-evidence-grid">
+              {homepageContent.evidenceShots.map((shot) => (
                 <article key={shot.title} className="havi-product-figure">
                   <div className="havi-product-shot-media havi-feature-focus">
                     <Image
                       src={shot.src}
                       alt={shot.alt}
                       fill
-                      sizes="(max-width: 768px) 100vw, 460px"
+                      sizes="(max-width: 768px) 100vw, 520px"
                       className={`havi-feature-crop havi-feature-crop-${shot.crop}`}
                     />
                   </div>
@@ -241,60 +286,25 @@ export default function MarketingHomePage() {
           </div>
         </section>
 
-        <section
-          className="havi-section-block havi-canvas-band-soft"
-          data-testid="home-section-comparison"
-        >
+        <section className="havi-section-block havi-section-plain" data-testid="home-section-testimonials">
           <div className="havi-container-wide">
             <div className="havi-content-block">
-              <h2 className="havi-text-title">See the difference in a real day</h2>
+              <p className="havi-text-kicker">Why parents trust Havi</p>
+              <h2 className="havi-text-title">{homepageContent.trustLine}</h2>
+              <p className="havi-text-body">{homepageContent.trustBody}</p>
             </div>
-            <div className="havi-comparison-rows" data-testid="home-comparison-grid">
-              {comparisonRows.map((row) => (
-                <div key={`${row.without}-${row.with}`} className="havi-comparison-row">
-                  <article className="havi-comparison-item havi-comparison-item-without">
-                    <p className="havi-comparison-item-label">Without Havi</p>
-                    <p className="havi-comparison-item-copy">{row.without}</p>
-                  </article>
-                  <article className="havi-comparison-item havi-comparison-item-with">
-                    <p className="havi-comparison-item-label">With Havi</p>
-                    <p className="havi-comparison-item-copy">{row.with}</p>
-                  </article>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="havi-section-block havi-section-plain"
-          data-testid="home-section-proof"
-        >
-          <div className="havi-container-wide">
-            <div className="havi-proof-grid">
-              {homepageContent.proofPoints.map((proof) => (
-                <Card
-                  key={proof.label}
-                  className={`havi-showcase-card ${
-                    proof.tone === "warm"
-                      ? "havi-proof-tone-warm"
-                      : proof.tone === "fresh"
-                        ? "havi-proof-tone-fresh"
-                        : "havi-proof-tone-focus"
-                  }`}
-                >
+            <div className="havi-testimonials-grid" data-testid="home-testimonials-grid">
+              {homepageContent.testimonials.map((item) => (
+                <Card key={`${item.name}-${item.city}`} className="havi-showcase-card">
                   <CardContent className="p-5">
-                    <p className="havi-marketing-proof-value">{proof.value}</p>
-                    <p className="havi-marketing-proof-label">{proof.label}</p>
-                    <p className="havi-marketing-proof-detail">{proof.detail}</p>
+                    <p className="havi-marketing-card-body">“{item.quote}”</p>
+                    <p className="havi-testimonial-meta">{item.name}, {item.city}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
             <div className="havi-showcase-cta-frame">
-              <p className="havi-marketing-cta-copy">
-                Start with one conversation. Havi will build your family memory from there.
-              </p>
+              <p className="havi-marketing-cta-copy">Start with one conversation. Havi turns moments into clarity for your whole care team.</p>
               <div className="havi-actions-row">
                 <Button className="havi-cta-primary" asChild>
                   <Link data-testid="home-cta-primary-proof" href="/auth/sign-up">
@@ -302,27 +312,6 @@ export default function MarketingHomePage() {
                   </Link>
                 </Button>
               </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="havi-section-block havi-canvas-band-soft"
-          data-testid="home-section-benefits"
-        >
-          <div className="havi-container-wide">
-            <div className="havi-content-block">
-              <h2 className="havi-text-title">What you can do with Havi each day</h2>
-            </div>
-            <div className="havi-benefits-grid">
-              {homepageContent.benefits.map((benefit) => (
-                <Card key={benefit.title} className="havi-showcase-card">
-                  <CardContent className="p-5">
-                    <h3 className="havi-marketing-card-title">{benefit.title}</h3>
-                    <p className="havi-marketing-card-body">{benefit.body}</p>
-                  </CardContent>
-                </Card>
-              ))}
             </div>
           </div>
         </section>

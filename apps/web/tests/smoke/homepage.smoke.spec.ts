@@ -11,7 +11,7 @@ test("Homepage renders value story and routes CTA to sign-up", async ({ page }) 
   ).toBeVisible();
   await expect(
     page.getByText(
-      "Havi captures what happens, remembers it, and keeps your care team aligned so you can focus on your child.",
+      "Track sleep, feeding, diapers, behavior, and routines in one shared thread. Talk with Havi like a partner to decide what to do next.",
     ),
   ).toBeVisible();
   await expect(page.getByTestId("home-hero-object")).toBeVisible();
@@ -36,14 +36,16 @@ test("Homepage keeps the same narrative hierarchy on mobile", async ({ page }) =
   await expect(
     page.getByRole("heading", {
       level: 3,
-      name: "Capture moments in conversation",
+      name: "Track everything in one place",
     }),
   ).toBeVisible();
 
-  await page.getByRole("heading", {
-    level: 3,
-    name: "Coordinate care with less back-and-forth",
-  }).scrollIntoViewIfNeeded();
+  await page
+    .getByRole("heading", {
+      level: 3,
+      name: "Keep your village in sync",
+    })
+    .scrollIntoViewIfNeeded();
 
   const proofCta = page.getByTestId("home-cta-primary-proof");
   await expect(proofCta).toHaveAttribute("href", "/auth/sign-up");
@@ -51,7 +53,7 @@ test("Homepage keeps the same narrative hierarchy on mobile", async ({ page }) =
   await expect(
     page.getByRole("heading", {
       level: 3,
-      name: "Coordinate care with less back-and-forth",
+      name: "Keep your village in sync",
     }),
   ).toBeVisible();
 });

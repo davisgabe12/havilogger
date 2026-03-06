@@ -161,16 +161,16 @@
   }
 
   .havi-brand-wordmark {
-    @apply inline-flex items-center gap-2;
+    @apply inline-flex items-center gap-2.5;
   }
 
   .havi-brand-wordmark-mark {
-    @apply h-[1.15rem] w-[1.15rem];
+    @apply h-[1.35rem] w-[1.35rem];
   }
 
   .havi-brand-wordmark-text {
-    @apply text-[0.95rem] font-medium uppercase;
-    letter-spacing: 0.22em;
+    @apply text-[1rem] font-semibold uppercase;
+    letter-spacing: 0.14em;
     color: color-mix(in srgb, var(--havi-fg-fog) 88%, var(--havi-text));
     font-family: var(--havi-font-sans);
   }
@@ -239,10 +239,8 @@
   .havi-showcase-page,
   .havi-marketing-page {
     background:
-      radial-gradient(56rem 34rem at 22% 38%, color-mix(in srgb, var(--havi-fg-fog) 22%, transparent), transparent 70%),
-      radial-gradient(64rem 42rem at 90% -10%, color-mix(in srgb, var(--havi-glow-soft) 52%, transparent), transparent 66%),
-      radial-gradient(52rem 34rem at 72% 108%, color-mix(in srgb, var(--havi-canvas-paper) 30%, transparent), transparent 72%),
-      radial-gradient(44rem 28rem at -12% 28%, color-mix(in srgb, var(--havi-accent-warm-soft) 56%, transparent), transparent 70%),
+      radial-gradient(58rem 36rem at 78% -16%, color-mix(in srgb, var(--havi-glow-soft) 34%, transparent), transparent 68%),
+      radial-gradient(46rem 28rem at 16% 20%, color-mix(in srgb, var(--havi-accent-warm-soft) 28%, transparent), transparent 70%),
       var(--background);
   }
 
@@ -371,6 +369,11 @@
     color: var(--havi-ink-muted);
   }
 
+  .havi-canvas-band-light .havi-text-kicker,
+  .havi-canvas-band-soft .havi-text-kicker {
+    color: color-mix(in srgb, var(--havi-ink-dark) 74%, var(--havi-accent-warm));
+  }
+
   .havi-canvas-band-soft .havi-text-subhead,
   .havi-canvas-band-soft .havi-text-body,
   .havi-canvas-band-soft .havi-marketing-card-body,
@@ -443,7 +446,7 @@
     @apply text-4xl font-semibold leading-tight text-foreground md:text-6xl;
     font-family: var(--havi-font-display);
     letter-spacing: -0.022em;
-    max-width: 14ch;
+    max-width: 22ch;
   }
 
   .havi-text-subhead,
@@ -460,14 +463,19 @@
 
   .havi-text-kicker,
   .havi-marketing-kicker {
-    @apply text-sm font-medium;
+    @apply text-sm font-semibold md:text-base;
     color: color-mix(in srgb, var(--havi-accent-warm) 64%, var(--havi-text));
     font-family: var(--havi-font-sans);
+    letter-spacing: 0.01em;
   }
 
   .havi-content-block,
   .havi-marketing-content-block {
     @apply max-w-3xl space-y-5;
+  }
+
+  .havi-content-block-problem {
+    @apply max-w-5xl;
   }
 
   .havi-content-stack,
@@ -513,32 +521,17 @@
 
   .havi-hero-frame {
     @apply rounded-2xl border p-7 md:p-9;
-    border-color: color-mix(in srgb, var(--havi-accent-warm-soft) 68%, var(--border));
-    background:
-      radial-gradient(60rem 32rem at 5% -10%, color-mix(in srgb, var(--havi-glow-soft) 38%, transparent), transparent 62%),
-      linear-gradient(
-        160deg,
-        color-mix(in srgb, var(--havi-surface-hero-frame) 76%, transparent) 0%,
-        color-mix(in srgb, var(--havi-fg-fog) 10%, var(--havi-surface-elevated-bg)) 100%
-      );
-    box-shadow:
-      0 12px 24px rgba(0, 0, 0, 0.18),
-      inset 0 1px 0 color-mix(in srgb, var(--havi-accent-warm-soft) 34%, transparent);
+    border-color: color-mix(in srgb, var(--havi-ink-dark) 16%, transparent);
+    background: color-mix(in srgb, white 84%, var(--havi-canvas-paper));
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--havi-feature-shadow) 22%, transparent);
   }
 
   .havi-showcase-object,
   .havi-marketing-hero-object {
     @apply overflow-hidden rounded-2xl border p-4 md:p-5;
-    background:
-      linear-gradient(
-        145deg,
-        color-mix(in srgb, var(--havi-fg-fog) 14%, var(--havi-surface-elevated-strong)) 0%,
-        color-mix(in srgb, var(--havi-surface-elevated-bg) 86%, transparent) 100%
-      );
-    border-color: color-mix(in srgb, var(--havi-accent-warm-soft) 55%, var(--border));
-    box-shadow:
-      0 8px 20px rgba(0, 0, 0, 0.14),
-      inset 0 1px 0 color-mix(in srgb, var(--havi-accent-warm-soft) 38%, transparent);
+    background: color-mix(in srgb, white 90%, var(--havi-canvas-paper));
+    border-color: color-mix(in srgb, var(--havi-ink-dark) 16%, transparent);
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--havi-feature-shadow) 18%, transparent);
   }
 
   .havi-showcase-chip,
@@ -590,10 +583,24 @@
 
   .havi-showcase-card,
   .havi-marketing-card {
-    @apply border backdrop-blur-sm;
-    border-color: color-mix(in srgb, var(--havi-accent-warm-soft) 45%, var(--border));
-    background-color: color-mix(in srgb, var(--havi-surface-elevated-bg) 78%, var(--card));
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--havi-accent-warm-soft) 36%, transparent);
+    @apply border;
+    border-color: color-mix(in srgb, var(--havi-ink-dark) 14%, transparent);
+    background: color-mix(in srgb, white 92%, var(--havi-canvas-paper));
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--havi-feature-shadow) 12%, transparent);
+  }
+
+  .havi-showcase-card .havi-marketing-card-title,
+  .havi-marketing-card .havi-marketing-card-title {
+    color: var(--havi-ink-dark);
+  }
+
+  .havi-showcase-card .havi-marketing-card-body,
+  .havi-marketing-card .havi-marketing-card-body {
+    color: var(--havi-ink-muted);
+  }
+
+  .havi-testimonials-grid .havi-marketing-card-body {
+    color: color-mix(in srgb, var(--havi-ink-dark) 88%, black);
   }
 
   .havi-proof-tone-warm {
@@ -669,6 +676,26 @@
 
   .havi-comparison-rows {
     @apply mt-8 space-y-4;
+  }
+
+  .havi-comparison-columns-head {
+    @apply hidden gap-4 md:grid md:grid-cols-2;
+  }
+
+  .havi-comparison-column-title {
+    @apply rounded-lg border px-4 py-3 text-sm font-semibold;
+    color: var(--havi-ink-dark);
+    border-color: color-mix(in srgb, var(--havi-ink-dark) 22%, transparent);
+    background: color-mix(in srgb, white 82%, var(--havi-canvas-paper));
+    font-family: var(--havi-font-sans);
+  }
+
+  .havi-comparison-layout {
+    @apply mt-8 grid gap-8 lg:grid-cols-[1.18fr_0.82fr] lg:items-start;
+  }
+
+  .havi-comparison-companion {
+    @apply max-w-md justify-self-end;
   }
 
   .havi-comparison-row {
@@ -846,9 +873,9 @@
   .havi-product-shot-media {
     @apply relative w-full overflow-hidden rounded-2xl border;
     aspect-ratio: 16 / 10;
-    border-color: var(--havi-media-border-soft);
-    background: var(--havi-media-surface);
-    box-shadow: 0 10px 26px color-mix(in srgb, var(--havi-media-shadow-soft) 62%, transparent);
+    border-color: color-mix(in srgb, var(--havi-ink-dark) 18%, transparent);
+    background: color-mix(in srgb, var(--havi-media-surface) 92%, black);
+    box-shadow: 0 10px 20px color-mix(in srgb, var(--havi-media-shadow-soft) 36%, transparent);
   }
 
   .havi-product-shot-media-hero {
@@ -856,7 +883,7 @@
   }
 
   .havi-feature-focus {
-    box-shadow: 0 14px 30px color-mix(in srgb, var(--havi-media-shadow-soft) 76%, transparent);
+    box-shadow: 0 12px 22px color-mix(in srgb, var(--havi-media-shadow-soft) 34%, transparent);
   }
 
   .havi-canvas-band-light .havi-product-shot-media,
@@ -871,20 +898,32 @@
 
   .havi-feature-crop {
     object-fit: cover;
-    transform: scale(1.33);
+    transform: scale(1.18);
     transform-origin: center;
-    filter: saturate(1.04) contrast(1.02);
   }
 
   .havi-feature-crop-chat {
-    object-position: 86% 45%;
+    object-position: 78% 44%;
   }
 
   .havi-feature-crop-timeline {
-    object-position: 86% 50%;
+    object-position: 76% 46%;
   }
 
   .havi-feature-crop-task {
-    object-position: 86% 44%;
+    object-position: 76% 44%;
+  }
+
+  .havi-proof-evidence-grid {
+    @apply grid gap-8 md:grid-cols-2;
+  }
+
+  .havi-testimonials-grid {
+    @apply mt-8 grid gap-5 md:grid-cols-3;
+  }
+
+  .havi-testimonial-meta {
+    @apply mt-4 text-sm font-medium;
+    color: color-mix(in srgb, var(--havi-ink-dark) 82%, var(--havi-accent-warm));
   }
 }

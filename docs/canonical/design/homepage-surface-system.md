@@ -69,11 +69,16 @@ This is a system doc, not a page spec.
      - `havi-marketing-proof-label`
      - `havi-marketing-proof-detail`
    - Story and comparison:
+     - `havi-content-block-problem`
+     - `havi-comparison-columns-head`
+     - `havi-comparison-column-title`
      - `havi-problem-grid`
      - `havi-signal-list`
      - `havi-signal-pill`
+     - `havi-comparison-layout`
      - `havi-comparison-rows`
      - `havi-comparison-row`
+     - `havi-comparison-companion`
      - `havi-comparison-item`
      - `havi-comparison-item-without`
      - `havi-comparison-item-with`
@@ -96,16 +101,21 @@ This is a system doc, not a page spec.
      - `havi-feature-crop-chat`
      - `havi-feature-crop-timeline`
      - `havi-feature-crop-task`
+     - `havi-hero-product-stage`
+   - Evidence and testimonials:
+     - `havi-proof-evidence-grid`
+     - `havi-testimonials-grid`
+     - `havi-testimonial-meta`
 
 3. Homepage composition reference
    - File: `apps/web/src/app/page.tsx`
    - Sections:
      1. `home-section-hero`
      2. `home-section-problem`
-     3. `home-section-features`
-     4. `home-section-comparison`
-     5. `home-section-proof`
-     6. `home-section-benefits`
+     3. `home-section-comparison`
+     4. `home-section-benefits`
+     5. `home-section-evidence`
+     6. `home-section-testimonials`
      7. `home-section-closing`
 
 ## Deliberate Patterns (Locked)
