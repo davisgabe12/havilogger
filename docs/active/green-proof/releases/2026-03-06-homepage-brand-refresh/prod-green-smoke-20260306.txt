@@ -1,0 +1,11 @@
+Command:
+cd apps/web && PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green
+
+Result:
+- Failed twice on onboarding redirect timeout in production run.
+- Failure point: apps/web/tests/smoke/green.smoke.spec.ts:101
+- Error: page.waitForURL timeout waiting for /app/onboarding/profile|/app after create-family click.
+
+Interpretation:
+- This failure is in onboarding flow path, not homepage rendering path.
+- Homepage-specific production checks were validated via live content assertions and core smoke.
