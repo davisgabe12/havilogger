@@ -19,12 +19,36 @@ describe("resolveApiBaseUrl", () => {
     ).toBe("https://api-production-0a5d.up.railway.app");
   });
 
+  it("uses production API for non-local runtime hosts when env is missing", () => {
+    expect(
+      resolveApiBaseUrl(
+        {
+          NEXT_PUBLIC_API_BASE_URL: "",
+          NODE_ENV: "",
+        },
+        "gethavi.com",
+      ),
+    ).toBe("https://api-production-0a5d.up.railway.app");
+  });
+
   it("falls back to localhost API in non-production environments", () => {
     expect(
       resolveApiBaseUrl({
         NEXT_PUBLIC_API_BASE_URL: "",
         NODE_ENV: "development",
       }),
+    ).toBe("http://127.0.0.1:8000");
+  });
+
+  it("uses localhost API for localhost runtime host when env is missing", () => {
+    expect(
+      resolveApiBaseUrl(
+        {
+          NEXT_PUBLIC_API_BASE_URL: "",
+          NODE_ENV: "",
+        },
+        "localhost",
+      ),
     ).toBe("http://127.0.0.1:8000");
   });
 });

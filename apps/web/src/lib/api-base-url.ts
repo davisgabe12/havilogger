@@ -8,9 +8,18 @@ type ApiBaseEnv = {
 
 export const resolveApiBaseUrl = (
   env: ApiBaseEnv = process.env,
+  runtimeHost?: string | null,
 ): string => {
   const configured = env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "";
   if (configured) return configured;
+
+  const host =
+    runtimeHost ??
+    (typeof window !== "undefined" ? window.location.hostname : null);
+  if (host && host !== "localhost" && host !== "127.0.0.1") {
+    return PROD_API_BASE_URL;
+  }
+
   return env.NODE_ENV === "production" ? PROD_API_BASE_URL : LOCAL_API_BASE_URL;
 };
 
