@@ -110,6 +110,11 @@ def classify_intent(message: str) -> IntentResult:
     return IntentResult(model_intent, model_confidence, reasons)
 
 
+def classify_intent_rules_only(message: str) -> IntentResult:
+    """Expose deterministic-only classification for telemetry baselines."""
+    return _classify_intent_rules(message)
+
+
 def _should_try_model_classifier(
     message: str,
     rule_result: IntentResult,

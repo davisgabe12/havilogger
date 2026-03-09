@@ -89,6 +89,7 @@ class ChatRequest(BaseModel):
 
 class ChatRouteMetadata(BaseModel):
     route_kind: str
+    expected_route_kind: Optional[str] = None
     user_intent: str
     classifier_intent: str
     decision_source: str = Field(default="rule")

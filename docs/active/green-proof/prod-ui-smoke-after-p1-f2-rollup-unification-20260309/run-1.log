@@ -1,0 +1,16 @@
+
+> web@0.1.0 test:green
+> playwright test tests/smoke/green.smoke.spec.ts
+
+[dotenv@17.2.3] injecting env (3) from .env.local -- tip: ⚙️  override existing env vars with { override: true }
+
+Running 1 test using 1 worker
+
+(node:33558) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:33558) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ⚙️  write to custom object with { processEnv: myObject }
+  ✓  1 tests/smoke/green.smoke.spec.ts:256:5 › GREEN smoke (43.8s)
+
+  1 passed (45.2s)

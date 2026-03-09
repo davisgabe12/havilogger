@@ -6,6 +6,15 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
+import sys
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+API_DIR = ROOT_DIR / "apps" / "api"
+if str(API_DIR) not in sys.path:
+    sys.path.insert(0, str(API_DIR))
+
+from app.telemetry_rollup import PRODUCTION_THRESHOLDS as ROLLUP_PRODUCTION_THRESHOLDS
+from app.telemetry_rollup import build_telemetry_rollup
 
 PHASE1_THRESHOLDS = {
     "guidance_contract_pass_rate": 0.95,
@@ -15,9 +24,9 @@ PHASE1_THRESHOLDS = {
 }
 
 PRODUCTION_THRESHOLDS = {
-    "route_disagreement_rate": 0.03,
-    "fallback_or_skip_rate": 0.20,
-    "telemetry_completeness_rate": 0.99,
+    "route_disagreement_rate": float(ROLLUP_PRODUCTION_THRESHOLDS["route_disagreement_rate"]),
+    "fallback_or_skip_rate": float(ROLLUP_PRODUCTION_THRESHOLDS["fallback_or_skip_rate"]),
+    "telemetry_completeness_rate": float(ROLLUP_PRODUCTION_THRESHOLDS["telemetry_completeness_rate"]),
 }
 
 
@@ -260,7 +269,7 @@ def _iter_turn_telemetry_rows(payload: Dict[str, Any]) -> Iterable[Dict[str, Any
                     yield item
 
 
-def _normalize_turn(row: Dict[str, Any]) -> Dict[str, Any]:
+def _prepare_turn_for_rollup(row: Dict[str, Any]) -> Dict[str, Any]:
     metadata = row.get("route_metadata")
     if not isinstance(metadata, dict):
         response_metadata = row.get("response_metadata")
@@ -306,19 +315,12 @@ def _normalize_turn(row: Dict[str, Any]) -> Dict[str, Any]:
             reason.startswith("model_fallback:") or reason.startswith("model_skipped:")
             for reason in reason_values
         )
+    if fallback_signal and not classifier_fallback_reason and not composer_fallback_reason:
+        classifier_fallback_reason = "reason_signal"
 
     ambiguous_eligible = bool(row.get("ambiguous_eligible"))
     if not ambiguous_eligible:
         ambiguous_eligible = bool(reason_values) or decision_source == "model"
-
-    completeness = all(
-        [
-            bool(route_kind),
-            bool(decision_source),
-            bool(classifier_intent),
-            confidence_value is not None,
-        ]
-    )
 
     return {
         "route_kind": route_kind,
@@ -326,48 +328,59 @@ def _normalize_turn(row: Dict[str, Any]) -> Dict[str, Any]:
         "decision_source": decision_source,
         "classifier_intent": classifier_intent,
         "confidence": confidence_value,
-        "fallback_signal": fallback_signal,
+        "classifier_fallback_reason": classifier_fallback_reason,
+        "composer_fallback_reason": composer_fallback_reason,
         "ambiguous_eligible": ambiguous_eligible,
-        "complete": completeness,
     }
 
 
 def _production_telemetry_section(payload: Dict[str, Any]) -> Dict[str, Any]:
-    turns = [_normalize_turn(row) for row in _iter_turn_telemetry_rows(payload)]
-    total_turns = len(turns)
-    comparable = [turn for turn in turns if turn.get("expected_route_kind")]
-    mismatches = [
-        turn
-        for turn in comparable
-        if str(turn.get("route_kind") or "") != str(turn.get("expected_route_kind") or "")
-    ]
-    ambiguous_eligible = [turn for turn in turns if bool(turn.get("ambiguous_eligible"))]
-    fallback_count = sum(1 for turn in ambiguous_eligible if bool(turn.get("fallback_signal")))
-    complete_count = sum(1 for turn in turns if bool(turn.get("complete")))
+    source = str(payload.get("source") or "inline").strip() or "inline"
+    notes: List[str] = list(payload.get("notes") or [])
 
-    disagreement_rate = round((len(mismatches) / len(comparable)) if comparable else 0.0, 4)
-    fallback_rate = round((fallback_count / len(ambiguous_eligible)) if ambiguous_eligible else 0.0, 4)
-    completeness_rate = round((complete_count / total_turns) if total_turns else 0.0, 4)
+    embedded_rollup = payload.get("rollup")
+    if isinstance(embedded_rollup, dict):
+        rollup = dict(embedded_rollup)
+    else:
+        turns = [_prepare_turn_for_rollup(row) for row in _iter_turn_telemetry_rows(payload)]
+        rollup = build_telemetry_rollup(turns)
 
+    total_turns = int(rollup.get("total_turns") or 0)
+    disagreement_rate = float(rollup.get("route_disagreement_rate") or 0.0)
+    fallback_rate = float(rollup.get("fallback_or_skip_rate") or 0.0)
+    completeness_rate = float(rollup.get("telemetry_completeness_rate") or 0.0)
+
+    thresholds = rollup.get("thresholds") if isinstance(rollup.get("thresholds"), dict) else PRODUCTION_THRESHOLDS
     has_data = total_turns > 0
     threshold_verdicts = {
-        "route_disagreement_rate": _verdict_leq(disagreement_rate, PRODUCTION_THRESHOLDS["route_disagreement_rate"]) if has_data else "BLOCK",
-        "fallback_or_skip_rate": _verdict_leq(fallback_rate, PRODUCTION_THRESHOLDS["fallback_or_skip_rate"]) if has_data else "BLOCK",
-        "telemetry_completeness_rate": _verdict_geq(completeness_rate, PRODUCTION_THRESHOLDS["telemetry_completeness_rate"]) if has_data else "BLOCK",
+        "route_disagreement_rate": _verdict_leq(disagreement_rate, float(thresholds["route_disagreement_rate"])) if has_data else "BLOCK",
+        "fallback_or_skip_rate": _verdict_leq(fallback_rate, float(thresholds["fallback_or_skip_rate"])) if has_data else "BLOCK",
+        "telemetry_completeness_rate": _verdict_geq(completeness_rate, float(thresholds["telemetry_completeness_rate"])) if has_data else "BLOCK",
     }
 
     return {
+        "source": source,
+        "row_count": int(payload.get("row_count") or total_turns),
+        "overall_status": str(rollup.get("overall_status") or "unknown"),
+        "notes": notes,
         "total_turns": total_turns,
-        "comparable_count": len(comparable),
-        "mismatch_count": len(mismatches),
-        "route_disagreement_rate": disagreement_rate,
-        "ambiguous_eligible_count": len(ambiguous_eligible),
-        "fallback_or_skip_count": fallback_count,
-        "fallback_or_skip_rate": fallback_rate,
-        "telemetry_complete_count": complete_count,
-        "telemetry_completeness_rate": completeness_rate,
+        "comparable_count": int(rollup.get("comparable_count") or 0),
+        "mismatch_count": int(rollup.get("mismatch_count") or 0),
+        "route_disagreement_rate": round(disagreement_rate, 4),
+        "ambiguous_eligible_count": int(rollup.get("ambiguous_eligible_count") or 0),
+        "fallback_or_skip_count": int(rollup.get("fallback_or_skip_count") or 0),
+        "fallback_or_skip_rate": round(fallback_rate, 4),
+        "telemetry_complete_count": int(rollup.get("telemetry_complete_count") or 0),
+        "telemetry_completeness_rate": round(completeness_rate, 4),
+        "route_distribution": dict(rollup.get("route_distribution") or {}),
+        "decision_source_distribution": dict(rollup.get("decision_source_distribution") or {}),
+        "alarms": list(rollup.get("alarms") or []),
         "thresholds": {
-            "production": PRODUCTION_THRESHOLDS,
+            "production": {
+                "route_disagreement_rate": float(thresholds["route_disagreement_rate"]),
+                "fallback_or_skip_rate": float(thresholds["fallback_or_skip_rate"]),
+                "telemetry_completeness_rate": float(thresholds["telemetry_completeness_rate"]),
+            },
             "threshold_verdicts": threshold_verdicts,
         },
     }

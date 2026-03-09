@@ -1,5 +1,6 @@
 export type ChatRouteMetadata = {
   route_kind: string;
+  expected_route_kind?: string | null;
   user_intent: string;
   classifier_intent: string;
   decision_source: string;

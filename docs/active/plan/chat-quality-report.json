@@ -243,8 +243,14 @@
     }
   },
   "production_telemetry": {
+    "source": "message_feedback.route_metadata",
+    "row_count": 4,
+    "overall_status": "WARN",
+    "notes": [
+      "chat_route_telemetry unavailable: 404: Supabase select failed (table=chat_route_telemetry): status=404, body={\"code\":\"PGRST205\",\"details\":null,\"hint\":\"Perhaps you meant the table 'public.routine_metrics'\",\"message\":\"Could not find the table 'public.chat_route_telemetry' in the schema cache\"}"
+    ],
     "total_turns": 4,
-    "comparable_count": 4,
+    "comparable_count": 0,
     "mismatch_count": 0,
     "route_disagreement_rate": 0.0,
     "ambiguous_eligible_count": 0,
@@ -252,6 +258,23 @@
     "fallback_or_skip_rate": 0.0,
     "telemetry_complete_count": 4,
     "telemetry_completeness_rate": 1.0,
+    "route_distribution": {
+      "mixed": 4
+    },
+    "decision_source_distribution": {
+      "rule": 4
+    },
+    "alarms": [
+      {
+        "metric": "sample_size",
+        "severity": "medium",
+        "status": "WARN",
+        "value": 4.0,
+        "threshold": 50.0,
+        "comparator": ">=",
+        "message": "Sample size is low (4) for confident production conclusions (target >= 50)."
+      }
+    ],
     "thresholds": {
       "production": {
         "route_disagreement_rate": 0.03,

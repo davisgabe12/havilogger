@@ -26,6 +26,9 @@ This document lists the test and lint commands that are defined in the repo and 
       - `test_time_anchor.py` – time‑only messages anchored in child timezone.
       - `test_golden_phase0_harness.py` – Phase 0 golden-eval baseline harness (coverage over family size/age bands, route + memory signals + guidance contract scoring, and baseline report artifact at `/tmp/havi_phase0_golden_report.json`).
       - `test_golden_phase1_v2_harness.py` – Phase 1-v2 answer-first guidance harness (empathy + assumptions + plan steps + no redundant age question + next-turn invite checks, artifact at `/tmp/havi_phase1_v2_golden_report.json`).
+      - `test_telemetry_rollup.py` – production telemetry rollup threshold and alarm-format logic.
+      - `test_chat_quality_report.py` – verifies quality report production telemetry ingestion for both embedded rollup artifacts and raw turn telemetry fallbacks.
+      - `test_route_telemetry_persistence.py` – verifies route telemetry persistence payloads, feature-flag disable behavior, and non-blocking insert failure handling.
     - Knowledge & inferences:
       - `test_knowledge_inference.py` – heuristics in `app.inferences.detect_knowledge_inferences`.
       - `test_inference_lifecycle.py` – inference status transitions.

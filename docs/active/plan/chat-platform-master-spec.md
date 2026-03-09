@@ -117,6 +117,9 @@ Sync rule:
 15. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
 16. New Phase1-v2 golden harness is active for answer-first guidance quality checks (empathy, assumptions, immediate plan steps, known-age no re-ask, next-turn invite, mixed log confirmation).
 17. Production core smoke now emits per-turn route telemetry in JSON artifacts, and quality reporting now includes production disagreement/fallback/completeness threshold verdicts.
+18. Daily production telemetry rollup script is available at [production_chat_telemetry_rollup.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/production_chat_telemetry_rollup.py), with structured alarm output for threshold breaches.
+19. Quality snapshot now uses the shared telemetry rollup contract (`apps/api/app/telemetry_rollup.py`) so production thresholds and alarm semantics stay consistent across reporting scripts.
+20. Telemetry table migration path is tracked at `docs/canonical/supabase/012_chat_route_telemetry.sql` (applied source of truth for full turn-level production telemetry).
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:

@@ -52,7 +52,12 @@ from .routes import tasks as task_routes
 from . import share as share_routes
 from .knowledge_utils import knowledge_pending_prompts
 from .openai_client import compose_guidance_with_openai
-from .router import IntentResult, classify_intent, has_logging_signals
+from .router import (
+    IntentResult,
+    classify_intent,
+    classify_intent_rules_only,
+    has_logging_signals,
+)
 from .session_titles import build_session_title_snippet, ensure_unique_session_title
 from .schemas import (
     Action,
@@ -710,6 +715,58 @@ def _build_route_write_policy(*, route_kind: str, classifier_intent: str, has_me
     )
 
 
+def _route_telemetry_persistence_enabled() -> bool:
+    raw = os.getenv("ENABLE_ROUTE_TELEMETRY_PERSISTENCE", "1").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+async def _persist_route_telemetry_row(
+    *,
+    auth: AuthContext,
+    child_id: Optional[str],
+    conversation_id: str,
+    user_message_id: Optional[str],
+    assistant_message_id: Optional[str],
+    route_metadata: ChatRouteMetadata,
+    classifier_reasons: List[str],
+    ambiguous_eligible: bool,
+) -> None:
+    if not _route_telemetry_persistence_enabled():
+        return
+    payload = {
+        "family_id": auth.family_id,
+        "user_id": auth.user_id,
+        "child_id": child_id,
+        "conversation_id": conversation_id,
+        "user_message_id": user_message_id,
+        "assistant_message_id": assistant_message_id,
+        "route_kind": route_metadata.route_kind,
+        "expected_route_kind": route_metadata.expected_route_kind,
+        "decision_source": route_metadata.decision_source,
+        "classifier_intent": route_metadata.classifier_intent,
+        "confidence": route_metadata.confidence,
+        "classifier_fallback_reason": route_metadata.classifier_fallback_reason,
+        "composer_source": route_metadata.composer_source,
+        "composer_fallback_reason": route_metadata.composer_fallback_reason,
+        "ambiguous_eligible": bool(ambiguous_eligible),
+        "classifier_reasons": list(classifier_reasons),
+        "route_metadata": route_metadata.model_dump(mode="json"),
+        "created_at": _now_iso(),
+    }
+    try:
+        await auth.supabase.insert("chat_route_telemetry", payload)
+    except Exception as exc:
+        logger.warning(
+            "chat route telemetry persistence skipped",
+            extra={
+                "family_id": auth.family_id,
+                "conversation_id": conversation_id,
+                "assistant_message_id": assistant_message_id,
+                "error": str(exc)[:200],
+            },
+        )
+
+
 async def _build_terminal_chat_response(
     *,
     auth: AuthContext,
@@ -723,6 +780,9 @@ async def _build_terminal_chat_response(
     start: float,
     actions: Optional[List[Action]] = None,
     ui_nudges: Optional[List[str]] = None,
+    child_id: Optional[str] = None,
+    classifier_reasons: Optional[List[str]] = None,
+    ambiguous_eligible: bool = False,
 ) -> ChatResponse:
     assistant_message = await _insert_conversation_message(
         auth,
@@ -731,6 +791,16 @@ async def _build_terminal_chat_response(
         content=assistant_text,
         user_id=auth.user_id,
         intent=intent,
+    )
+    await _persist_route_telemetry_row(
+        auth=auth,
+        child_id=child_id,
+        conversation_id=conversation_id,
+        user_message_id=user_message_id,
+        assistant_message_id=assistant_message.id,
+        route_metadata=route_metadata,
+        classifier_reasons=list(classifier_reasons or []),
+        ambiguous_eligible=ambiguous_eligible,
     )
     await _touch_conversation(auth, conversation_id, _now_iso())
     latency_ms = int((time.perf_counter() - start) * 1000)
@@ -763,6 +833,8 @@ async def _handle_explicit_memory_turn(
     child_row: Dict[str, Any],
     route_metadata: ChatRouteMetadata,
     start: float,
+    classifier_reasons: List[str],
+    ambiguous_eligible: bool,
 ) -> Optional[ChatResponse]:
     if not (memory_target and route_write_policy.allow_explicit_memory_writes):
         return None
@@ -799,6 +871,9 @@ async def _handle_explicit_memory_turn(
         intent="memory",
         route_metadata=route_metadata,
         start=start,
+        child_id=child_id,
+        classifier_reasons=classifier_reasons,
+        ambiguous_eligible=ambiguous_eligible,
     )
 
 
@@ -814,6 +889,8 @@ async def _handle_task_turn(
     timezone_value: Optional[str],
     route_metadata: ChatRouteMetadata,
     start: float,
+    classifier_reasons: List[str],
+    ambiguous_eligible: bool,
 ) -> Optional[ChatResponse]:
     if not route_write_policy.allow_task_writes:
         return None
@@ -847,6 +924,9 @@ async def _handle_task_turn(
         intent="task",
         route_metadata=route_metadata,
         start=start,
+        child_id=child_id,
+        classifier_reasons=classifier_reasons,
+        ambiguous_eligible=ambiguous_eligible,
     )
 
 
@@ -1389,9 +1469,20 @@ async def capture_activity(
     intent_result = execution_plan.intent_result
     route_decision = execution_plan.route_decision
     route_metadata = execution_plan.route_metadata
+    rule_only_intent = classify_intent_rules_only(payload.message)
+    expected_route_kind = _route_decision_for_message(
+        payload.message,
+        rule_only_intent.intent,
+    ).route_kind
+    route_metadata.expected_route_kind = expected_route_kind
     mixed_logging_segments = route_decision.mixed_logging_segments
     mixed_route = execution_plan.mixed_route
     user_intent = execution_plan.user_intent
+    ambiguous_eligible = (
+        route_metadata.decision_source == "model"
+        or any(reason.startswith("model_") for reason in intent_result.reasons)
+        or bool(route_metadata.classifier_fallback_reason)
+    )
     logger.info(
         "chat route decision",
         extra={
@@ -1407,6 +1498,7 @@ async def capture_activity(
             "classifier_fallback_reason": route_decision.classifier_fallback_reason,
             "rollout_intent_classifier_pct": route_decision.rollout_intent_classifier_pct,
             "route_confidence": route_decision.confidence,
+            "expected_route_kind": expected_route_kind,
             "is_question": route_decision.is_question,
             "mixed_logging_segments": len(mixed_logging_segments),
         },
@@ -1451,6 +1543,8 @@ async def capture_activity(
         child_row=child_row,
         route_metadata=route_metadata,
         start=start,
+        classifier_reasons=list(intent_result.reasons),
+        ambiguous_eligible=ambiguous_eligible,
     )
     if memory_response is not None:
         return memory_response
@@ -1466,6 +1560,8 @@ async def capture_activity(
         timezone_value=timezone_value,
         route_metadata=route_metadata,
         start=start,
+        classifier_reasons=list(intent_result.reasons),
+        ambiguous_eligible=ambiguous_eligible,
     )
     if task_response is not None:
         return task_response
@@ -1521,6 +1617,9 @@ async def capture_activity(
         start=start,
         actions=actions,
         ui_nudges=ui_nudges,
+        child_id=child_id,
+        classifier_reasons=list(intent_result.reasons),
+        ambiguous_eligible=ambiguous_eligible,
     )
 
 @app.get("/")

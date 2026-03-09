@@ -66,7 +66,8 @@ This plan is intentionally scoped to message/chat behavior only.
 
 3. Next:
 - maintain threshold stability from the new `phase1-v2` harness while widening model rollout carefully.
-- monitor production telemetry threshold verdicts (`route_disagreement`, `fallback_or_skip`, `telemetry_completeness`) after each release slice.
+- run daily production telemetry rollups (`route_disagreement`, `fallback_or_skip`, `telemetry_completeness`) from live traffic, not only smoke artifacts.
+- apply telemetry table migration in production (`docs/canonical/supabase/012_chat_route_telemetry.sql`) so rollups move from sampled feedback metadata to full turn-level source.
 - keep GREEN + prod smoke artifacts current for every behavior-affecting change.
 
 ## Execution Log (March 5, 2026)
@@ -197,6 +198,50 @@ This plan is intentionally scoped to message/chat behavior only.
 - Production UI smoke gate:
   - `./scripts/prod_ui_smoke_gate.sh`
   - Final passing artifact: [prod-ui-smoke-manual-20260309091254.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-manual-20260309091254.json)
+
+## Progress Update (March 9, 2026, telemetry daily rollup)
+1. Added dedicated production telemetry rollup script:
+- [production_chat_telemetry_rollup.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/production_chat_telemetry_rollup.py)
+- Output artifacts:
+  - `docs/active/plan/chat-production-telemetry-rollup-latest.json`
+  - `docs/active/plan/chat-production-telemetry-rollup-latest.md`
+
+2. Rollup source precedence:
+- `chat_route_telemetry` (live turn-level table, preferred)
+- fallback: `message_feedback.response_metadata.route_metadata` when direct table rows are unavailable
+- optional local fallback report input for emergency continuity
+
+3. Alarm format:
+- threshold alarms emitted with metric, comparator, threshold, observed value, status (`BLOCK`/`WARN`) and severity.
+- overall rollup status emitted as `PASS` / `WARN` / `BLOCK`.
+
+## Progress Update (March 9, 2026, telemetry rollup unification + release evidence)
+1. Migration sequencing fixed:
+- resolved duplicate migration number conflict by moving telemetry migration to:
+  - `docs/canonical/supabase/012_chat_route_telemetry.sql`
+- updated canonical apply order and ops runbook references.
+
+2. Quality report now consumes canonical rollup logic:
+- [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py) now uses shared telemetry rollup thresholds/logic to avoid drift between daily rollup and release snapshot math.
+- quality report now accepts rollup artifacts directly (`source`, `notes`, `alarms`, `overall_status`) while still supporting raw turn telemetry inputs.
+
+3. New regression tests added:
+- [test_chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_chat_quality_report.py)
+- [test_route_telemetry_persistence.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_route_telemetry_persistence.py)
+- API targeted gate: `42 passed` on March 9, 2026.
+
+4. Fresh production evidence:
+- Core smoke pass artifact:
+  - [prod-core-smoke-after-p1-f2-rollup-unification-20260309.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-core-smoke-after-p1-f2-rollup-unification-20260309.json)
+- UI smoke gate pass artifact:
+  - [prod-ui-smoke-after-p1-f2-rollup-unification-20260309.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-p1-f2-rollup-unification-20260309.json)
+- Daily telemetry rollup artifact:
+  - [chat-production-telemetry-rollup-latest.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-production-telemetry-rollup-latest.json)
+- Consolidated quality report:
+  - [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json)
+
+5. Remaining blocker in this lane:
+- production still lacks `chat_route_telemetry` table in schema cache (PGRST205), so live rollup source remains `message_feedback.route_metadata` and emits low-sample `WARN`.
 
 ## Goals
 1. Canonical runtime ownership:
