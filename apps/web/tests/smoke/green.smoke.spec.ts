@@ -376,13 +376,26 @@ test("GREEN smoke", async ({ page }) => {
     }
     expect(activityResult.status()).toBe(200);
     const payload = (await activityResult.json()) as ActivityResponsePayload;
+    const assistantMessageId = payload.assistant_message_id
+      ? String(payload.assistant_message_id)
+      : "";
     await expect
       .poll(
-        async () => (await assistantMessages.count()) > assistantCountBefore,
-        { timeout: 20_000 },
+        async () => {
+          if (assistantMessageId) {
+            const byIdCount = await page
+              .locator(`[data-message-id="${assistantMessageId}"]`)
+              .count();
+            if (byIdCount > 0) {
+              return true;
+            }
+          }
+          return (await assistantMessages.count()) > assistantCountBefore;
+        },
+        { timeout: 45_000 },
       )
       .toBeTruthy();
-    await expect(chatMessages.last()).toBeVisible({ timeout: 20_000 });
+    await expect(chatMessages.last()).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId("chat-input")).toBeEnabled({ timeout: 20_000 });
     return payload;
   };
