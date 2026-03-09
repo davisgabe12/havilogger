@@ -185,12 +185,18 @@ This plan is intentionally scoped to message/chat behavior only.
   - `has_next_turn_invite`
   - `starts_with_logged_confirmation` for mixed route
 
-5. Latest validation (March 8, 2026):
+5. Latest validation (March 9, 2026):
 - `cd apps/api && ../../.venv/bin/pytest tests/test_router_openai_classifier.py tests/test_feedback_route_supabase.py tests/test_chat_routing_logic.py tests/test_chat_composition_hardening.py tests/test_assistant_message.py tests/test_golden_phase0_harness.py tests/test_golden_phase1_v2_harness.py -q`
   - Result: `37 passed`
 - Report generation:
-  - `./.venv/bin/python scripts/chat_quality_report.py --golden-report /tmp/havi_phase0_golden_report.json --phase1-v2-report /tmp/havi_phase1_v2_golden_report.json --production-telemetry-report docs/active/green-proof/prod-core-smoke-after-homepage-brand-refresh-release-20260306.json --green-pass`
+  - `./.venv/bin/python scripts/chat_quality_report.py --golden-report /tmp/havi_phase0_golden_report.json --phase1-v2-report /tmp/havi_phase1_v2_golden_report.json --production-telemetry-report docs/active/green-proof/prod-core-smoke-manual-20260309085057.json --green-pass`
   - Artifact: [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json)
+- Production core smoke:
+  - `./scripts/prod_core_smoke.sh`
+  - Artifact: [prod-core-smoke-manual-20260309085057.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-core-smoke-manual-20260309085057.json)
+- Production UI smoke gate:
+  - `./scripts/prod_ui_smoke_gate.sh`
+  - Final passing artifact: [prod-ui-smoke-manual-20260309091254.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-manual-20260309091254.json)
 
 ## Goals
 1. Canonical runtime ownership:

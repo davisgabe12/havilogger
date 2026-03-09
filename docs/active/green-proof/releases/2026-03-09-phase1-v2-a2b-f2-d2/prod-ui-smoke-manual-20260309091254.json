@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-03-09T16:14:22Z",
+  "label": "manual-20260309091254",
+  "base_url": "https://gethavi.com",
+  "required_consecutive_passes": 2,
+  "gate_pass": true,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "pass",
+      "started_at": "2026-03-09T16:12:54Z",
+      "ended_at": "2026-03-09T16:13:39Z",
+      "exit_code": 0,
+      "log_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-manual-20260309091254/run-1.log",
+      "report_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-manual-20260309091254/run-1-report.json"
+    },
+    {
+      "attempt": 2,
+      "status": "pass",
+      "started_at": "2026-03-09T16:13:39Z",
+      "ended_at": "2026-03-09T16:14:22Z",
+      "exit_code": 0,
+      "log_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-manual-20260309091254/run-2.log",
+      "report_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-manual-20260309091254/run-2-report.json"
+    }
+  ]
+}

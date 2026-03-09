@@ -1,0 +1,16 @@
+
+> web@0.1.0 test:green
+> playwright test tests/smoke/green.smoke.spec.ts
+
+[dotenv@17.2.3] injecting env (3) from .env.local -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+
+Running 1 test using 1 worker
+
+(node:29191) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:29191) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+  ✓  1 tests/smoke/green.smoke.spec.ts:256:5 › GREEN smoke (41.1s)
+
+  1 passed (42.1s)
