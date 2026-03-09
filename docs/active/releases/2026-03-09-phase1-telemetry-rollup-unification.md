@@ -23,3 +23,9 @@
 
 ## Follow-up required
 - Apply `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/supabase/012_chat_route_telemetry.sql` in production so rollups use full turn-level source (`chat_route_telemetry`) instead of sampled feedback metadata fallback.
+
+## Post-release update (March 9, 2026, later)
+- Migration has been applied; rollup source is now `chat_route_telemetry`.
+- API deployment `f74accb0-dc2f-41a0-af90-75d1f68cdc97` is `SUCCESS`.
+- Current remaining blocker is production fallback-rate (`1.0`) because OpenAI classifier/composer flags need a redeploy to activate.
+- Flags were set in Railway, but Railway currently reports: `Deploys are temporarily paused due to an ongoing incident`.

@@ -243,6 +243,32 @@ This plan is intentionally scoped to message/chat behavior only.
 5. Remaining blocker in this lane:
 - production still lacks `chat_route_telemetry` table in schema cache (PGRST205), so live rollup source remains `message_feedback.route_metadata` and emits low-sample `WARN`.
 
+## Progress Update (March 9, 2026, post-migration verification)
+1. Production telemetry table migration applied:
+- `chat_route_telemetry` is now queryable in production.
+- daily rollup source switched from feedback fallback to live table source:
+  - [chat-production-telemetry-rollup-latest.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-production-telemetry-rollup-latest.json)
+
+2. API deploy alignment:
+- deployed latest API from `apps/api` to Railway (`deployment id: f74accb0-dc2f-41a0-af90-75d1f68cdc97`, status `SUCCESS`).
+- verified route metadata now includes expected Phase 1 fields (`expected_route_kind`, classifier/composer fallback metadata).
+
+3. Current telemetry verdict:
+- `route_disagreement_rate`: PASS (`0.0`)
+- `telemetry_completeness_rate`: PASS (`1.0`)
+- `fallback_or_skip_rate`: BLOCK (`1.0` vs threshold `<=0.2`)
+- reason: classifier/composer feature flags were previously disabled in production, so ambiguous turns fell back.
+
+4. Config action applied:
+- set Railway API variables (pending activation by redeploy):
+  - `ENABLE_OPENAI_INTENT_CLASSIFIER=1`
+  - `ENABLE_OPENAI_GUIDANCE_COMPOSER=1`
+  - `OPENAI_INTENT_CLASSIFIER_TRAFFIC_PCT=100`
+  - `OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT=100`
+
+5. External blocker:
+- Railway currently returns `Deploys are temporarily paused due to an ongoing incident`, so a post-variable redeploy to activate flags could not be executed yet.
+
 ## Goals
 1. Canonical runtime ownership:
 - `POST /api/v1/activities` executes through one orchestrator path only.

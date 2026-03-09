@@ -1,29 +1,28 @@
 {
-  "generated_at": "2026-03-09T17:20:19Z",
+  "generated_at": "2026-03-09T22:21:34Z",
   "window_hours": 24,
-  "window_start": "2026-03-08T17:20:19Z",
-  "window_end": "2026-03-09T17:20:19Z",
-  "source": "message_feedback.route_metadata",
-  "row_count": 4,
-  "notes": [
-    "chat_route_telemetry unavailable: 404: Supabase select failed (table=chat_route_telemetry): status=404, body={\"code\":\"PGRST205\",\"details\":null,\"hint\":\"Perhaps you meant the table 'public.routine_metrics'\",\"message\":\"Could not find the table 'public.chat_route_telemetry' in the schema cache\"}"
-  ],
+  "window_start": "2026-03-08T22:21:34Z",
+  "window_end": "2026-03-09T22:21:34Z",
+  "source": "chat_route_telemetry",
+  "row_count": 7,
+  "notes": [],
   "rollup": {
-    "overall_status": "WARN",
-    "total_turns": 4,
-    "comparable_count": 0,
+    "overall_status": "BLOCK",
+    "total_turns": 7,
+    "comparable_count": 7,
     "mismatch_count": 0,
     "route_disagreement_rate": 0.0,
-    "ambiguous_eligible_count": 0,
-    "fallback_or_skip_count": 0,
-    "fallback_or_skip_rate": 0.0,
-    "telemetry_complete_count": 4,
+    "ambiguous_eligible_count": 6,
+    "fallback_or_skip_count": 6,
+    "fallback_or_skip_rate": 1.0,
+    "telemetry_complete_count": 7,
     "telemetry_completeness_rate": 1.0,
     "route_distribution": {
-      "mixed": 4
+      "ask": 4,
+      "log": 3
     },
     "decision_source_distribution": {
-      "rule": 4
+      "rule": 7
     },
     "thresholds": {
       "route_disagreement_rate": 0.03,
@@ -32,13 +31,22 @@
     },
     "alarms": [
       {
+        "metric": "fallback_or_skip_rate",
+        "severity": "high",
+        "status": "BLOCK",
+        "value": 1.0,
+        "threshold": 0.2,
+        "comparator": "<=",
+        "message": "fallback_or_skip_rate exceeded threshold (1.0000 > 0.2000)"
+      },
+      {
         "metric": "sample_size",
         "severity": "medium",
         "status": "WARN",
-        "value": 4.0,
+        "value": 7.0,
         "threshold": 50.0,
         "comparator": ">=",
-        "message": "Sample size is low (4) for confident production conclusions (target >= 50)."
+        "message": "Sample size is low (7) for confident production conclusions (target >= 50)."
       }
     ]
   }

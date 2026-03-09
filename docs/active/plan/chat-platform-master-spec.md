@@ -120,6 +120,7 @@ Sync rule:
 18. Daily production telemetry rollup script is available at [production_chat_telemetry_rollup.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/production_chat_telemetry_rollup.py), with structured alarm output for threshold breaches.
 19. Quality snapshot now uses the shared telemetry rollup contract (`apps/api/app/telemetry_rollup.py`) so production thresholds and alarm semantics stay consistent across reporting scripts.
 20. Telemetry table migration path is tracked at `docs/canonical/supabase/012_chat_route_telemetry.sql` (applied source of truth for full turn-level production telemetry).
+21. As of March 9, 2026, production telemetry rollups are reading from `chat_route_telemetry` (live turn-level source). Remaining rollout blocker is fallback-rate reduction after OpenAI flag activation redeploy.
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:

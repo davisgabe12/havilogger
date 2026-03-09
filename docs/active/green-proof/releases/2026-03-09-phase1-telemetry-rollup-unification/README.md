@@ -27,5 +27,7 @@
 - Production telemetry rollup: WARN (low sample size, fallback source)
 
 ## Known Remaining Risk
-- `chat_route_telemetry` table is still unavailable in production schema cache (`PGRST205`), so rollup source is currently `message_feedback.route_metadata` and emits low-sample WARN.
-- Required follow-up: apply `docs/canonical/supabase/012_chat_route_telemetry.sql` in production.
+- Migration was applied and rollup source is now `chat_route_telemetry`.
+- Current blocker shifted to fallback-rate activation:
+  - production fallback/skip rate is `1.0` (BLOCK) while OpenAI flags are pending activation.
+  - flags were set (`ENABLE_OPENAI_INTENT_CLASSIFIER=1`, `ENABLE_OPENAI_GUIDANCE_COMPOSER=1`) but Railway deploys are currently paused by incident, so redeploy could not be completed.
