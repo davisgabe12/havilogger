@@ -37,6 +37,12 @@ type FeedbackPayload = {
 const RETRY_DELAYS_MS = [1200, 2400];
 type PersistStatus = "idle" | "submitting" | "retry_wait" | "retrying" | "failed";
 
+// Shared assistant-row action tokens for copy/thumb controls.
+export const CHAT_ACTION_ICON_CLASS = "h-4 w-4";
+export const CHAT_ACTION_BUTTON_CLASS =
+  "inline-flex h-10 w-10 items-center justify-center rounded-md border border-border/40 bg-muted/40 p-0 text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+export const CHAT_ACTION_ROW_CLASS = "min-h-10 gap-1.5";
+
 class FeedbackPersistError extends Error {
   retryable: boolean;
 
@@ -168,16 +174,17 @@ export function MessageFeedback({
     }, 500);
   };
 
-  const buttonBase =
-    buttonClassName ??
-    "inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+  const iconButtonBase = buttonClassName ?? CHAT_ACTION_BUTTON_CLASS;
+  const retryButtonBase =
+    "inline-flex items-center rounded-md bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
   const activeClass = "bg-muted/70 text-foreground";
   const isStacked = layout === "stacked";
   const wrapperClasses = isStacked
     ? "flex flex-col gap-2"
     : "absolute bottom-2 left-2 right-2 flex items-center justify-end gap-2 text-muted-foreground";
   const actionClasses = cn(
-    "flex items-center gap-2 text-muted-foreground",
+    "flex items-center text-muted-foreground",
+    CHAT_ACTION_ROW_CLASS,
     !isStacked && "justify-end",
     actionRowClassName,
   );
@@ -214,18 +221,18 @@ export function MessageFeedback({
               aria-label="Thumbs up"
               aria-pressed={rating === "up"}
               onClick={() => handleRatingSelect("up")}
-              className={cn(buttonBase, rating === "up" && activeClass)}
+              className={cn(iconButtonBase, rating === "up" && activeClass)}
             >
-              <ThumbsUp className="h-3 w-3" />
+              <ThumbsUp className={CHAT_ACTION_ICON_CLASS} />
             </button>
             <button
               type="button"
               aria-label="Thumbs down"
               aria-pressed={rating === "down"}
               onClick={() => handleRatingSelect("down")}
-              className={cn(buttonBase, rating === "down" && activeClass)}
+              className={cn(iconButtonBase, rating === "down" && activeClass)}
             >
-              <ThumbsDown className="h-3 w-3" />
+              <ThumbsDown className={CHAT_ACTION_ICON_CLASS} />
             </button>
             {showRetryingHint ? (
               <span className="text-[10px] text-muted-foreground">Retrying…</span>
@@ -238,7 +245,7 @@ export function MessageFeedback({
                 <button
                   type="button"
                   aria-label="Retry feedback"
-                  className={cn(buttonBase, "text-[10px]")}
+                  className={retryButtonBase}
                   onClick={() => {
                     if (pendingPayloadRef.current) {
                       void persistFeedback(pendingPayloadRef.current);

@@ -128,4 +128,49 @@ describe("MessageBubble width and spacing", () => {
     expect(bubbleClass).not.toContain("overflow-y");
     expect(bubbleClass).not.toContain("max-h");
   });
+
+  it("uses consistent icon sizing, spacing, and hit targets for copy + feedback actions", () => {
+    const entry: ChatEntry = {
+      id: "assistant-row-1",
+      role: "havi",
+      senderType: "assistant",
+      text: "Try a short bedtime routine and consistent wake time.",
+      messageId: "msg-1",
+      model: "gpt-4.1-mini",
+      createdAt: "2026-03-09T12:00:00Z",
+    };
+
+    render(
+      <MessageBubble
+        entry={entry}
+        onToggleTimestamp={() => {}}
+        isPinned={false}
+        onCopy={() => {}}
+        copiedMessageId={null}
+        highlightedMessageId={null}
+        conversationId="conversation-1"
+        timezone="America/Los_Angeles"
+      />,
+    );
+
+    const copyButton = screen.getByRole("button", { name: "Copy message" });
+    const upButton = screen.getByRole("button", { name: "Thumbs up" });
+    const downButton = screen.getByRole("button", { name: "Thumbs down" });
+
+    for (const button of [copyButton, upButton, downButton]) {
+      expect(button.className).toContain("h-10");
+      expect(button.className).toContain("w-10");
+      expect(button.className).toContain("items-center");
+      expect(button.className).toContain("justify-center");
+      const icon = button.querySelector("svg") as SVGElement | null;
+      expect(icon).not.toBeNull();
+      expect(icon?.getAttribute("class") ?? "").toContain("h-4");
+      expect(icon?.getAttribute("class") ?? "").toContain("w-4");
+    }
+
+    const actionRow = upButton.parentElement;
+    expect(actionRow).not.toBeNull();
+    expect(actionRow?.className ?? "").toContain("min-h-10");
+    expect(actionRow?.className ?? "").toContain("gap-1.5");
+  });
 });

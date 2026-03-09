@@ -2,7 +2,7 @@ import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { MessageFeedback } from "../message-feedback";
+import { CHAT_ACTION_BUTTON_CLASS, CHAT_ACTION_ICON_CLASS, MessageFeedback } from "../message-feedback";
 
 describe("MessageFeedback", () => {
   const apiBaseUrl = "http://localhost";
@@ -164,6 +164,46 @@ describe("MessageFeedback", () => {
     expect(screen.getByText("Couldn’t save feedback.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry feedback" })).toBeInTheDocument();
     expect(screen.queryByText("Retrying…")).not.toBeInTheDocument();
+  });
+
+  it("keeps shared icon sizing and hit-target tokens for thumbs buttons", async () => {
+    const fetchSpy = mockFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MessageFeedback
+        conversationId={42}
+        messageId="123"
+        apiBaseUrl={apiBaseUrl}
+      />,
+    );
+
+    const upButton = screen.getByLabelText("Thumbs up");
+    const downButton = screen.getByLabelText("Thumbs down");
+
+    for (const token of ["h-10", "w-10", "items-center", "justify-center"]) {
+      expect(upButton.className).toContain(token);
+      expect(downButton.className).toContain(token);
+    }
+    expect(upButton.className).toContain(CHAT_ACTION_BUTTON_CLASS.split(" ")[0] ?? "");
+
+    const upIcon = upButton.querySelector("svg") as SVGElement | null;
+    const downIcon = downButton.querySelector("svg") as SVGElement | null;
+    expect(upIcon).not.toBeNull();
+    expect(downIcon).not.toBeNull();
+    for (const token of CHAT_ACTION_ICON_CLASS.split(" ")) {
+      if (!token) continue;
+      expect(upIcon?.getAttribute("class") ?? "").toContain(token);
+      expect(downIcon?.getAttribute("class") ?? "").toContain(token);
+    }
+
+    await user.click(upButton);
+    expect(screen.getByLabelText("Thumbs up")).toHaveAttribute("aria-pressed", "true");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    for (const token of ["h-10", "w-10"]) {
+      expect(screen.getByLabelText("Thumbs up").className).toContain(token);
+      expect(screen.getByLabelText("Thumbs down").className).toContain(token);
+    }
   });
 
   it("recovers when user retries from terminal error", async () => {

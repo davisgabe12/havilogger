@@ -2,7 +2,12 @@ import type React from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { MessageFeedback, type FeedbackRating } from "@/components/chat/message-feedback";
+import {
+  CHAT_ACTION_BUTTON_CLASS,
+  CHAT_ACTION_ICON_CLASS,
+  MessageFeedback,
+  type FeedbackRating,
+} from "@/components/chat/message-feedback";
 import { CopyButton } from "@/components/ui/action-buttons";
 import { API_BASE_URL } from "@/lib/api-base-url";
 import { cn } from "@/lib/utils";
@@ -192,8 +197,7 @@ export function MessageBubble({
     isHighlighted && "ring-2 ring-primary/40",
   );
 
-  const actionButtonBase =
-    "inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/40 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+  const actionButtonBase = CHAT_ACTION_BUTTON_CLASS;
 
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
@@ -216,6 +220,7 @@ export function MessageBubble({
         aria-label="Copy message"
         title="Copy"
         className={actionButtonBase}
+        iconClassName={CHAT_ACTION_ICON_CLASS}
       />
     </>
   );
@@ -312,7 +317,7 @@ export function MessageBubble({
               ) : null
             }
             buttonClassName={actionButtonBase}
-            actionRowClassName="min-h-[28px] pt-2"
+            actionRowClassName="pt-2"
           />
         ) : null}
       </div>
