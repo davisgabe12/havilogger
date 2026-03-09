@@ -1,0 +1,4 @@
+Command: /bin/bash -lc "cd /Users/gabedavis/Desktop/projects/havilogger/apps/web && PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green"
+Date: 2026-03-09
+Result: PASS (1 passed)
+Duration: ~50s

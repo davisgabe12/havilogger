@@ -1,0 +1,294 @@
+{
+  "golden": {
+    "version": "phase0-v1",
+    "total_cases": 12,
+    "route_distribution": {
+      "log": 3,
+      "ask": 6,
+      "mixed": 1,
+      "task": 1,
+      "unknown": 1
+    },
+    "scenario_class_distribution": {
+      "short_log": 1,
+      "short_ask": 2,
+      "mixed_intent": 2,
+      "long_open_ended_guidance": 1,
+      "multi_event_times": 1,
+      "explicit_memory_save": 1,
+      "inferred_memory": 1,
+      "task_request": 1,
+      "guidance_format": 1,
+      "feedback_action": 1
+    },
+    "age_band_distribution": {
+      "newborn": 1,
+      "young_infant": 3,
+      "older_infant": 3,
+      "toddler": 4,
+      "early_preschool": 1
+    },
+    "family_size_distribution": {
+      "1": 6,
+      "2": 4,
+      "3": 2
+    },
+    "route_disagreement": {
+      "comparable_count": 11,
+      "mismatch_count": 0,
+      "mismatch_rate": 0.0,
+      "mismatch_ids": []
+    },
+    "classifier": {
+      "evaluated_count": 11,
+      "override_count": 0,
+      "fallback_or_skipped_count": 11,
+      "override_rate": 0.0,
+      "fallback_or_skipped_rate": 1.0
+    },
+    "guidance": {
+      "count": 4,
+      "average_score": 5.25,
+      "min_score": 4.0,
+      "max_score": 7.0
+    }
+  },
+  "phase0": {
+    "version": "phase0-v1",
+    "total_cases": 12,
+    "route_distribution": {
+      "log": 3,
+      "ask": 6,
+      "mixed": 1,
+      "task": 1,
+      "unknown": 1
+    },
+    "scenario_class_distribution": {
+      "short_log": 1,
+      "short_ask": 2,
+      "mixed_intent": 2,
+      "long_open_ended_guidance": 1,
+      "multi_event_times": 1,
+      "explicit_memory_save": 1,
+      "inferred_memory": 1,
+      "task_request": 1,
+      "guidance_format": 1,
+      "feedback_action": 1
+    },
+    "age_band_distribution": {
+      "newborn": 1,
+      "young_infant": 3,
+      "older_infant": 3,
+      "toddler": 4,
+      "early_preschool": 1
+    },
+    "family_size_distribution": {
+      "1": 6,
+      "2": 4,
+      "3": 2
+    },
+    "route_disagreement": {
+      "comparable_count": 11,
+      "mismatch_count": 0,
+      "mismatch_rate": 0.0,
+      "mismatch_ids": []
+    },
+    "classifier": {
+      "evaluated_count": 11,
+      "override_count": 0,
+      "fallback_or_skipped_count": 11,
+      "override_rate": 0.0,
+      "fallback_or_skipped_rate": 1.0
+    },
+    "guidance": {
+      "count": 4,
+      "average_score": 5.25,
+      "min_score": 4.0,
+      "max_score": 7.0
+    }
+  },
+  "phase1_v2": {
+    "version": "phase1-v2",
+    "total_cases": 7,
+    "route_distribution": {
+      "ask": 6,
+      "mixed": 1
+    },
+    "scenario_class_distribution": {
+      "answer_first_guidance": 1,
+      "long_open_ended_guidance_plan": 1,
+      "sleep_early_wake_plan": 1,
+      "behavior_hitting_plan": 1,
+      "mixed_log_plus_guidance": 1,
+      "known_age_no_age_question": 1,
+      "assumptions_and_followup": 1
+    },
+    "age_band_distribution": {
+      "young_infant": 3,
+      "older_infant": 2,
+      "toddler": 2
+    },
+    "family_size_distribution": {
+      "1": 4,
+      "2": 2,
+      "3": 1
+    },
+    "route_disagreement": {
+      "comparable_count": 7,
+      "mismatch_count": 0,
+      "mismatch_rate": 0.0,
+      "mismatch_ids": []
+    },
+    "classifier": {
+      "evaluated_count": 7,
+      "override_count": 0,
+      "fallback_or_skipped_count": 7,
+      "override_rate": 0.0,
+      "fallback_or_skipped_rate": 1.0
+    },
+    "guidance": {
+      "count": 7,
+      "average_score": 6.14,
+      "min_score": 6.0,
+      "max_score": 7.0,
+      "contract_pass_count": 7,
+      "contract_pass_rate": 1.0,
+      "known_age_reask_violation_count": 0,
+      "known_age_reask_violation_rate": 0.0,
+      "per_check_failure_counts": {
+        "starts_with_logged_confirmation": 6
+      },
+      "segment_pass_rates": {
+        "scenario_class": {
+          "answer_first_guidance": {
+            "count": 1,
+            "pass_rate": 1.0
+          },
+          "long_open_ended_guidance_plan": {
+            "count": 1,
+            "pass_rate": 1.0
+          },
+          "sleep_early_wake_plan": {
+            "count": 1,
+            "pass_rate": 1.0
+          },
+          "behavior_hitting_plan": {
+            "count": 1,
+            "pass_rate": 1.0
+          },
+          "mixed_log_plus_guidance": {
+            "count": 1,
+            "pass_rate": 1.0
+          },
+          "known_age_no_age_question": {
+            "count": 1,
+            "pass_rate": 1.0
+          },
+          "assumptions_and_followup": {
+            "count": 1,
+            "pass_rate": 1.0
+          }
+        },
+        "age_band": {
+          "young_infant": {
+            "count": 3,
+            "pass_rate": 1.0
+          },
+          "older_infant": {
+            "count": 2,
+            "pass_rate": 1.0
+          },
+          "toddler": {
+            "count": 2,
+            "pass_rate": 1.0
+          }
+        },
+        "family_size": {
+          "1": {
+            "count": 4,
+            "pass_rate": 1.0
+          },
+          "2": {
+            "count": 2,
+            "pass_rate": 1.0
+          },
+          "3": {
+            "count": 1,
+            "pass_rate": 1.0
+          }
+        }
+      },
+      "hard_fail_invariants": {
+        "ask_write_violations_count": 0,
+        "ask_write_violations": [],
+        "mixed_missing_logged_confirmation_count": 0,
+        "mixed_missing_logged_confirmation": []
+      }
+    },
+    "thresholds": {
+      "phase1_v2": {
+        "guidance_contract_pass_rate": 0.95,
+        "average_guidance_score": 6.0,
+        "min_guidance_score": 5.0,
+        "known_age_reask_violation_rate": 0.0
+      },
+      "threshold_verdicts": {
+        "guidance_contract_pass_rate": "PASS",
+        "average_guidance_score": "PASS",
+        "min_guidance_score": "PASS",
+        "known_age_reask_violation_rate": "PASS",
+        "ask_write_violations": "PASS",
+        "mixed_missing_logged_confirmation": "PASS"
+      }
+    }
+  },
+  "production_telemetry": {
+    "source": "message_feedback.route_metadata",
+    "row_count": 4,
+    "overall_status": "WARN",
+    "notes": [
+      "chat_route_telemetry unavailable: 404: Supabase select failed (table=chat_route_telemetry): status=404, body={\"code\":\"PGRST205\",\"details\":null,\"hint\":\"Perhaps you meant the table 'public.routine_metrics'\",\"message\":\"Could not find the table 'public.chat_route_telemetry' in the schema cache\"}"
+    ],
+    "total_turns": 4,
+    "comparable_count": 0,
+    "mismatch_count": 0,
+    "route_disagreement_rate": 0.0,
+    "ambiguous_eligible_count": 0,
+    "fallback_or_skip_count": 0,
+    "fallback_or_skip_rate": 0.0,
+    "telemetry_complete_count": 4,
+    "telemetry_completeness_rate": 1.0,
+    "route_distribution": {
+      "mixed": 4
+    },
+    "decision_source_distribution": {
+      "rule": 4
+    },
+    "alarms": [
+      {
+        "metric": "sample_size",
+        "severity": "medium",
+        "status": "WARN",
+        "value": 4.0,
+        "threshold": 50.0,
+        "comparator": ">=",
+        "message": "Sample size is low (4) for confident production conclusions (target >= 50)."
+      }
+    ],
+    "thresholds": {
+      "production": {
+        "route_disagreement_rate": 0.03,
+        "fallback_or_skip_rate": 0.2,
+        "telemetry_completeness_rate": 0.99
+      },
+      "threshold_verdicts": {
+        "route_disagreement_rate": "PASS",
+        "fallback_or_skip_rate": "PASS",
+        "telemetry_completeness_rate": "PASS"
+      }
+    }
+  },
+  "green": {
+    "pass": true
+  }
+}
