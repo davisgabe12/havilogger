@@ -43,7 +43,7 @@ def test_mixed_intent_reply_keeps_logged_confirmation_and_guidance() -> None:
     )
     lower = assistant_message.lower()
     assert assistant_message.startswith("Logged:")
-    assert "wake windows" in lower
+    assert "4am" in lower or "sleep time" in lower
     assert "baby pooped at 3pm" not in lower
 
 
@@ -116,13 +116,17 @@ def test_compose_assistant_reply_for_route_returns_mixed_intent_and_logged_prefi
 
 def test_compose_assistant_reply_for_route_uses_openai_guidance_for_ask(monkeypatch) -> None:
     monkeypatch.setenv("ENABLE_OPENAI_GUIDANCE_COMPOSER", "1")
+
     def fake_compose_guidance(*args, **kwargs):
         return (
-            "This is common.\n\n"
+            "That sounds hard, and you're not alone.\n\n"
+            "Assumptions: based on what you shared, I'm assuming this is a recurring pattern.\n\n"
             "1. Step one.\n"
             "2. Step two.\n\n"
+            "3. Step three.\n\n"
             "What not to do: avoid long lectures.\n\n"
-            "Script: I won't let you hit."
+            "Script: I won't let you hit.\n\n"
+            "Tell me one trigger and I can tailor this plan."
         )
 
     monkeypatch.setattr("app.main.compose_guidance_with_openai", fake_compose_guidance)
@@ -163,11 +167,14 @@ def test_compose_assistant_reply_for_route_uses_openai_guidance_for_mixed(monkey
     monkeypatch.setattr(
         "app.main.compose_guidance_with_openai",
         lambda *args, **kwargs: (
-            "This is common.\n\n"
+            "That sounds hard, and you're not alone.\n\n"
+            "Assumptions: based on what you shared, I'm assuming this is a recurring pattern.\n\n"
             "1. Step one.\n"
             "2. Step two.\n\n"
+            "3. Step three.\n\n"
             "What not to do: avoid overreacting.\n\n"
-            "Script: I won't let you hit."
+            "Script: I won't let you hit.\n\n"
+            "Tell me one trigger and I can tailor this plan."
         ),
     )
     actions = [_action_from_segment("baby pooped at 3pm", timezone_value="America/Los_Angeles")]

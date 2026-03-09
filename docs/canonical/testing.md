@@ -25,6 +25,7 @@ This document lists the test and lint commands that are defined in the repo and 
       - `test_message_fallbacks.py` – error/fallback behavior and logging‑only responses.
       - `test_time_anchor.py` – time‑only messages anchored in child timezone.
       - `test_golden_phase0_harness.py` – Phase 0 golden-eval baseline harness (coverage over family size/age bands, route + memory signals + guidance contract scoring, and baseline report artifact at `/tmp/havi_phase0_golden_report.json`).
+      - `test_golden_phase1_v2_harness.py` – Phase 1-v2 answer-first guidance harness (empathy + assumptions + plan steps + no redundant age question + next-turn invite checks, artifact at `/tmp/havi_phase1_v2_golden_report.json`).
     - Knowledge & inferences:
       - `test_knowledge_inference.py` – heuristics in `app.inferences.detect_knowledge_inferences`.
       - `test_inference_lifecycle.py` – inference status transitions.
@@ -66,6 +67,7 @@ This document lists the test and lint commands that are defined in the repo and 
     - Reusing existing fixtures (e.g. `reset_state`, `seed_profile` from `test_conversation_cases.py`) to avoid duplicating DB setup logic.
   - Golden harness command:
     - `cd apps/api && pytest tests/test_golden_phase0_harness.py -q`
+    - `cd apps/api && pytest tests/test_golden_phase1_v2_harness.py -q`
 - **Frontend**
   - Add new Jest tests under `apps/web/src/**/__tests__`.
   - Use Testing Library patterns shown in `timeline-panel.test.tsx` (render, user interactions, assertions).

@@ -1,0 +1,125 @@
+{
+  "version": "phase1-v2",
+  "cases": [
+    {
+      "id": "answer_first_guidance_sleep_4am",
+      "scenario_class": "answer_first_guidance",
+      "family_size": 1,
+      "age_band": "young_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 18,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "why is the baby waking up again at 4am! Help me.",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "long_open_ended_guidance_sleep_plan",
+      "scenario_class": "long_open_ended_guidance_plan",
+      "family_size": 1,
+      "age_band": "older_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 34,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "baby waking up at 4am continually... help me make a plan...",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "sleep_early_wake_plan_toddler",
+      "scenario_class": "sleep_early_wake_plan",
+      "family_size": 2,
+      "age_band": "toddler",
+      "child_name": "Noah",
+      "child_age_weeks": 108,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "my toddler keeps waking at 4am and is up for the day. help me with a plan",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "behavior_hitting_plan",
+      "scenario_class": "behavior_hitting_plan",
+      "family_size": 2,
+      "age_band": "toddler",
+      "child_name": "Noah",
+      "child_age_weeks": 104,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "my baby is hitting, help me",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "mixed_log_plus_guidance_4am",
+      "scenario_class": "mixed_log_plus_guidance",
+      "family_size": 1,
+      "age_band": "young_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 20,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "baby pooped at 3pm. why is the baby waking up again at 4am? help me",
+      "expected_current": {
+        "route_kind": "mixed",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "min_action_count": 1,
+        "assistant_starts_with": "Logged:"
+      }
+    },
+    {
+      "id": "known_age_no_age_question",
+      "scenario_class": "known_age_no_age_question",
+      "family_size": 1,
+      "age_band": "young_infant",
+      "child_name": "Lev",
+      "child_age_weeks": 16,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "baby waking up at 4am continually. what should i do tonight?",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    },
+    {
+      "id": "assumptions_and_followup_schedule",
+      "scenario_class": "assumptions_and_followup",
+      "family_size": 3,
+      "age_band": "older_infant",
+      "child_name": "Emma",
+      "child_age_weeks": 42,
+      "known_age_context": true,
+      "requires_assumptions": true,
+      "message": "everything is messy lately and nights are rough. can you help me make a plan?",
+      "expected_current": {
+        "route_kind": "ask",
+        "memory_target": null,
+        "memory_inference_signal": false,
+        "max_action_count": 0
+      }
+    }
+  ]
+}

@@ -710,6 +710,219 @@ def _build_route_write_policy(*, route_kind: str, classifier_intent: str, has_me
     )
 
 
+async def _build_terminal_chat_response(
+    *,
+    auth: AuthContext,
+    conversation_id: str,
+    user_message_id: str,
+    payload_message: str,
+    question_category: str,
+    assistant_text: str,
+    intent: str,
+    route_metadata: ChatRouteMetadata,
+    start: float,
+    actions: Optional[List[Action]] = None,
+    ui_nudges: Optional[List[str]] = None,
+) -> ChatResponse:
+    assistant_message = await _insert_conversation_message(
+        auth,
+        session_id=conversation_id,
+        role="assistant",
+        content=assistant_text,
+        user_id=auth.user_id,
+        intent=intent,
+    )
+    await _touch_conversation(auth, conversation_id, _now_iso())
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    return ChatResponse(
+        actions=actions or [],
+        raw_message=payload_message,
+        model="havi-local",
+        latency_ms=latency_ms,
+        assistant_message=assistant_text,
+        question_category=question_category,
+        conversation_id=conversation_id,
+        user_message_id=user_message_id,
+        assistant_message_id=assistant_message.id,
+        intent=intent,
+        ui_nudges=ui_nudges or None,
+        route_metadata=route_metadata,
+    )
+
+
+async def _handle_explicit_memory_turn(
+    *,
+    auth: AuthContext,
+    memory_target: Optional[str],
+    route_write_policy: RouteWritePolicy,
+    conversation_id: str,
+    user_message_id: str,
+    payload_message: str,
+    question_category: str,
+    child_id: str,
+    child_row: Dict[str, Any],
+    route_metadata: ChatRouteMetadata,
+    start: float,
+) -> Optional[ChatResponse]:
+    if not (memory_target and route_write_policy.allow_explicit_memory_writes):
+        return None
+    now_iso = _now_iso()
+    summary_text = _strip_memory_prefix(payload_message)
+    age_weeks = _child_age_weeks(child_row) if child_row else None
+    age_range = _age_range_weeks(age_weeks)
+    created = await auth.supabase.insert(
+        "knowledge_items",
+        {
+            "family_id": auth.family_id,
+            "user_id": auth.user_id,
+            "subject_id": child_id,
+            "key": "manual_memory",
+            "type": KnowledgeItemType.EXPLICIT.value,
+            "status": KnowledgeItemStatus.ACTIVE.value,
+            "payload": {"summary": summary_text},
+            "confidence": "medium",
+            "age_range_weeks": age_range,
+            "activated_at": now_iso,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        },
+    )
+    if not created:
+        raise HTTPException(status_code=500, detail="Unable to save memory.")
+    return await _build_terminal_chat_response(
+        auth=auth,
+        conversation_id=conversation_id,
+        user_message_id=user_message_id,
+        payload_message=payload_message,
+        question_category=question_category,
+        assistant_text="Got it — I’ll remember that.",
+        intent="memory",
+        route_metadata=route_metadata,
+        start=start,
+    )
+
+
+async def _handle_task_turn(
+    *,
+    auth: AuthContext,
+    route_write_policy: RouteWritePolicy,
+    conversation_id: str,
+    user_message_id: str,
+    payload_message: str,
+    question_category: str,
+    child_id: str,
+    timezone_value: Optional[str],
+    route_metadata: ChatRouteMetadata,
+    start: float,
+) -> Optional[ChatResponse]:
+    if not route_write_policy.allow_task_writes:
+        return None
+    now_iso = _now_iso()
+    task_title = extract_task_title(payload_message)
+    task_due_at = extract_task_due_at(payload_message, timezone_value)
+    task_remind_at = extract_task_remind_at(payload_message, timezone_value)
+    created_task = await auth.supabase.insert(
+        "tasks",
+        {
+            "family_id": auth.family_id,
+            "child_id": child_id,
+            "title": task_title,
+            "status": "open",
+            "due_at": task_due_at,
+            "remind_at": task_remind_at,
+            "created_by_user_id": auth.user_id,
+            "assigned_to_user_id": auth.user_id,
+            "created_at": now_iso,
+        },
+    )
+    if not created_task:
+        raise HTTPException(status_code=500, detail="Unable to create task.")
+    return await _build_terminal_chat_response(
+        auth=auth,
+        conversation_id=conversation_id,
+        user_message_id=user_message_id,
+        payload_message=payload_message,
+        question_category=question_category,
+        assistant_text=f"Got it — I added “{task_title}” to your tasks.",
+        intent="task",
+        route_metadata=route_metadata,
+        start=start,
+    )
+
+
+async def _persist_route_actions(
+    *,
+    auth: AuthContext,
+    route_write_policy: RouteWritePolicy,
+    mixed_route: bool,
+    mixed_logging_segments: List[str],
+    payload: ChatRequest,
+    timezone_value: Optional[str],
+    child_id: str,
+    user_message_id: str,
+) -> List[Action]:
+    if not route_write_policy.allow_timeline_activity_writes:
+        return []
+
+    segments = mixed_logging_segments if mixed_route else _split_message_into_events(payload.message)
+    actions = [
+        _action_from_segment(segment, timezone_value)
+        for segment in segments
+        if segment
+    ]
+    for action in actions:
+        event_type = _timeline_type_for_action(action)
+        if not event_type:
+            continue
+        event_start = action.timestamp
+        if event_start.tzinfo is None:
+            event_start = event_start.replace(tzinfo=timezone.utc)
+        start_iso = event_start.astimezone(timezone.utc).isoformat()
+        end_iso = None
+        if action.action_type == CoreActionType.SLEEP and action.metadata.duration_minutes:
+            end_iso = (
+                event_start
+                + timedelta(minutes=action.metadata.duration_minutes)
+            ).astimezone(timezone.utc).isoformat()
+        await _insert_timeline_event(
+            auth,
+            child_id=child_id,
+            event_type=event_type,
+            title=_timeline_title_for_action(action),
+            detail=_timeline_detail_for_action(action),
+            amount_label=_timeline_amount_label(action),
+            start_iso=start_iso,
+            end_iso=end_iso,
+            source=payload.source or "chat",
+            origin_message_id=user_message_id,
+            has_note=bool(action.note),
+            is_custom=not action.is_core_action,
+        )
+    if actions:
+        await auth.supabase.insert(
+            "activity_logs",
+            {
+                "family_id": auth.family_id,
+                "child_id": child_id,
+                "user_id": auth.user_id,
+                "actions_json": [action.model_dump(mode="json") for action in actions],
+                "source": payload.source or "chat",
+            },
+        )
+    inference = _detect_memory_inference(payload.message)
+    if inference and route_write_policy.allow_inference_memory_writes:
+        inference_type, inference_payload, confidence = inference
+        await _maybe_create_inference(
+            auth,
+            child_id=child_id,
+            inference_type=inference_type,
+            payload=inference_payload,
+            confidence=confidence,
+            source="chat",
+        )
+    return actions
+
+
 def _compose_assistant_reply_for_route(
     *,
     route_kind: str,
@@ -897,11 +1110,40 @@ def _guidance_contract_is_valid(text: str) -> bool:
     if not content:
         return False
     lower = content.lower()
-    has_numbered_steps = bool(re.search(r"(^|\n)\s*1[\.\)]\s+", content))
+    step_count = len(re.findall(r"(^|\n)\s*\d+[\.\)]\s+", content, re.MULTILINE))
+    has_numbered_steps = step_count >= 3
     has_not_to_do = "what not to do" in lower or "avoid" in lower
     has_script = "script" in lower or "i won't let you" in lower
+    has_assumptions = (
+        "assumption" in lower
+        or "i'm assuming" in lower
+        or "i am assuming" in lower
+        or "based on what you shared" in lower
+    )
+    has_next_turn_invite = any(
+        token in lower for token in ["tell me", "reply with", "if you share", "want me to"]
+    )
+    has_empathy_opening = any(
+        token in lower[:220]
+        for token in [
+            "that sounds",
+            "that's hard",
+            "you are not alone",
+            "you're not alone",
+            "this is exhausting",
+            "that is exhausting",
+        ]
+    )
     question_count = content.count("?")
-    return has_numbered_steps and has_not_to_do and has_script and question_count <= 2
+    return (
+        has_numbered_steps
+        and has_not_to_do
+        and has_script
+        and has_assumptions
+        and has_next_turn_invite
+        and has_empathy_opening
+        and question_count <= 2
+    )
 
 
 async def _build_context_bundle(
@@ -1197,165 +1439,48 @@ async def capture_activity(
     )
     route_metadata.composer_source = "rule"
     route_metadata.composer_fallback_reason = "route_not_composed"
-    if memory_target and route_write_policy.allow_explicit_memory_writes:
-        now_iso = _now_iso()
-        summary_text = _strip_memory_prefix(payload.message)
-        age_weeks = _child_age_weeks(child_row) if child_row else None
-        age_range = _age_range_weeks(age_weeks)
-        created = await auth.supabase.insert(
-            "knowledge_items",
-            {
-                "family_id": auth.family_id,
-                "user_id": auth.user_id,
-                "subject_id": child_id,
-                "key": "manual_memory",
-                "type": KnowledgeItemType.EXPLICIT.value,
-                "status": KnowledgeItemStatus.ACTIVE.value,
-                "payload": {"summary": summary_text},
-                "confidence": "medium",
-                "age_range_weeks": age_range,
-                "activated_at": now_iso,
-                "created_at": now_iso,
-                "updated_at": now_iso,
-            },
-        )
-        if not created:
-            raise HTTPException(status_code=500, detail="Unable to save memory.")
-        assistant_text = "Got it — I’ll remember that."
-        assistant_message = await _insert_conversation_message(
-            auth,
-            session_id=conversation_id,
-            role="assistant",
-            content=assistant_text,
-            user_id=auth.user_id,
-            intent="memory",
-        )
-        await _touch_conversation(auth, conversation_id, now_iso)
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        return ChatResponse(
-            actions=[],
-            raw_message=payload.message,
-            model="havi-local",
-            latency_ms=latency_ms,
-            assistant_message=assistant_text,
-            question_category=question_category,
-            conversation_id=conversation_id,
-            user_message_id=user_message.id,
-            assistant_message_id=assistant_message.id,
-            intent="memory",
-            route_metadata=route_metadata,
-        )
-    if route_write_policy.allow_task_writes:
-        now_iso = _now_iso()
-        task_title = extract_task_title(payload.message)
-        task_due_at = extract_task_due_at(payload.message, timezone_value)
-        task_remind_at = extract_task_remind_at(payload.message, timezone_value)
-        created_task = await auth.supabase.insert(
-            "tasks",
-            {
-                "family_id": auth.family_id,
-                "child_id": child_id,
-                "title": task_title,
-                "status": "open",
-                "due_at": task_due_at,
-                "remind_at": task_remind_at,
-                "created_by_user_id": auth.user_id,
-                "assigned_to_user_id": auth.user_id,
-                "created_at": now_iso,
-            },
-        )
-        if not created_task:
-            raise HTTPException(status_code=500, detail="Unable to create task.")
-        assistant_text = f"Got it — I added “{task_title}” to your tasks."
-        assistant_message = await _insert_conversation_message(
-            auth,
-            session_id=conversation_id,
-            role="assistant",
-            content=assistant_text,
-            user_id=auth.user_id,
-            intent="task",
-        )
-        await _touch_conversation(auth, conversation_id, now_iso)
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        return ChatResponse(
-            actions=[],
-            raw_message=payload.message,
-            model="havi-local",
-            latency_ms=latency_ms,
-            assistant_message=assistant_text,
-            question_category=question_category,
-            conversation_id=conversation_id,
-            user_message_id=user_message.id,
-            assistant_message_id=assistant_message.id,
-            intent="task",
-            route_metadata=route_metadata,
-        )
-    actions: List[Action] = []
-    assistant_text: str
-    ui_nudges: List[str] = []
-    intent = "logging"
+    memory_response = await _handle_explicit_memory_turn(
+        auth=auth,
+        memory_target=memory_target,
+        route_write_policy=route_write_policy,
+        conversation_id=conversation_id,
+        user_message_id=user_message.id,
+        payload_message=payload.message,
+        question_category=question_category,
+        child_id=child_id,
+        child_row=child_row,
+        route_metadata=route_metadata,
+        start=start,
+    )
+    if memory_response is not None:
+        return memory_response
 
-    if route_write_policy.allow_timeline_activity_writes:
-        segments = (
-            mixed_logging_segments
-            if mixed_route
-            else _split_message_into_events(payload.message)
-        )
-        actions = [
-            _action_from_segment(segment, timezone_value)
-            for segment in segments
-            if segment
-        ]
-        for action in actions:
-            event_type = _timeline_type_for_action(action)
-            if not event_type:
-                continue
-            event_start = action.timestamp
-            if event_start.tzinfo is None:
-                event_start = event_start.replace(tzinfo=timezone.utc)
-            start_iso = event_start.astimezone(timezone.utc).isoformat()
-            end_iso = None
-            if action.action_type == CoreActionType.SLEEP and action.metadata.duration_minutes:
-                end_iso = (
-                    event_start
-                    + timedelta(minutes=action.metadata.duration_minutes)
-                ).astimezone(timezone.utc).isoformat()
-            await _insert_timeline_event(
-                auth,
-                child_id=child_id,
-                event_type=event_type,
-                title=_timeline_title_for_action(action),
-                detail=_timeline_detail_for_action(action),
-                amount_label=_timeline_amount_label(action),
-                start_iso=start_iso,
-                end_iso=end_iso,
-                source=payload.source or "chat",
-                origin_message_id=user_message.id,
-                has_note=bool(action.note),
-                is_custom=not action.is_core_action,
-            )
-        if actions:
-            await auth.supabase.insert(
-                "activity_logs",
-                {
-                    "family_id": auth.family_id,
-                    "child_id": child_id,
-                    "user_id": auth.user_id,
-                    "actions_json": [action.model_dump(mode="json") for action in actions],
-                    "source": payload.source or "chat",
-                },
-            )
-        inference = _detect_memory_inference(payload.message)
-        if inference and route_write_policy.allow_inference_memory_writes:
-            inference_type, inference_payload, confidence = inference
-            await _maybe_create_inference(
-                auth,
-                child_id=child_id,
-                inference_type=inference_type,
-                payload=inference_payload,
-                confidence=confidence,
-                source="chat",
-            )
+    task_response = await _handle_task_turn(
+        auth=auth,
+        route_write_policy=route_write_policy,
+        conversation_id=conversation_id,
+        user_message_id=user_message.id,
+        payload_message=payload.message,
+        question_category=question_category,
+        child_id=child_id,
+        timezone_value=timezone_value,
+        route_metadata=route_metadata,
+        start=start,
+    )
+    if task_response is not None:
+        return task_response
+
+    actions = await _persist_route_actions(
+        auth=auth,
+        route_write_policy=route_write_policy,
+        mixed_route=mixed_route,
+        mixed_logging_segments=mixed_logging_segments,
+        payload=payload,
+        timezone_value=timezone_value,
+        child_id=child_id,
+        user_message_id=user_message.id,
+    )
+    ui_nudges: List[str] = []
     compose_result = _compose_assistant_reply_for_route(
         route_kind=route_decision.route_kind,
         classifier_intent=intent_result.intent,
@@ -1384,30 +1509,18 @@ async def capture_activity(
         },
     )
 
-    assistant_message = await _insert_conversation_message(
-        auth,
-        session_id=conversation_id,
-        role="assistant",
-        content=assistant_text,
-        user_id=auth.user_id,
-        intent=intent,
-    )
-
-    await _touch_conversation(auth, conversation_id, _now_iso())
-    latency_ms = int((time.perf_counter() - start) * 1000)
-    return ChatResponse(
-        actions=actions,
-        raw_message=payload.message,
-        model="havi-local",
-        latency_ms=latency_ms,
-        assistant_message=assistant_text,
-        question_category=question_category,
+    return await _build_terminal_chat_response(
+        auth=auth,
         conversation_id=conversation_id,
         user_message_id=user_message.id,
-        assistant_message_id=assistant_message.id,
+        payload_message=payload.message,
+        question_category=question_category,
+        assistant_text=assistant_text,
         intent=intent,
-        ui_nudges=ui_nudges or None,
         route_metadata=route_metadata,
+        start=start,
+        actions=actions,
+        ui_nudges=ui_nudges,
     )
 
 @app.get("/")
@@ -4298,6 +4411,88 @@ def build_four_f_lines(
     )
 
 
+def _sleep_plan_guidance(
+    *,
+    child_name: str,
+    weeks: Optional[int],
+    message: str,
+    context_actions: List[Action],
+    timezone_pref: Optional[str],
+) -> str:
+    age_line = f"around week {weeks}" if weeks is not None else "at this stage"
+    context_line = describe_recent_context(context_actions, timezone_pref)
+    assumptions_line = (
+        f"Assumptions: based on what you shared, I'm assuming {child_name} is {age_line} "
+        "and this is a recurring early wake pattern rather than a new illness."
+    )
+    steps = [
+        "1. Keep the same wake-up anchor for 3 mornings in a row to reset circadian timing.",
+        "2. Treat 4am wakes as night: low lights, short check-ins, and minimal stimulation.",
+        "3. Shift bedtime 15 minutes earlier for 2-3 nights if the last wake window is long.",
+        "4. Protect daytime nap timing so overtiredness does not amplify early wakes.",
+    ]
+    what_not = (
+        "What not to do: avoid starting the day at 4am, large feed/play parties, or "
+        "swinging bedtime by an hour night-to-night."
+    )
+    script = (
+        "Script: \"It's still sleep time. I'm here, and we'll start the day when the light is on.\""
+    )
+    invite = (
+        "Reply with the last two bedtimes, wake times, and first-feed times; "
+        "I can tune this into a tighter 3-day plan."
+    )
+    opener = (
+        f"That sounds exhausting, and you are not alone with 4am wakes. "
+        f"{context_line}" if context_line else "That sounds exhausting, and you are not alone with 4am wakes."
+    )
+    return "\n\n".join([opener, assumptions_line, *steps, what_not, script, invite]).strip()
+
+
+def _behavior_hitting_guidance(
+    *,
+    child_name: str,
+    weeks: Optional[int],
+) -> str:
+    age_line = f"around week {weeks}" if weeks is not None else "at this stage"
+    return "\n\n".join(
+        [
+            "That is hard, and you are not alone; hitting is common in this phase.",
+            (
+                f"Assumptions: based on what you shared, I'm assuming {child_name} is {age_line} "
+                "and testing limits during transitions."
+            ),
+            "1. Stay calm and block the hit immediately so no one gets hurt.",
+            "2. Use a short limit line and show the replacement behavior: gentle hands.",
+            "3. Redirect to a safe outlet (pillow, stomp, squeeze) and praise recovery quickly.",
+            "4. Rehearse gentle touch during calm moments so the skill is available under stress.",
+            "What not to do: avoid long lectures, yelling, or delayed consequences they cannot connect.",
+            "Script: \"I won't let you hit. Hands stay gentle. You can hit the pillow instead.\"",
+            "Tell me the two most common trigger moments and I can tailor a transition script for each.",
+        ]
+    ).strip()
+
+
+def _routine_plan_guidance(*, child_name: str, weeks: Optional[int]) -> str:
+    age_line = f"around week {weeks}" if weeks is not None else "for this stage"
+    return "\n\n".join(
+        [
+            "That sounds hard, and you are not alone when the day feels chaotic.",
+            (
+                f"Assumptions: based on what you shared, I'm assuming {child_name} is {age_line} "
+                "and your current routine lacks stable anchors."
+            ),
+            "1. Pick two non-negotiable anchors first: wake-up time and bedtime.",
+            "2. Build daytime blocks around those anchors (feed, play, sleep) with 15-30 minute flexibility.",
+            "3. Keep one calming pre-sleep sequence consistent so cues stay predictable.",
+            "4. Review once daily and adjust only one variable at a time for cleaner signal.",
+            "What not to do: avoid rebuilding the entire routine every day after one rough block.",
+            "Script: \"We'll keep this simple today: same wake, same wind-down, one small adjustment.\"",
+            "Reply with your current wake-up and bedtime anchor and I can draft a concrete day plan.",
+        ]
+    ).strip()
+
+
 def stage_guidance(
     message: str,
     child_data: dict,
@@ -4307,16 +4502,36 @@ def stage_guidance(
     lower = message.lower()
     requested_week = parse_week_from_message(lower)
     aggression_pattern = r"\b(hit(ting|s)?|smack(ed|ing|s)?|slap(ped|ping|s)?|swat(ted|ting|s)?|punch(ed|ing|es)?|kick(ed|ing|s)?)\b"
+    child_name = child_data.get("first_name") or "your child"
+    weeks = requested_week or compute_child_weeks(child_data)
+    timezone_pref = child_data.get("timezone")
+    plan_request = any(
+        token in lower
+        for token in [
+            "help me",
+            "make a plan",
+            "what should i do",
+            "plan",
+            "continually",
+            "keeps waking",
+        ]
+    )
+    sleep_signals = any(
+        token in lower for token in ["wake", "waking", "4am", "early wake", "night wake", "night waking"]
+    )
+
     if re.search(aggression_pattern, lower):
-        return (
-            "Hitting can be a common cause-and-effect test. "
-            "1) Stay calm and block the swing so no one gets hurt. "
-            "2) Label “gentle hands” and guide a soft touch so your child knows what to do instead. "
-            "3) Redirect to a pillow, stuffed animal, or other safe target to get the energy out. "
-            "4) Later, praise gentle touches and call out the behavior you want more of. "
-            "Red flags—call your pediatrician if hits leave marks or bruises, happen very frequently and feel out of control, "
-            "or come with loss of eye contact or other skills."
+        return _behavior_hitting_guidance(child_name=child_name, weeks=weeks)
+    if question_category == "sleep" or (plan_request and sleep_signals):
+        return _sleep_plan_guidance(
+            child_name=child_name,
+            weeks=weeks,
+            message=message,
+            context_actions=context_actions,
+            timezone_pref=timezone_pref,
         )
+    if question_category == "routine" or plan_request:
+        return _routine_plan_guidance(child_name=child_name, weeks=weeks)
     expectation_terms = [
         "week",
         "expect",
@@ -4334,14 +4549,14 @@ def stage_guidance(
     should_answer = any(term in lower for term in expectation_terms) or requested_week is not None
     if not should_answer and question_category not in {"sleep", "routine"}:
         return ""
-    child_name = child_data.get("first_name") or "your child"
-    weeks = requested_week or compute_child_weeks(child_data)
     if weeks is None:
         if question_category == "sleep":
-            return (
-                f"Here’s a quick sleep check-in for {child_name}: aim for calm wind-downs, predictable wake windows "
-                "when you can, and a consistent wake-up anchor. Reach out to your pediatrician if you see breathing "
-                "changes or very hard-to-soothe nights."
+            return _sleep_plan_guidance(
+                child_name=child_name,
+                weeks=weeks,
+                message=message,
+                context_actions=context_actions,
+                timezone_pref=timezone_pref,
             )
         return (
             f"Here’s a quick checkpoint for {child_name}: steady feeds, several wet diapers, calm alert periods, "
@@ -4350,7 +4565,6 @@ def stage_guidance(
     tip = pick_stage_tip(weeks)
     if not tip:
         return ""
-    timezone_pref = child_data.get("timezone")
     context_line = describe_recent_context(context_actions, timezone_pref)
     cdc_line = tip.get("cdc", "")
     aap_line = tip.get("aap", "")

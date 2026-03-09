@@ -115,6 +115,8 @@ Sync rule:
 13. GREEN feedback assertions now verify outgoing thumbs payload includes `model_version` and route metadata (`response_metadata.route_metadata.route_kind`).
 14. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
 15. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
+16. New Phase1-v2 golden harness is active for answer-first guidance quality checks (empathy, assumptions, immediate plan steps, known-age no re-ask, next-turn invite, mixed log confirmation).
+17. Production core smoke now emits per-turn route telemetry in JSON artifacts, and quality reporting now includes production disagreement/fallback/completeness threshold verdicts.
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:
@@ -138,9 +140,9 @@ Sync rule:
 - GREEN gate now passed twice consecutively in local validation.
 - Production core smoke also passed on March 5, 2026 for both existing-account and new-signup flows.
 
-5. Reporting follow-up (March 5, 2026, later run):
-- Quality snapshot baseline now includes segmented distributions and disagreement/fallback analytics from golden harness output.
-- Remaining gap is production-side telemetry aggregation (not just golden-harness artifacts).
+5. Reporting follow-up (March 8, 2026):
+- Quality snapshot now supports dual-track reporting (`phase0` + `phase1_v2`) and production telemetry threshold verdicts.
+- Production core smoke artifacts now carry turn telemetry (`turn_telemetry`) for disagreement/fallback/completeness aggregation.
 
 ## Proposed Solution
 

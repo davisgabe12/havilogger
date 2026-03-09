@@ -264,10 +264,24 @@ run_core_flow() {
   api_call "POST" "/api/v1/activities" "$token" "$family_id" "$child_id" "$tracking_payload"
   assert_status_200 "Tracking message"
   local tracking_intent tracking_actions
+  local tracking_route_kind tracking_decision_source tracking_classifier_intent tracking_confidence
+  local tracking_classifier_fallback tracking_composer_source tracking_composer_fallback
   tracking_intent="$(jq -r '.intent // empty' <<<"$API_BODY")"
   tracking_actions="$(jq -r '.actions | length' <<<"$API_BODY")"
+  tracking_route_kind="$(jq -r '.route_metadata.route_kind // empty' <<<"$API_BODY")"
+  tracking_decision_source="$(jq -r '.route_metadata.decision_source // empty' <<<"$API_BODY")"
+  tracking_classifier_intent="$(jq -r '.route_metadata.classifier_intent // empty' <<<"$API_BODY")"
+  tracking_confidence="$(jq -r '.route_metadata.confidence // 0' <<<"$API_BODY")"
+  tracking_classifier_fallback="$(jq -r '.route_metadata.classifier_fallback_reason // empty' <<<"$API_BODY")"
+  tracking_composer_source="$(jq -r '.route_metadata.composer_source // empty' <<<"$API_BODY")"
+  tracking_composer_fallback="$(jq -r '.route_metadata.composer_fallback_reason // empty' <<<"$API_BODY")"
   if [[ "$tracking_intent" != "logging" || "$tracking_actions" -lt 1 ]]; then
     echo "[fail] Tracking classification unexpected intent=${tracking_intent} actions=${tracking_actions}"
+    echo "$API_BODY" | jq -C . || true
+    exit 1
+  fi
+  if [[ -n "$tracking_route_kind" && "$tracking_route_kind" != "log" ]]; then
+    echo "[fail] Tracking route_kind unexpected route_kind=${tracking_route_kind}"
     echo "$API_BODY" | jq -C . || true
     exit 1
   fi
@@ -320,10 +334,24 @@ run_core_flow() {
   api_call "POST" "/api/v1/activities" "$token" "$family_id" "$child_id" "$guidance_payload"
   assert_status_200 "Guidance message"
   local guidance_intent guidance_actions
+  local guidance_route_kind guidance_decision_source guidance_classifier_intent guidance_confidence
+  local guidance_classifier_fallback guidance_composer_source guidance_composer_fallback
   guidance_intent="$(jq -r '.intent // empty' <<<"$API_BODY")"
   guidance_actions="$(jq -r '.actions | length' <<<"$API_BODY")"
+  guidance_route_kind="$(jq -r '.route_metadata.route_kind // empty' <<<"$API_BODY")"
+  guidance_decision_source="$(jq -r '.route_metadata.decision_source // empty' <<<"$API_BODY")"
+  guidance_classifier_intent="$(jq -r '.route_metadata.classifier_intent // empty' <<<"$API_BODY")"
+  guidance_confidence="$(jq -r '.route_metadata.confidence // 0' <<<"$API_BODY")"
+  guidance_classifier_fallback="$(jq -r '.route_metadata.classifier_fallback_reason // empty' <<<"$API_BODY")"
+  guidance_composer_source="$(jq -r '.route_metadata.composer_source // empty' <<<"$API_BODY")"
+  guidance_composer_fallback="$(jq -r '.route_metadata.composer_fallback_reason // empty' <<<"$API_BODY")"
   if [[ "$guidance_actions" -ne 0 ]]; then
     echo "[fail] Guidance created actions unexpectedly (intent=${guidance_intent}, actions=${guidance_actions})"
+    echo "$API_BODY" | jq -C . || true
+    exit 1
+  fi
+  if [[ -n "$guidance_route_kind" && "$guidance_route_kind" != "ask" ]]; then
+    echo "[fail] Guidance route_kind unexpected route_kind=${guidance_route_kind}"
     echo "$API_BODY" | jq -C . || true
     exit 1
   fi
@@ -373,13 +401,27 @@ run_core_flow() {
     --arg renamed_title "$renamed_title" \
     --arg title_after_follow_up "$title_after_follow_up" \
     --arg tracking_intent "$tracking_intent" \
+    --arg tracking_route_kind "$tracking_route_kind" \
+    --arg tracking_decision_source "$tracking_decision_source" \
+    --arg tracking_classifier_intent "$tracking_classifier_intent" \
+    --argjson tracking_confidence "$tracking_confidence" \
+    --arg tracking_classifier_fallback "$tracking_classifier_fallback" \
+    --arg tracking_composer_source "$tracking_composer_source" \
+    --arg tracking_composer_fallback "$tracking_composer_fallback" \
     --arg guidance_intent "$guidance_intent" \
+    --arg guidance_route_kind "$guidance_route_kind" \
+    --arg guidance_decision_source "$guidance_decision_source" \
+    --arg guidance_classifier_intent "$guidance_classifier_intent" \
+    --argjson guidance_confidence "$guidance_confidence" \
+    --arg guidance_classifier_fallback "$guidance_classifier_fallback" \
+    --arg guidance_composer_source "$guidance_composer_source" \
+    --arg guidance_composer_fallback "$guidance_composer_fallback" \
     --argjson before_count "$before_count" \
     --argjson after_tracking_count "$after_tracking_count" \
     --argjson after_guidance_count "$after_guidance_count" \
     --argjson tracking_actions "$tracking_actions" \
     --argjson guidance_actions "$guidance_actions" \
-    '{label:$label,mode:$mode,email:$email,family_id:$family_id,child_id:$child_id,conversation_id:$conversation_id,task_id:$task_id,auto_title:$auto_title,renamed_title:$renamed_title,title_after_follow_up:$title_after_follow_up,tracking_intent:$tracking_intent,guidance_intent:$guidance_intent,tracking_actions:$tracking_actions,guidance_actions:$guidance_actions,events_before:$before_count,events_after_tracking:$after_tracking_count,events_after_guidance:$after_guidance_count}')")
+    '{label:$label,mode:$mode,email:$email,family_id:$family_id,child_id:$child_id,conversation_id:$conversation_id,task_id:$task_id,auto_title:$auto_title,renamed_title:$renamed_title,title_after_follow_up:$title_after_follow_up,tracking_intent:$tracking_intent,guidance_intent:$guidance_intent,tracking_actions:$tracking_actions,guidance_actions:$guidance_actions,events_before:$before_count,events_after_tracking:$after_tracking_count,events_after_guidance:$after_guidance_count,turn_telemetry:[{turn:"tracking",expected_route_kind:"log",route_kind:($tracking_route_kind // ""),decision_source:($tracking_decision_source // ""),classifier_intent:($tracking_classifier_intent // ""),confidence:($tracking_confidence // 0),classifier_fallback_reason:($tracking_classifier_fallback // ""),composer_source:($tracking_composer_source // ""),composer_fallback_reason:($tracking_composer_fallback // "")},{turn:"guidance",expected_route_kind:"ask",route_kind:($guidance_route_kind // ""),decision_source:($guidance_decision_source // ""),classifier_intent:($guidance_classifier_intent // ""),confidence:($guidance_confidence // 0),classifier_fallback_reason:($guidance_classifier_fallback // ""),composer_source:($guidance_composer_source // ""),composer_fallback_reason:($guidance_composer_fallback // "")}]}')")
 
   REQ_COUNT=$((REQ_COUNT + 1))
 }

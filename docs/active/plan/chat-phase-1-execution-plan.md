@@ -62,14 +62,12 @@ This plan is intentionally scoped to message/chat behavior only.
   - deterministic fallback is enforced when model guidance is unavailable or contract-invalid
 
 2. In progress:
-- `P1-A2` orchestrator integration in `/api/v1/activities` (full extraction and cleanup not complete yet).
-- `P1-F2` disagreement-rate and fallback-rate reporting from production telemetry.
-- `P1-D2` long/open-ended ask quality tuning with stricter eval gates.
+- release evidence pass for the latest slice (deploy + production core smoke + production UI smoke gate + proof bundle curation).
 
 3. Next:
-- complete `P1-A2` endpoint extraction/cleanup so one orchestrator path is unambiguous in code ownership.
-- complete production telemetry aggregation for disagreement-rate and fallback-rate reporting.
-- tighten long/open-ended ask quality gates in golden scenarios and keep GREEN/prod smoke stable.
+- maintain threshold stability from the new `phase1-v2` harness while widening model rollout carefully.
+- monitor production telemetry threshold verdicts (`route_disagreement`, `fallback_or_skip`, `telemetry_completeness`) after each release slice.
+- keep GREEN + prod smoke artifacts current for every behavior-affecting change.
 
 ## Execution Log (March 5, 2026)
 1. Shipped:
@@ -142,6 +140,57 @@ This plan is intentionally scoped to message/chat behavior only.
 
 3. Remaining work in this area:
 - production telemetry ingestion and dashboards for disagreement/fallback rates.
+
+## Progress Update (March 8, 2026, phase1-v2 gates + cleanup)
+1. `P1-A2b` orchestrator cleanup completed:
+- `/api/v1/activities` now runs through explicit helper stages in one canonical path:
+  - terminal response finalizer
+  - explicit memory handler
+  - task handler
+  - route-gated activity write persistence
+- Primary file: [main.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py)
+
+2. `P1-D2` stricter long/open-ended guidance quality gates completed:
+- Added answer-first deterministic guidance shape for sleep/early-wake, behavior/hitting, and plan/routine asks:
+  - empathy opening
+  - assumptions block
+  - 3+ concrete numbered steps
+  - what-not-to-do section
+  - reusable parent script
+  - next-turn invite
+- Hardened model guidance contract validator to require the same structure before model output is accepted.
+- Primary file: [main.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py)
+
+3. `P1-F2` production telemetry aggregation path completed:
+- Production smoke now records per-turn route telemetry in `turn_telemetry`:
+  - `route_kind`, `decision_source`, `classifier_intent`, `confidence`,
+  - `classifier_fallback_reason`, `composer_source`, `composer_fallback_reason`,
+  - plus `expected_route_kind` for disagreement-rate rollups.
+- Quality report now supports dual-track eval (`phase0` + `phase1_v2`) and production telemetry thresholds with explicit `PASS/BLOCK` verdicts.
+- Primary files:
+  - [prod_core_smoke.sh](/Users/gabedavis/Desktop/projects/havilogger/scripts/prod_core_smoke.sh)
+  - [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py)
+
+4. New Phase1-v2 golden eval track added (Phase 0 preserved):
+- Fixture:
+  - [golden_chat_cases_phase1_v2.json](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/fixtures/golden_chat_cases_phase1_v2.json)
+- Harness:
+  - [test_golden_phase1_v2_harness.py](/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_golden_phase1_v2_harness.py)
+- Contract checks include:
+  - `has_empathy_opening`
+  - `has_immediate_plan_steps`
+  - `asks_age_only_when_missing_context`
+  - `has_assumptions_when_uncertain`
+  - follow-up question budget (`<=2`)
+  - `has_next_turn_invite`
+  - `starts_with_logged_confirmation` for mixed route
+
+5. Latest validation (March 8, 2026):
+- `cd apps/api && ../../.venv/bin/pytest tests/test_router_openai_classifier.py tests/test_feedback_route_supabase.py tests/test_chat_routing_logic.py tests/test_chat_composition_hardening.py tests/test_assistant_message.py tests/test_golden_phase0_harness.py tests/test_golden_phase1_v2_harness.py -q`
+  - Result: `37 passed`
+- Report generation:
+  - `./.venv/bin/python scripts/chat_quality_report.py --golden-report /tmp/havi_phase0_golden_report.json --phase1-v2-report /tmp/havi_phase1_v2_golden_report.json --production-telemetry-report docs/active/green-proof/prod-core-smoke-after-homepage-brand-refresh-release-20260306.json --green-pass`
+  - Artifact: [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json)
 
 ## Goals
 1. Canonical runtime ownership:
