@@ -93,50 +93,21 @@ async def _save_feedback(
         "conversation_id": conversation_id,
         "message_id": message_id,
         "user_id": auth.user_id,
-        "session_id": payload.session_id,
+        # Authenticated feedback should key on user identity only.
+        # Keeping this null avoids cross-user conflicts on session-scoped unique indexes.
+        "session_id": None,
         "rating": payload.rating,
         "feedback_text": payload.feedback_text,
         "model_version": model_version,
         "response_metadata": response_metadata,
     }
 
-    existing_rows = await auth.supabase.select(
-        "message_feedback",
-        params={
-            "select": (
-                "id,conversation_id,message_id,user_id,session_id,rating,feedback_text,"
-                "model_version,response_metadata"
-            ),
-            "conversation_id": f"eq.{conversation_id}",
-            "message_id": f"eq.{message_id}",
-            "user_id": f"eq.{auth.user_id}",
-            "limit": "1",
-        },
-    )
-
-    if existing_rows:
-        existing_id = existing_rows[0].get("id")
-        updated_rows = await auth.supabase.update(
-            "message_feedback",
-            feedback_payload,
-            params={"id": f"eq.{existing_id}"},
-        )
-        if updated_rows:
-            return updated_rows[0]
-        return {
-            "id": existing_id,
-            "conversation_id": conversation_id,
-            "message_id": message_id,
-            "user_id": auth.user_id,
-            "rating": payload.rating,
-            "feedback_text": payload.feedback_text,
-        }
-
-    created_rows = await auth.supabase.insert(
+    saved_rows = await auth.supabase.upsert(
         "message_feedback",
         feedback_payload,
+        on_conflict="conversation_id,message_id,user_id",
     )
-    return created_rows[0] if created_rows else {
+    return saved_rows[0] if saved_rows else {
         "conversation_id": conversation_id,
         "message_id": message_id,
         "user_id": auth.user_id,

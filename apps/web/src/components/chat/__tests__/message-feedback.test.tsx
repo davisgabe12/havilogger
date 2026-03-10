@@ -49,7 +49,6 @@ describe("MessageFeedback", () => {
       message_id: "123",
       rating: "up",
       feedback_text: null,
-      session_id: "42",
     });
   });
 
@@ -82,7 +81,6 @@ describe("MessageFeedback", () => {
       message_id: "123",
       rating: "down",
       feedback_text: "Too vague",
-      session_id: "42",
     });
   });
 
@@ -110,7 +108,6 @@ describe("MessageFeedback", () => {
       message_id: "123",
       rating: "down",
       feedback_text: "Please be more specific",
-      session_id: "42",
     });
     expect(screen.getByText("Saved")).toBeInTheDocument();
   });

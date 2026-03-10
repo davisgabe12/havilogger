@@ -18,6 +18,7 @@ class FakeSupabase:
         self.select_calls: list[tuple[str, dict]] = []
         self.insert_calls: list[tuple[str, dict]] = []
         self.update_calls: list[tuple[str, dict, dict]] = []
+        self.upsert_calls: list[tuple[str, dict, str]] = []
 
     async def select(self, table: str, params: dict) -> list[dict]:
         self.select_calls.append((table, params))
@@ -33,6 +34,10 @@ class FakeSupabase:
         self.update_calls.append((table, payload, params))
         row_id = str(params.get("id", "")).replace("eq.", "", 1) or str(uuid4())
         return [{"id": row_id, **payload}]
+
+    async def upsert(self, table: str, payload: dict, *, on_conflict: str) -> list[dict]:
+        self.upsert_calls.append((table, payload, on_conflict))
+        return [{"id": str(uuid4()), **payload}]
 
 
 def _build_auth_ctx(fake: FakeSupabase) -> AuthContext:
@@ -58,8 +63,7 @@ def test_feedback_create_inserts_when_no_existing_row() -> None:
                     "intent": "question",
                     "created_at": "2026-03-05T00:00:00+00:00",
                 }
-            ],
-            [],
+            ]
         ]
     )
     auth_ctx = _build_auth_ctx(fake)
@@ -76,10 +80,13 @@ def test_feedback_create_inserts_when_no_existing_row() -> None:
         assert response.status_code == 200
         body = response.json()
         assert body["rating"] == "up"
-        assert len(fake.select_calls) == 2
-        assert len(fake.insert_calls) == 1
+        assert len(fake.select_calls) == 1
+        assert len(fake.upsert_calls) == 1
+        assert len(fake.insert_calls) == 0
         assert len(fake.update_calls) == 0
-        inserted_payload = fake.insert_calls[0][1]
+        assert fake.upsert_calls[0][2] == "conversation_id,message_id,user_id"
+        inserted_payload = fake.upsert_calls[0][1]
+        assert inserted_payload.get("session_id") is None
         assert inserted_payload.get("model_version") == "havi-local"
         metadata = inserted_payload.get("response_metadata") or {}
         assert metadata.get("conversation_id") == payload["conversation_id"]
@@ -94,7 +101,6 @@ def test_feedback_create_inserts_when_no_existing_row() -> None:
 def test_feedback_create_updates_when_existing_row_found() -> None:
     conversation_id = str(uuid4())
     message_id = str(uuid4())
-    existing_id = str(uuid4())
     fake = FakeSupabase(
         select_queue=[
             [
@@ -103,15 +109,6 @@ def test_feedback_create_updates_when_existing_row_found() -> None:
                     "session_id": conversation_id,
                     "intent": "logging",
                     "created_at": "2026-03-05T00:00:00+00:00",
-                }
-            ],
-            [
-                {
-                    "id": existing_id,
-                    "conversation_id": conversation_id,
-                    "message_id": message_id,
-                    "user_id": str(uuid4()),
-                    "rating": "up",
                 }
             ]
         ]
@@ -129,13 +126,16 @@ def test_feedback_create_updates_when_existing_row_found() -> None:
         response = client.post("/api/v1/messages/feedback", json=payload)
         assert response.status_code == 200
         body = response.json()
-        assert body["id"] == existing_id
+        assert body["id"]
         assert body["rating"] == "down"
-        assert len(fake.select_calls) == 2
+        assert len(fake.select_calls) == 1
+        assert len(fake.upsert_calls) == 1
+        assert fake.upsert_calls[0][2] == "conversation_id,message_id,user_id"
         assert len(fake.insert_calls) == 0
-        assert len(fake.update_calls) == 1
-        updated_payload = fake.update_calls[0][1]
+        assert len(fake.update_calls) == 0
+        updated_payload = fake.upsert_calls[0][1]
         assert updated_payload.get("model_version") == "havi-local"
+        assert updated_payload.get("session_id") is None
         metadata = updated_payload.get("response_metadata") or {}
         assert metadata.get("assistant_intent") == "logging"
         assert metadata.get("assistant_route_kind") == "log"

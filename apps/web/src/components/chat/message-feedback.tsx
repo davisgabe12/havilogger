@@ -29,7 +29,6 @@ type FeedbackPayload = {
   message_id: string;
   rating: Exclude<FeedbackRating, null>;
   feedback_text?: string | null;
-  session_id?: string | null;
   model_version?: string | null;
   response_metadata?: Record<string, unknown> | null;
 };
@@ -156,7 +155,6 @@ export function MessageFeedback({
         message_id: String(messageId),
         rating: nextRating,
         feedback_text: nextComment.trim() ? nextComment.trim() : null,
-        session_id: String(conversationId),
       };
       if (modelVersion) {
         payload.model_version = modelVersion;

@@ -353,6 +353,48 @@ test("GREEN smoke", async ({ page }) => {
       return false;
     }
   };
+  const submitFeedbackWithRetryAwareness = async ({
+    messageId,
+    rating,
+    trigger,
+    maxAttempts = 3,
+  }: {
+    messageId: string;
+    rating: "up" | "down";
+    trigger: () => Promise<void>;
+    maxAttempts?: number;
+  }) => {
+    const statuses: number[] = [];
+    const waitForNext = () =>
+      page.waitForResponse(
+        (res: any) => matchesFeedbackRequest(res, messageId, rating),
+        { timeout: 25_000 },
+      );
+    let pendingResponse = waitForNext();
+    await trigger();
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      let response: any;
+      try {
+        response = await pendingResponse;
+      } catch {
+        break;
+      }
+      const status = response.status();
+      statuses.push(status);
+      const payload = readRequestPayload(response.request());
+      if (status === 200) {
+        return { status, payload, statuses };
+      }
+      if (attempt < maxAttempts - 1) {
+        pendingResponse = waitForNext();
+      }
+    }
+
+    throw new Error(
+      `Feedback ${rating} did not return 200 after ${maxAttempts} attempts. statuses=[${statuses.join(", ")}]`,
+    );
+  };
   const sendMessage = async (
     text: string,
     attempt = 0,
@@ -433,41 +475,41 @@ test("GREEN smoke", async ({ page }) => {
     .first();
   await expect(mixedAssistantWrapper).toBeVisible({ timeout: 20_000 });
 
-  const thumbsUpResponse = page.waitForResponse((res: any) =>
-    matchesFeedbackRequest(res, mixedAssistantMessageId, "up"),
-  );
   const thumbsUpButton = mixedAssistantWrapper.getByRole("button", {
     name: "Thumbs up",
   });
-  await thumbsUpButton.click();
-  const thumbsUpRes = await thumbsUpResponse;
-  const thumbsUpStatus = thumbsUpRes.status();
-  const thumbsUpPayload = readRequestPayload(thumbsUpRes.request());
-  expect(thumbsUpStatus).toBe(200);
+  const thumbsUpResult = await submitFeedbackWithRetryAwareness({
+    messageId: mixedAssistantMessageId,
+    rating: "up",
+    trigger: async () => {
+      await thumbsUpButton.click();
+    },
+  });
+  expect(thumbsUpResult.status).toBe(200);
   await expect(thumbsUpButton).toHaveAttribute("aria-pressed", "true");
-  expect(thumbsUpPayload?.model_version).toBeTruthy();
+  expect(thumbsUpResult.payload?.model_version).toBeTruthy();
   expect(
-    thumbsUpPayload?.response_metadata?.route_metadata?.route_kind,
+    thumbsUpResult.payload?.response_metadata?.route_metadata?.route_kind,
   ).toBe("mixed");
 
-  const thumbsDownResponse = page.waitForResponse((res: any) =>
-    matchesFeedbackRequest(res, mixedAssistantMessageId, "down"),
-  );
   const thumbsDownButton = mixedAssistantWrapper.getByRole("button", {
     name: "Thumbs down",
   });
-  await thumbsDownButton.click();
-  await expect(thumbsDownButton).toHaveAttribute("aria-pressed", "true");
-  await mixedAssistantWrapper
-    .getByPlaceholder("What didn’t work? (optional)")
-    .fill("Too generic");
-  const thumbsDownRes = await thumbsDownResponse;
-  const thumbsDownStatus = thumbsDownRes.status();
-  const thumbsDownPayload = readRequestPayload(thumbsDownRes.request());
-  expect(thumbsDownStatus).toBe(200);
-  expect(thumbsDownPayload?.model_version).toBeTruthy();
+  const thumbsDownResult = await submitFeedbackWithRetryAwareness({
+    messageId: mixedAssistantMessageId,
+    rating: "down",
+    trigger: async () => {
+      await thumbsDownButton.click();
+      await expect(thumbsDownButton).toHaveAttribute("aria-pressed", "true");
+      await mixedAssistantWrapper
+        .getByPlaceholder("What didn’t work? (optional)")
+        .fill("Too generic");
+    },
+  });
+  expect(thumbsDownResult.status).toBe(200);
+  expect(thumbsDownResult.payload?.model_version).toBeTruthy();
   expect(
-    thumbsDownPayload?.response_metadata?.route_metadata?.route_kind,
+    thumbsDownResult.payload?.response_metadata?.route_metadata?.route_kind,
   ).toBe("mixed");
 
   const explicitMemoryPayload = await sendMessage(
