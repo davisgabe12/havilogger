@@ -48,9 +48,10 @@ Expected latest deployment shape:
 If manual API deploy is needed, run from `apps/api` so Railway does not infer a Node root:
 
 ```bash
-cd apps/api
-npx @railway/cli up . --service api --detach --path-as-root
+./scripts/prod_api_deploy_wait.sh
 ```
+
+The helper script performs deploy + wait + provider/config verification (`python`, `railway.toml`) and fails fast on wrong-context or stuck rollouts.
 
 4. Run production core smoke gate
 

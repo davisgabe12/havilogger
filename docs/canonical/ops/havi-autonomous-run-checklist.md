@@ -34,6 +34,7 @@ if production behavior changes, run production smoke before closeout.
 `HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh`
 and keep both reports under `docs/active/green-proof/`.
 5. If Railway deploy via `npx @railway/cli` fails in sandbox with DNS errors, switch to cached Railway CLI binary and rerun with elevated permissions before retrying smoke gates.
+6. If API deploy is required, use `./scripts/prod_api_deploy_wait.sh` to prevent mixed root-context deployments and ensure latest deployment is Python + `railway.toml` before running smoke gates.
 6. Keep docs in sync when behavior changes.
 
 ## Issue Discovery While Doing Other Work

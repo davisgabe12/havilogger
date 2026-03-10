@@ -136,6 +136,15 @@ RAILWAY_CLI="$(find /Users/gabedavis/.npm/_npx -path '*/node_modules/.bin/railwa
 "$RAILWAY_CLI" deployment list --service api --json | head -c 2000
 ```
 
+Preferred deterministic deploy path (prevents root-context drift):
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+./scripts/prod_api_deploy_wait.sh
+```
+
+This command deploys from `apps/api`, waits for completion, and validates the latest deployment metadata (`provider=python`, `config=railway.toml`) before continuing to smoke gates.
+
 ## Production Smoke Minimum
 
 1. `https://gethavi.com` returns 200.

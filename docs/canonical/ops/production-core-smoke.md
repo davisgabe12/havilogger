@@ -68,6 +68,14 @@ For each release slice, keep both reports (`before` and `after`) and confirm:
 3. Guidance-vs-tracking invariant stayed intact.
 4. Title invariants stayed intact (`auto_title`, `renamed_title`, `title_after_follow_up` in report).
 
+If API changes are part of the slice, run deploy guard first:
+
+```bash
+./scripts/prod_api_deploy_wait.sh
+```
+
+This avoids running smoke against stale API images when Railway deployment propagation is delayed.
+
 ## Release Evidence Curation (Required)
 
 For each shipped slice, create one canonical proof bundle:
