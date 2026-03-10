@@ -16,9 +16,11 @@
 
 ## Validation status
 - Commit pushed to `main`: `1cd946a` on March 10, 2026.
-- Production core smoke: pass (`prod-core-smoke-after-ui-reliability-hotfix-20260310.json`).
-- Production UI smoke gate (2 consecutive): pass on rerun (`prod-ui-smoke-after-ui-reliability-hotfix-20260310-rerun.json`).
-- Additional GREEN regression assertion for timed task acknowledgment is now added and currently fails against live production API, indicating API deploy propagation mismatch still being resolved.
+- Follow-up validation/docs commit pushed to `main`: `94f9744` on March 10, 2026.
+- Direct production probe for timed task acknowledgment (`tomorrow at 4pm`): pass.
+- Updated GREEN smoke suite (includes rolling-over guidance and timed-task assertions): pass.
+- Production core smoke (final): pass (`prod-core-smoke-after-ui-reliability-hotfix-20260310-final.json`).
+- Production UI smoke gate (final, 2 consecutive): pass (`prod-ui-smoke-after-ui-reliability-hotfix-20260310-final.json`).
 
 ## Proof bundle path
 - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-10-ui-reliability-hotfix/`

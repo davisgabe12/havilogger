@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-03-10T19:15:26Z",
+  "label": "after-ui-reliability-hotfix-20260310-final",
+  "base_url": "https://gethavi.com",
+  "required_consecutive_passes": 2,
+  "gate_pass": true,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "pass",
+      "started_at": "2026-03-10T19:13:10Z",
+      "ended_at": "2026-03-10T19:14:19Z",
+      "exit_code": 0,
+      "log_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-ui-reliability-hotfix-20260310-final/run-1.log",
+      "report_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-ui-reliability-hotfix-20260310-final/run-1-report.json"
+    },
+    {
+      "attempt": 2,
+      "status": "pass",
+      "started_at": "2026-03-10T19:14:19Z",
+      "ended_at": "2026-03-10T19:15:26Z",
+      "exit_code": 0,
+      "log_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-ui-reliability-hotfix-20260310-final/run-2.log",
+      "report_file": "/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-ui-smoke-after-ui-reliability-hotfix-20260310-final/run-2-report.json"
+    }
+  ]
+}
