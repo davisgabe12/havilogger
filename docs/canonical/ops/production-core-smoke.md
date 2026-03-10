@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 5, 2026
+Last updated: March 10, 2026
 
 # Production Core Smoke (Before/After Gate)
 
@@ -45,7 +45,13 @@ Skill wrapper (equivalent):
 /Users/gabedavis/.codex/skills/havi-prod-core-smoke/scripts/run.sh after-<change-name>
 ```
 
-Deterministic production UI gate (two consecutive GREEN passes):
+Deterministic release gate (core + UI, recommended for deploy validation):
+
+```bash
+HAVI_RELEASE_LABEL=after-<change-name> ./scripts/prod_release_gate.sh
+```
+
+Deterministic production UI-only gate (two consecutive GREEN passes):
 
 ```bash
 HAVI_UI_SMOKE_LABEL=after-<change-name> ./scripts/prod_ui_smoke_gate.sh
@@ -61,6 +67,10 @@ UI gate writes:
 
 `docs/active/green-proof/prod-ui-smoke-<label>.json`
 `docs/active/green-proof/prod-ui-smoke-<label>/run-<n>.log`
+
+Release gate writes:
+
+`docs/active/green-proof/prod-release-gate-<label>.json`
 
 For each release slice, keep both reports (`before` and `after`) and confirm:
 

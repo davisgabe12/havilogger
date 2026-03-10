@@ -53,17 +53,28 @@ If manual API deploy is needed, run from `apps/api` so Railway does not infer a 
 
 The helper script performs deploy + wait + provider/config verification (`python`, `railway.toml`) and fails fast on wrong-context or stuck rollouts.
 
-4. Run production core smoke gate
+4. Run canonical release gate (core + UI smoke, bounded retry)
 
 ```bash
-HAVI_SMOKE_LABEL=after-<slice-name> ./scripts/prod_core_smoke.sh
+HAVI_RELEASE_LABEL=after-<slice-name> ./scripts/prod_release_gate.sh
 ```
 
-5. Run production GREEN smoke gate
+Default behavior:
+1. Runs `./scripts/prod_core_smoke.sh` once with the release label.
+2. Runs `./scripts/prod_ui_smoke_gate.sh` and, if the first full gate fails, retries once with a new derived label.
+3. Writes one summary artifact:
+`docs/active/green-proof/prod-release-gate-<label>.json`
+
+You can tune retry budget:
 
 ```bash
-cd apps/web
-PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green
+HAVI_RELEASE_LABEL=after-<slice-name> HAVI_UI_GATE_EXTRA_ATTEMPTS=2 ./scripts/prod_release_gate.sh
+```
+
+5. Optional manual UI-only confirmation (if you need extra evidence beyond release gate)
+
+```bash
+HAVI_UI_SMOKE_LABEL=after-<slice-name>-manual ./scripts/prod_ui_smoke_gate.sh
 ```
 
 6. Curate release proof bundle (required)
@@ -93,8 +104,7 @@ Minimum sections:
 Ship only when all are true:
 1. `git push origin main` succeeds
 2. production health endpoints are healthy
-3. production core smoke passes
-4. production GREEN smoke passes
+3. production release gate passes
 5. release proof bundle is committed
 
 ## Rollback trigger and action

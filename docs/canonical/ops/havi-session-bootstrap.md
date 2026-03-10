@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 5, 2026
+Last updated: March 10, 2026
 
 # Havi Session Bootstrap
 
@@ -117,12 +117,14 @@ GREEN_USE_SEED=1 GREEN_SEED_APPLY=1 GREEN_ALLOW_SHARED_DB=1 ./scripts/e2e_green.
 Runbook:
 `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/testing/green-seed-reset.md`
 
-4. Production before/after smoke gate (required for substantial changes):
+4. Production before/after release gate (required for substantial changes):
 
 ```bash
-HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh
-HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh
+HAVI_RELEASE_LABEL=before-<change-name> ./scripts/prod_release_gate.sh
+HAVI_RELEASE_LABEL=after-<change-name> ./scripts/prod_release_gate.sh
 ```
+
+This wraps core + UI gate and includes one bounded retry for transient first-run UI failures.
 
 Deployment + release checklist (canonical):
 `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/deploy-and-release.md`

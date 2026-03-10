@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 3, 2026
+Last updated: March 10, 2026
 
 # Havi Autonomous Run Checklist
 
@@ -30,9 +30,9 @@ guidance must not create timeline activity events.
 3. Keep deploy safety:
 if production behavior changes, run production smoke before closeout.
 4. For substantial changes, run production smoke twice:
-`HAVI_SMOKE_LABEL=before-<change-name> ./scripts/prod_core_smoke.sh`
-`HAVI_SMOKE_LABEL=after-<change-name> ./scripts/prod_core_smoke.sh`
-and keep both reports under `docs/active/green-proof/`.
+`HAVI_RELEASE_LABEL=before-<change-name> ./scripts/prod_release_gate.sh`
+`HAVI_RELEASE_LABEL=after-<change-name> ./scripts/prod_release_gate.sh`
+and keep both release gate summaries under `docs/active/green-proof/`.
 5. If Railway deploy via `npx @railway/cli` fails in sandbox with DNS errors, switch to cached Railway CLI binary and rerun with elevated permissions before retrying smoke gates.
 6. If API deploy is required, use `./scripts/prod_api_deploy_wait.sh` to prevent mixed root-context deployments and ensure latest deployment is Python + `railway.toml` before running smoke gates.
 6. Keep docs in sync when behavior changes.

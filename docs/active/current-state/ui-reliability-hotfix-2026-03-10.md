@@ -68,3 +68,17 @@ Targeted production-facing UX fixes for settings, auth/invite flow, chat compose
 - Verified on production:
   - `PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green` -> pass
   - `HAVI_SMOKE_LABEL=after-prod-core-time-parity-guard-20260310d ./scripts/prod_core_smoke.sh` -> pass
+
+## Deploy-loop prevention hardening (March 10, 2026)
+- Added canonical release gate script:
+  - `scripts/prod_release_gate.sh`
+  - Runs production core smoke first, then UI gate, with bounded full-gate retry (`HAVI_UI_GATE_EXTRA_ATTEMPTS`, default `1`).
+  - Writes machine-readable summary:
+    - `docs/active/green-proof/prod-release-gate-<label>.json`
+- Updated canonical runbooks so release validation defaults to the single command:
+  - `HAVI_RELEASE_LABEL=<label> ./scripts/prod_release_gate.sh`
+- Production validation run:
+  - `HAVI_RELEASE_LABEL=post-loop-guard-release-gate-20260310 ./scripts/prod_release_gate.sh`
+  - Result: PASS
+  - Release proof bundle:
+    - `docs/active/green-proof/releases/2026-03-10-release-gate-hardening/`
