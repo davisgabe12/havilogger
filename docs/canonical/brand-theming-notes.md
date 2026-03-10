@@ -6,11 +6,26 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 
 - Style guide: `apps/web/public/brand/docs/HAVI_STYLE_GUIDE.md`
 - Type scale: `apps/web/public/brand/docs/HAVI_TYPE_SCALE.md`
-- Palette (Night Forest UI tokens, JSON): `apps/web/public/brand/palette/night-forest-ui-tokens.json`
+- Token source of truth: `apps/web/src/styles/havi-tokens.source.json`
+- Generated palette artifact (Night Forest UI tokens, JSON): `apps/web/public/brand/palette/night-forest-ui-tokens.json`
+- Generated core palette artifact (JSON): `apps/web/public/brand/palette/night-forest.json`
 - Logo / nest mark SVGs:
   - `apps/web/public/brand/logos/havi-icon-dark.svg`
   - `apps/web/public/brand/logos/havi-logo-master.svg`
   - `apps/web/public/brand/logos/havi-logo-transparent.svg`
+
+## Token Synchronization Contract
+
+- Generator script: `apps/web/scripts/sync-havi-tokens.mjs`
+- Sync command: `cd apps/web && npm run tokens:sync`
+- Drift check command: `cd apps/web && npm run tokens:check`
+- Drift rule:
+  - `tokens:check` must pass before merge/release.
+  - If drift is detected, rerun `tokens:sync` and commit generated artifacts.
+- Generated outputs:
+  - `apps/web/src/styles/havi-tokens.css`
+  - `apps/web/public/brand/palette/night-forest-ui-tokens.json`
+  - `apps/web/public/brand/palette/night-forest.json`
 
 ## Design Tokens
 

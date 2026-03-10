@@ -1,61 +1,43 @@
+/* AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. */
+/* Source: src/styles/havi-tokens.source.json */
 :root {
-  /* Core */
   --havi-bg: #0c2b26;
   --havi-fg: #efe9e0;
   --havi-fg-fog: #f3f0ea;
   --havi-fg-oat: #e7ddcf;
   --havi-moss: #9ea993;
-
-  /* Surfaces */
   --havi-surface-1: #133833;
   --havi-surface-2: #1a4540;
   --havi-surface-3: #225650;
   --havi-sidebar-bg: #133833;
-
-  /* Text */
   --havi-text: rgba(239, 233, 224, 0.94);
   --havi-text-muted: rgba(239, 233, 224, 0.68);
-
-  /* Borders */
+  --havi-text-disabled: rgba(239, 233, 224, 0.38);
   --havi-border: rgba(244, 242, 237, 0.14);
   --havi-border-strong: rgba(244, 242, 237, 0.24);
-
-  /* Actions */
   --havi-primary-bg: var(--havi-fg);
   --havi-primary-fg: var(--havi-bg);
   --havi-primary-hover: rgba(244, 242, 237, 0.92);
   --havi-primary-active: rgba(244, 242, 237, 0.84);
-
+  --havi-primary-disabled-bg: rgba(244, 242, 237, 0.30);
+  --havi-primary-disabled-fg: rgba(12, 43, 38, 0.55);
   --havi-secondary-bg: rgba(158, 169, 147, 0.18);
   --havi-secondary-hover: rgba(158, 169, 147, 0.26);
   --havi-secondary-active: rgba(158, 169, 147, 0.34);
-
   --havi-ghost-hover: rgba(244, 242, 237, 0.06);
   --havi-ghost-active: rgba(244, 242, 237, 0.1);
-
-  /* Focus */
   --havi-ring: rgba(158, 169, 147, 0.55);
-
-  /* Tooltip */
   --havi-tooltip-bg: #1a4741;
   --havi-tooltip-fg: #f4f2ed;
   --havi-tooltip-border: rgba(244, 242, 237, 0.14);
-
-  /* Radius */
   --havi-radius-sm: 10px;
   --havi-radius-md: 12px;
   --havi-radius-lg: 16px;
-
-  /* Font */
   --havi-font-sans: var(--font-havi-sans), "Avenir Next", "Segoe UI", sans-serif;
   --havi-font-display: var(--font-havi-display), var(--havi-font-sans);
-
-  /* Status */
   --havi-status-success: #9ea993;
   --havi-status-warning: #d1b35a;
   --havi-status-destructive: #e0644f;
-
-  /* Form fields */
   --havi-field-bg: var(--havi-surface-2);
   --havi-field-text: var(--havi-text);
   --havi-field-placeholder: rgba(239, 233, 224, 0.56);
@@ -67,8 +49,6 @@
   --havi-field-disabled-text: rgba(239, 233, 224, 0.44);
   --havi-field-label: rgba(239, 233, 224, 0.86);
   --havi-field-hint: var(--havi-text-muted);
-
-  /* Generic showcase surfaces (usable beyond marketing) */
   --havi-surface-band-bg: rgba(7, 28, 25, 0.84);
   --havi-surface-band-border: rgba(244, 242, 237, 0.12);
   --havi-surface-elevated-bg: rgba(26, 76, 68, 0.8);
@@ -99,8 +79,6 @@
   --havi-signal-positive-border: rgba(158, 169, 147, 0.38);
   --havi-signal-negative-bg: rgba(224, 100, 79, 0.18);
   --havi-signal-negative-border: rgba(224, 100, 79, 0.34);
-
-  /* Marketing aliases (kept for compatibility) */
   --havi-marketing-band-bg: var(--havi-surface-band-bg);
   --havi-marketing-band-border: var(--havi-surface-band-border);
   --havi-marketing-elevated-bg: var(--havi-surface-elevated-bg);
@@ -108,12 +86,8 @@
   --havi-marketing-accent: var(--havi-accent-warm);
   --havi-marketing-accent-soft: var(--havi-accent-warm-soft);
   --havi-marketing-glow: var(--havi-glow-soft);
-
-  /* Destructive semantics */
   --havi-destructive-bg: var(--havi-status-destructive);
   --havi-destructive-fg: var(--havi-bg);
-
-  /* Charts */
   --havi-chart-1: var(--havi-moss);
   --havi-chart-2: var(--havi-status-warning);
   --havi-chart-3: var(--havi-status-destructive);
