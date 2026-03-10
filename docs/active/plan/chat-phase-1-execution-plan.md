@@ -25,7 +25,9 @@ This plan is intentionally scoped to message/chat behavior only.
   - feedback thumbs up/down network path exercised in GREEN
   - explicit memory-save and inferred-memory log-shaped turns added to GREEN coverage
 - `P1-F1` feedback persistence hardening landed:
-  - feedback route now uses deterministic select/update-or-insert path (no failing supabase upsert conflict dependency)
+  - feedback route now uses canonical upsert path keyed on `(conversation_id,message_id,user_id)`
+  - temporary compatibility fallback for `42P10` schema drift is active pending cleanup ticket `SID-73`
+  - feedback readback is caregiver-scoped (`user_id` filter) so each caregiver sees only their own rating/comment state
   - supabase-backed feedback route tests added
 - `P1-C1` initial OpenAI classifier hook landed:
   - ambiguous-intent OpenAI classifier adapter behind `ENABLE_OPENAI_INTENT_CLASSIFIER`
@@ -69,6 +71,7 @@ This plan is intentionally scoped to message/chat behavior only.
 - run daily production telemetry rollups (`route_disagreement`, `fallback_or_skip`, `telemetry_completeness`) from live traffic, not only smoke artifacts.
 - apply telemetry table migration in production (`docs/canonical/supabase/012_chat_route_telemetry.sql`) so rollups move from sampled feedback metadata to full turn-level source.
 - keep GREEN + prod smoke artifacts current for every behavior-affecting change.
+- close `SID-73` by removing feedback `42P10` compatibility fallback after verifying production index contract and rerunning full release gate.
 
 ## Execution Log (March 5, 2026)
 1. Shipped:

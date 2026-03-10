@@ -107,20 +107,22 @@ Sync rule:
 5. Mixed-route model guidance can now append to deterministic log confirmation when composer flag is enabled.
 6. Deterministic rules remain default authority, with model override only when classifier confidence passes threshold (`OPENAI_INTENT_OVERRIDE_CONFIDENCE`) and optional rollout percentage (`OPENAI_INTENT_CLASSIFIER_TRAFFIC_PCT`).
 7. Guidance composer now has optional rollout percentage control (`OPENAI_GUIDANCE_COMPOSER_TRAFFIC_PCT`) and contract validation fallback.
-8. Feedback write path no longer depends on supabase upsert conflict support, uses select/update-or-insert logic, enriches metadata with assistant intent/session context, and defaults missing `model_version` to `havi-local`.
-9. Web feedback components now support optional route metadata + model version submission fields for downstream quality segmentation.
-10. Web feedback UI now uses an explicit terminal retry state machine (`idle`, `submitting`, `retry_wait`, `retrying`, `failed`) with a manual retry action, preventing stuck in-progress states on repeated failures.
-11. Feedback component tests now verify both terminal failure rendering and manual retry recovery behavior.
-12. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
-13. GREEN feedback assertions now verify outgoing thumbs payload includes `model_version` and route metadata (`response_metadata.route_metadata.route_kind`).
-14. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
-15. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
-16. New Phase1-v2 golden harness is active for answer-first guidance quality checks (empathy, assumptions, immediate plan steps, known-age no re-ask, next-turn invite, mixed log confirmation).
-17. Production core smoke now emits per-turn route telemetry in JSON artifacts, and quality reporting now includes production disagreement/fallback/completeness threshold verdicts.
-18. Daily production telemetry rollup script is available at [production_chat_telemetry_rollup.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/production_chat_telemetry_rollup.py), with structured alarm output for threshold breaches.
-19. Quality snapshot now uses the shared telemetry rollup contract (`apps/api/app/telemetry_rollup.py`) so production thresholds and alarm semantics stay consistent across reporting scripts.
-20. Telemetry table migration path is tracked at `docs/canonical/supabase/012_chat_route_telemetry.sql` (applied source of truth for full turn-level production telemetry).
-21. As of March 9, 2026, production telemetry rollups are reading from `chat_route_telemetry` (live turn-level source). Remaining rollout blocker is fallback-rate reduction after OpenAI flag activation redeploy.
+8. Feedback write path uses canonical supabase upsert keyed on `(conversation_id,message_id,user_id)`, enriches metadata with assistant intent/session context, and defaults missing `model_version` to `havi-local`.
+9. Temporary `42P10` compatibility fallback is active after the March 10, 2026 production reliability incident; cleanup/removal is tracked in `SID-73` after production index migration validation.
+10. Feedback read contract is caregiver-specific: list/read operations are scoped to the authenticated `user_id`, while each caregiver can independently rate any visible assistant message.
+11. Web feedback components now support optional route metadata + model version submission fields for downstream quality segmentation.
+12. Web feedback UI now uses an explicit terminal retry state machine (`idle`, `submitting`, `retry_wait`, `retrying`, `failed`) with a manual retry action, preventing stuck in-progress states on repeated failures.
+13. Feedback component tests now verify both terminal failure rendering and manual retry recovery behavior.
+14. GREEN smoke now asserts chat route metadata behavior (ask/log/mixed), feedback thumbs network path, and chat persistence sanity checks.
+15. GREEN feedback assertions now verify outgoing thumbs payload includes `model_version` and route metadata (`response_metadata.route_metadata.route_kind`).
+16. Quality snapshot report script is available at [chat_quality_report.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/chat_quality_report.py), with latest output in [chat-quality-report.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-quality-report.json).
+17. Golden quality reporting now includes segmentation (`scenario_class`, `age_band`, `family_size`) and diagnostics (`route_disagreement`, `classifier` fallback/override summary).
+18. New Phase1-v2 golden harness is active for answer-first guidance quality checks (empathy, assumptions, immediate plan steps, known-age no re-ask, next-turn invite, mixed log confirmation).
+19. Production core smoke now emits per-turn route telemetry in JSON artifacts, and quality reporting now includes production disagreement/fallback/completeness threshold verdicts.
+20. Daily production telemetry rollup script is available at [production_chat_telemetry_rollup.py](/Users/gabedavis/Desktop/projects/havilogger/scripts/production_chat_telemetry_rollup.py), with structured alarm output for threshold breaches.
+21. Quality snapshot now uses the shared telemetry rollup contract (`apps/api/app/telemetry_rollup.py`) so production thresholds and alarm semantics stay consistent across reporting scripts.
+22. Telemetry table migration path is tracked at `docs/canonical/supabase/012_chat_route_telemetry.sql` (applied source of truth for full turn-level production telemetry).
+23. As of March 9, 2026, production telemetry rollups are reading from `chat_route_telemetry` (live turn-level source). Remaining rollout blocker is fallback-rate reduction after OpenAI flag activation redeploy.
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:
