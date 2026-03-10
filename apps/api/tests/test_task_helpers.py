@@ -62,3 +62,24 @@ def test_extract_task_remind_at_relative() -> None:
   dt = datetime.fromisoformat(iso)
   local = dt.astimezone(ZoneInfo(tz))
   assert (local.year, local.month, local.day) == (2025, 1, 2)
+
+
+def test_extract_task_due_at_relative_day_with_time() -> None:
+  tz = "America/Los_Angeles"
+  base = datetime(2025, 1, 1, 17, 0, tzinfo=timezone.utc)
+  iso = extract_task_due_at("remind me to call my doctor tomorrow at 4pm", tz, base)
+  assert iso is not None
+  dt = datetime.fromisoformat(iso)
+  local = dt.astimezone(ZoneInfo(tz))
+  assert (local.year, local.month, local.day, local.hour, local.minute) == (
+    2025,
+    1,
+    2,
+    16,
+    0,
+  )
+
+
+def test_extract_task_title_strips_relative_datetime_phrase() -> None:
+  title = extract_task_title("remind me to call my doctor tomorrow at 4pm")
+  assert title == "call my doctor"

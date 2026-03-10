@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.main import build_assistant_message
 from app.db import ensure_default_profiles, get_connection, get_primary_child_id
 from .conversation_helpers import create_conversation, with_conversation
 
@@ -153,3 +154,19 @@ def test_symptom_guidance_generic_line_updated(monkeypatch: pytest.MonkeyPatch) 
     )
     # Old generic line should not appear anymore.
     assert "I’m here for follow-up questions—just say the word." not in assistant
+
+
+def test_rolling_over_question_returns_guidance_not_fallback() -> None:
+    assistant, _ = build_assistant_message(
+        [],
+        "my baby is not rolling over, what do you recommend",
+        child_data={"first_name": "Noah"},
+        context={
+            "intent": "general_parenting_advice",
+            "question_category": "generic",
+            "symptom_tags": [],
+            "recent_actions": [],
+        },
+    )
+    assert "I’m not sure I caught that" not in assistant
+    assert "rolling" in assistant.lower()

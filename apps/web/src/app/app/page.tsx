@@ -250,6 +250,17 @@ const parsePositiveNumber = (value: unknown): number | null => {
   return null;
 };
 
+const normalizeComparableText = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
+
+const normalizeComparableDate = (value: unknown): string =>
+  toApiDate(normalizeComparableText(value)) ?? "";
+
+const normalizeComparableWeight = (value: unknown): string => {
+  const parsed = parsePositiveNumber(value);
+  return parsed == null ? "" : String(parsed);
+};
+
 type ApiResponse = {
   actions: Action[];
   assistant_message?: string;
@@ -1076,12 +1087,6 @@ export default function Home() {
     if (!caregiverLastName.trim()) {
       missing.push("caregiver last name");
     }
-    if (!caregiverEmail.trim()) {
-      missing.push("caregiver email");
-    }
-    if (!caregiverPhone.trim()) {
-      missing.push("caregiver phone");
-    }
     if (!(childFirstName || activeChildName).trim()) {
       missing.push("child name");
     }
@@ -1102,10 +1107,8 @@ export default function Home() {
     return missing;
   }, [
     activeChildName,
-    caregiverEmail,
     caregiverFirstName,
     caregiverLastName,
-    caregiverPhone,
     childBirthWeight,
     childDob,
     childDueDate,
@@ -1121,10 +1124,8 @@ export default function Home() {
   const caregiverProfileIncomplete = useMemo(
     () =>
       !caregiverFirstName.trim() ||
-      !caregiverLastName.trim() ||
-      !caregiverEmail.trim() ||
-      !caregiverPhone.trim(),
-    [caregiverEmail, caregiverFirstName, caregiverLastName, caregiverPhone],
+      !caregiverLastName.trim(),
+    [caregiverFirstName, caregiverLastName],
   );
   const hasAtLeastOneCompleteChild = useMemo(() => {
     const hasCompleteShape = (
@@ -2129,22 +2130,37 @@ export default function Home() {
 
   useEffect(() => {
     const caregiverChanged =
-      caregiverFirstName !== caregiverSnapshot.first_name ||
-      caregiverLastName !== caregiverSnapshot.last_name ||
-      caregiverPhone !== caregiverSnapshot.phone ||
-      caregiverEmail !== caregiverSnapshot.email ||
-      relationship !== caregiverSnapshot.relationship;
+      normalizeComparableText(caregiverFirstName) !==
+        normalizeComparableText(caregiverSnapshot.first_name) ||
+      normalizeComparableText(caregiverLastName) !==
+        normalizeComparableText(caregiverSnapshot.last_name) ||
+      normalizeComparableText(caregiverPhone) !==
+        normalizeComparableText(caregiverSnapshot.phone) ||
+      normalizeComparableText(caregiverEmail) !==
+        normalizeComparableText(caregiverSnapshot.email) ||
+      normalizeComparableText(relationship) !==
+        normalizeComparableText(caregiverSnapshot.relationship);
     const childChanged =
-      childFirstName !== childSnapshot.first_name ||
-      childLastName !== childSnapshot.last_name ||
-      childDob !== childSnapshot.birth_date ||
-      childDueDate !== childSnapshot.due_date ||
-      childGender !== childSnapshot.gender ||
-      childBirthWeight !== childSnapshot.birth_weight ||
-      childBirthWeightUnit !== childSnapshot.birth_weight_unit ||
-      childLatestWeight !== childSnapshot.latest_weight ||
-      childLatestWeightDate !== childSnapshot.latest_weight_date ||
-      childTimezone !== childSnapshot.timezone;
+      normalizeComparableText(childFirstName) !==
+        normalizeComparableText(childSnapshot.first_name) ||
+      normalizeComparableText(childLastName) !==
+        normalizeComparableText(childSnapshot.last_name) ||
+      normalizeComparableDate(childDob) !==
+        normalizeComparableDate(childSnapshot.birth_date) ||
+      normalizeComparableDate(childDueDate) !==
+        normalizeComparableDate(childSnapshot.due_date) ||
+      normalizeComparableText(childGender) !==
+        normalizeComparableText(childSnapshot.gender) ||
+      normalizeComparableWeight(childBirthWeight) !==
+        normalizeComparableWeight(childSnapshot.birth_weight) ||
+      normalizeComparableText(childBirthWeightUnit) !==
+        normalizeComparableText(childSnapshot.birth_weight_unit) ||
+      normalizeComparableWeight(childLatestWeight) !==
+        normalizeComparableWeight(childSnapshot.latest_weight) ||
+      normalizeComparableDate(childLatestWeightDate) !==
+        normalizeComparableDate(childSnapshot.latest_weight_date) ||
+      normalizeComparableText(childTimezone) !==
+        normalizeComparableText(childSnapshot.timezone);
     setHasUnsaved(caregiverChanged || childChanged);
   }, [
     caregiverEmail,
@@ -2870,7 +2886,12 @@ export default function Home() {
     try {
       const sessionId = activeConversationIdRef.current ?? sessions[0]?.id;
       if (!sessionId) {
+        setShareLink(null);
         setShareMessage("No conversation to share yet.");
+        if (shareTimerRef.current) {
+          clearTimeout(shareTimerRef.current);
+        }
+        shareTimerRef.current = setTimeout(() => setShareMessage(null), 2500);
         return;
       }
       const res = await apiFetch(`${API_BASE_URL}/api/v1/share/conversation`, {
@@ -2898,7 +2919,10 @@ export default function Home() {
       if (shareTimerRef.current) {
         clearTimeout(shareTimerRef.current);
       }
-      shareTimerRef.current = setTimeout(() => setShareMessage(null), 1500);
+      shareTimerRef.current = setTimeout(() => {
+        setShareMessage(null);
+        setShareLink(null);
+      }, 4000);
     } catch (err) {
       const reason =
         err instanceof Error ? err.message : "Unable to share right now.";
@@ -2907,7 +2931,10 @@ export default function Home() {
       if (shareTimerRef.current) {
         clearTimeout(shareTimerRef.current);
       }
-      shareTimerRef.current = setTimeout(() => setShareMessage(null), 2500);
+      shareTimerRef.current = setTimeout(() => {
+        setShareMessage(null);
+        setShareLink(null);
+      }, 2500);
     }
   }, [sessions]);
 
@@ -3312,6 +3339,18 @@ export default function Home() {
               </button>
             ))}
           </nav>
+          <div className="mt-auto pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={handleSignOut}
+              data-testid="side-sign-out"
+            >
+              Sign out
+            </Button>
+          </div>
         </aside>
 
         <main className="flex-1 px-4 md:px-6 lg:px-8 py-6">
@@ -4893,7 +4932,7 @@ export default function Home() {
                   <Button
                     className="w-full"
                     onClick={saveSettings}
-                    disabled={settingsSaving}
+                    disabled={settingsSaving || !hasUnsaved}
                     data-testid="settings-save"
                   >
                     {settingsSaving ? (
@@ -4901,6 +4940,8 @@ export default function Home() {
                         <InlineSpinner />
                         Saving…
                       </span>
+                    ) : !hasUnsaved ? (
+                      "No changes to save"
                     ) : (
                       "Save changes"
                     )}
@@ -5118,7 +5159,7 @@ export default function Home() {
                   }
                   disabled={isComposerLocked || voiceState === "transcribing"}
                   className={cn(
-                    "h-10 w-10 rounded-xl border border-border/60",
+                    "mb-0.5 h-10 w-10 self-end rounded-xl border border-border/60",
                     voiceState === "recording"
                       ? "bg-red-500/10 text-red-500"
                       : "bg-background",
@@ -5137,7 +5178,7 @@ export default function Home() {
                     isComposerLocked ||
                     voiceState !== "idle"
                   }
-                  className="flex h-10 w-10 items-center justify-center rounded-xl"
+                  className="mb-0.5 flex h-10 w-10 self-end items-center justify-center rounded-xl"
                 >
                   <ArrowUpRight className="h-4 w-4" />
                 </Button>
@@ -5311,6 +5352,21 @@ export default function Home() {
                 </button>
               ))}
             </nav>
+            <div className="mt-4 border-t border-border/60 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setNavOpen(false);
+                  void handleSignOut();
+                }}
+                data-testid="mobile-side-sign-out"
+              >
+                Sign out
+              </Button>
+            </div>
           </aside>
         </div>
       ) : null}
@@ -5413,6 +5469,15 @@ function toApiDate(value: string): string | null {
 function formatDueDateLabel(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
+  const hasExplicitTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+  if (hasExplicitTime) {
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 

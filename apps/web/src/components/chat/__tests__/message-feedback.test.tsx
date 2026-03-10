@@ -86,6 +86,35 @@ describe("MessageFeedback", () => {
     });
   });
 
+  it("submits thumbs-down feedback immediately on Enter", async () => {
+    const fetchSpy = mockFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MessageFeedback
+        conversationId={42}
+        messageId="123"
+        apiBaseUrl={apiBaseUrl}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Thumbs down"));
+    const input = screen.getByPlaceholderText("What didn’t work? (optional)");
+    await user.type(input, "Please be more specific");
+    await user.keyboard("{Enter}");
+
+    const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+    const body = JSON.parse(lastCall?.[1]?.body as string);
+    expect(body).toEqual({
+      conversation_id: "42",
+      message_id: "123",
+      rating: "down",
+      feedback_text: "Please be more specific",
+      session_id: "42",
+    });
+    expect(screen.getByText("Saved")).toBeInTheDocument();
+  });
+
   it("switching from 👎 to 👍 hides input and updates server record", async () => {
     jest.useFakeTimers();
     const fetchSpy = mockFetch();

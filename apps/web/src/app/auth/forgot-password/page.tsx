@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 import { supabase } from "@/lib/supabase/client";
@@ -19,6 +19,29 @@ const ForgotPasswordPage = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setHasSession(Boolean(data.session));
+    };
+    void checkSession();
+  }, []);
+
+  const handleSignOut = async () => {
+    setError(null);
+    setIsSigningOut(true);
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setError(signOutError.message);
+      setIsSigningOut(false);
+      return;
+    }
+    setHasSession(false);
+    setIsSigningOut(false);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -52,9 +75,20 @@ const ForgotPasswordPage = () => {
             <Link href="/" className="font-semibold tracking-[0.2em] text-foreground">
               HAVI
             </Link>
-            <Link href="/auth/sign-in" className="hover:text-foreground">
-              Sign in
-            </Link>
+            {hasSession ? (
+              <button
+                type="button"
+                className="hover:text-foreground"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? "Signing out..." : "Sign out"}
+              </button>
+            ) : (
+              <Link href="/auth/sign-in" className="hover:text-foreground">
+                Sign in
+              </Link>
+            )}
           </div>
           <CardTitle>Reset your password</CardTitle>
           <CardDescription>

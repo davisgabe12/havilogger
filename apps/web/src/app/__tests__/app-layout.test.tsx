@@ -147,6 +147,11 @@ describe("App layout – desktop padding and nav", () => {
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons[0]?.textContent).toBe("Home");
   });
+
+  it("shows desktop sidebar sign-out action", async () => {
+    await renderHome();
+    expect(screen.getByTestId("side-sign-out")).toBeInTheDocument();
+  });
 });
 
 describe("App layout – mobile overlay behaviour", () => {
@@ -183,6 +188,13 @@ describe("App layout – mobile overlay behaviour", () => {
 
     // Frame must remain mounted
     expect(screen.getByTestId("app-ready")).toBeInTheDocument();
+  });
+
+  it("shows sign-out in mobile side tray", async () => {
+    await renderHome();
+    const menuButtons = screen.getAllByRole("button", { name: "Menu" });
+    fireEvent.click(menuButtons[0]);
+    expect(screen.getByTestId("mobile-side-sign-out")).toBeInTheDocument();
   });
 });
 
@@ -302,5 +314,15 @@ describe("Composer focus retention", () => {
 
     await waitFor(() => expect(activityCallCount(fetchMock)).toBe(0));
     expect(screen.getByTestId("chat-input")).toHaveFocus();
+  });
+});
+
+describe("Settings save affordance", () => {
+  it("disables save action when there are no unsaved changes", async () => {
+    await renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const saveButton = await screen.findByTestId("settings-save");
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveTextContent("No changes to save");
   });
 });

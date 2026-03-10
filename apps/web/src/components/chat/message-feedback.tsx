@@ -73,8 +73,10 @@ export function MessageFeedback({
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<number | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
+  const savedHintTimerRef = useRef<number | null>(null);
   const pendingPayloadRef = useRef<FeedbackPayload | null>(null);
   const touchedRef = useRef(false);
+  const [showSavedHint, setShowSavedHint] = useState(false);
 
   useEffect(() => {
     if (touchedRef.current) return;
@@ -89,6 +91,9 @@ export function MessageFeedback({
       }
       if (debounceTimerRef.current) {
         window.clearTimeout(debounceTimerRef.current);
+      }
+      if (savedHintTimerRef.current) {
+        window.clearTimeout(savedHintTimerRef.current);
       }
     };
   }, []);
@@ -115,7 +120,15 @@ export function MessageFeedback({
           throw new FeedbackPersistError("Unable to save feedback", retryable);
         }
         setStatus("idle");
+        setShowSavedHint(true);
+        if (savedHintTimerRef.current) {
+          window.clearTimeout(savedHintTimerRef.current);
+        }
+        savedHintTimerRef.current = window.setTimeout(() => {
+          setShowSavedHint(false);
+        }, 1600);
       } catch (error) {
+        setShowSavedHint(false);
         const retryable =
           error instanceof FeedbackPersistError ? error.retryable : true;
         if (retryable && retryCountRef.current < RETRY_DELAYS_MS.length) {
@@ -197,6 +210,7 @@ export function MessageFeedback({
   const hasFeedbackTarget = Boolean(messageId && conversationId);
   const showRetryingHint = status === "retry_wait" || status === "retrying";
   const showTerminalError = status === "failed";
+  const showSaved = showSavedHint && status === "idle";
 
   if (!hasFeedbackTarget && !beforeButtons) {
     return null;
@@ -210,6 +224,11 @@ export function MessageFeedback({
           value={comment}
           placeholder="What didn’t work? (optional)"
           onChange={(event) => handleCommentChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            submitFeedback("down", comment);
+          }}
         />
       ) : null}
       <div className={actionClasses}>
@@ -236,6 +255,9 @@ export function MessageFeedback({
             </button>
             {showRetryingHint ? (
               <span className="text-[10px] text-muted-foreground">Retrying…</span>
+            ) : null}
+            {showSaved ? (
+              <span className="text-[10px] text-muted-foreground">Saved</span>
             ) : null}
             {showTerminalError ? (
               <>

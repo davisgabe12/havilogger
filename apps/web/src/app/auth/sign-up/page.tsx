@@ -23,17 +23,43 @@ const SignupPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [nextPath, setNextPath] = useState("/app");
+  const [signInHref, setSignInHref] = useState("/auth/sign-in");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const nextRaw = new URLSearchParams(window.location.search).get("next");
+    if (nextRaw && nextRaw.startsWith("/")) {
+      setNextPath(nextRaw);
+      setSignInHref(`/auth/sign-in?next=${encodeURIComponent(nextRaw)}`);
+    }
+  }, []);
 
   useEffect(() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        router.replace("/app");
-      }
+      setSessionEmail(data.session?.user?.email ?? null);
+      setSessionChecked(true);
     };
 
     void checkSession();
-  }, [router]);
+  }, []);
+
+  const handleSessionSignOut = async () => {
+    setError(null);
+    setIsSigningOut(true);
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setError(signOutError.message);
+      setIsSigningOut(false);
+      return;
+    }
+    setSessionEmail(null);
+    setIsSigningOut(false);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -60,7 +86,7 @@ const SignupPage = () => {
     }
 
     if (data.session) {
-      router.replace("/app");
+      router.replace(nextPath);
       return;
     }
 
@@ -76,7 +102,7 @@ const SignupPage = () => {
             <Link href="/" className="font-semibold tracking-[0.2em] text-foreground">
               HAVI
             </Link>
-            <Link href="/auth/sign-in" className="hover:text-foreground">
+            <Link href={signInHref} className="hover:text-foreground">
               Sign in
             </Link>
           </div>
@@ -86,6 +112,34 @@ const SignupPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!sessionChecked ? (
+            <p className="text-sm text-muted-foreground">Checking session…</p>
+          ) : sessionEmail ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                You are already signed in as <span className="text-foreground">{sessionEmail}</span>.
+              </p>
+              {error ? (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
+              <div className="grid gap-2">
+                <Button className="w-full" type="button" onClick={() => router.replace(nextPath)}>
+                  Continue to app
+                </Button>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  type="button"
+                  onClick={handleSessionSignOut}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? "Signing out..." : "Sign out to switch account"}
+                </Button>
+              </div>
+            </div>
+          ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <Field>
               <FieldLabel htmlFor="signup-email" required>
@@ -129,11 +183,12 @@ const SignupPage = () => {
 
             <p className="text-center text-xs text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/auth/sign-in" className="text-foreground hover:underline">
+              <Link href={signInHref} className="text-foreground hover:underline">
                 Sign in
               </Link>
             </p>
           </form>
+          )}
         </CardContent>
       </Card>
     </main>

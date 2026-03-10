@@ -22,6 +22,7 @@ const ResetPasswordPage = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -57,6 +58,19 @@ const ResetPasswordPage = () => {
     setIsSubmitting(false);
   };
 
+  const handleSignOut = async () => {
+    setError(null);
+    setIsSigningOut(true);
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setError(signOutError.message);
+      setIsSigningOut(false);
+      return;
+    }
+    setHasSession(false);
+    setIsSigningOut(false);
+  };
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
       <Card className="w-full max-w-md">
@@ -65,9 +79,20 @@ const ResetPasswordPage = () => {
             <Link href="/" className="font-semibold tracking-[0.2em] text-foreground">
               HAVI
             </Link>
-            <Link href="/auth/sign-in" className="hover:text-foreground">
-              Sign in
-            </Link>
+            {hasSession ? (
+              <button
+                type="button"
+                className="hover:text-foreground"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? "Signing out..." : "Sign out"}
+              </button>
+            ) : (
+              <Link href="/auth/sign-in" className="hover:text-foreground">
+                Sign in
+              </Link>
+            )}
           </div>
           <CardTitle>Set a new password</CardTitle>
           <CardDescription>

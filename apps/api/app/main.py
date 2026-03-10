@@ -914,13 +914,24 @@ async def _handle_task_turn(
     )
     if not created_task:
         raise HTTPException(status_code=500, detail="Unable to create task.")
+    due_suffix = ""
+    if task_due_at:
+        try:
+            due_dt = datetime.fromisoformat(task_due_at)
+            if due_dt.tzinfo is None:
+                due_dt = due_dt.replace(tzinfo=timezone.utc)
+            if timezone_value:
+                due_dt = due_dt.astimezone(ZoneInfo(timezone_value))
+            due_suffix = f" for {due_dt.strftime('%b %-d at %-I:%M %p')}"
+        except Exception:
+            due_suffix = ""
     return await _build_terminal_chat_response(
         auth=auth,
         conversation_id=conversation_id,
         user_message_id=user_message_id,
         payload_message=payload_message,
         question_category=question_category,
-        assistant_text=f"Got it — I added “{task_title}” to your tasks.",
+        assistant_text=f"Got it — I added “{task_title}” to your tasks{due_suffix}.",
         intent="task",
         route_metadata=route_metadata,
         start=start,
@@ -3134,6 +3145,8 @@ def _strip_task_datetime_phrases(text: str) -> str:
         rf"\s*\bon\s+{_TASK_DATE_REGEX}\s*(?:at\s+{_TASK_TIME_REGEX})?",
         rf"\s*{_TASK_DATE_REGEX}\s+{_TASK_TIME_REGEX}",
         rf"\s*{_TASK_TIME_REGEX}\s+on\s+{_TASK_DATE_REGEX}",
+        rf"\s*\b(?:today|tomorrow|tonight)\b(?:\s+(?:at|around)\s+{_TASK_TIME_REGEX})?",
+        rf"\s*\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?:\s+at\s+{_TASK_TIME_REGEX})?",
     ]
     for pattern in removal_patterns:
         result = re.sub(pattern, "", result, flags=re.IGNORECASE)
@@ -3141,6 +3154,7 @@ def _strip_task_datetime_phrases(text: str) -> str:
     # Trim any trailing standalone date or time fragments.
     result = re.sub(rf"\s*{_TASK_DATE_REGEX}\s*$", "", result, flags=re.IGNORECASE)
     result = re.sub(rf"\s*{_TASK_TIME_REGEX}\s*$", "", result, flags=re.IGNORECASE)
+    result = re.sub(r"\s*\b(?:today|tomorrow|tonight)\b\s*$", "", result, flags=re.IGNORECASE)
 
     # Remove trailing glue words like "for", "at", "on" if they are left dangling.
     result = re.sub(r"\s*\b(?:for|at|on)\b\s*$", "", result, flags=re.IGNORECASE)
@@ -3180,6 +3194,11 @@ _TASK_DATE_REGEX = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
 _TASK_TIME_REGEX = r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b"
 _TASK_DATE_PATTERN = re.compile(_TASK_DATE_REGEX)
 _TASK_TIME_PATTERN = re.compile(_TASK_TIME_REGEX, re.IGNORECASE)
+_TASK_RELATIVE_DAY_PATTERN = re.compile(r"\b(today|tomorrow|tonight)\b", re.IGNORECASE)
+_TASK_WEEKDAY_PATTERN = re.compile(
+    r"\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    re.IGNORECASE,
+)
 _EVENT_LOCAL_TIME_PATTERN = re.compile(
     r"\b(?:at|from|around|about)?\s*(\d{1,2})(?::([0-5]\d))?\s*(am|pm)\b",
     re.IGNORECASE,
@@ -3286,6 +3305,51 @@ def _parse_natural_datetime(
     return None
 
 
+def _base_local_for_relative_task_phrase(
+    message: str,
+    timezone_value: Optional[str],
+    base_time: Optional[datetime] = None,
+) -> Optional[datetime]:
+    tz_name = timezone_value or "America/Los_Angeles"
+    try:
+        tzinfo = ZoneInfo(tz_name)
+    except Exception:
+        tzinfo = timezone.utc
+    now_local = base_time or datetime.now(tzinfo)
+    if now_local.tzinfo is None:
+        now_local = now_local.replace(tzinfo=tzinfo)
+    else:
+        now_local = now_local.astimezone(tzinfo)
+
+    lower = message.lower()
+    relative_day = _TASK_RELATIVE_DAY_PATTERN.search(lower)
+    if relative_day:
+        token = relative_day.group(1).lower()
+        if token == "tomorrow":
+            return now_local + timedelta(days=1)
+        return now_local
+
+    weekday_match = _TASK_WEEKDAY_PATTERN.search(lower)
+    if not weekday_match:
+        return None
+    weekday_token = weekday_match.group(1).lower()
+    weekday_index = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }.get(weekday_token)
+    if weekday_index is None:
+        return None
+    days_until = (weekday_index - now_local.weekday()) % 7
+    if days_until == 0:
+        days_until = 7
+    return now_local + timedelta(days=days_until)
+
+
 def extract_task_due_at(
     message: str,
     timezone_value: Optional[str],
@@ -3303,15 +3367,34 @@ def extract_task_due_at(
     date_match = _TASK_DATE_PATTERN.search(message)
     if not date_match:
         parsed_dt = _parse_natural_datetime(message, timezone_value, base_time)
-        if not parsed_dt:
+        tz_name = timezone_value or "America/Los_Angeles"
+        try:
+            tzinfo = ZoneInfo(tz_name)
+        except Exception:
+            tzinfo = timezone.utc
+        if parsed_dt:
+            if parsed_dt.tzinfo is None:
+                parsed_dt = parsed_dt.replace(tzinfo=tzinfo)
+            parsed_local = parsed_dt.astimezone(tzinfo)
+            if _TASK_TIME_PATTERN.search(message):
+                expected_local = _parse_local_time_on_base_date(message, parsed_local)
+                if expected_local:
+                    parsed_dt = expected_local
+            return parsed_dt.astimezone(timezone.utc).isoformat()
+
+        relative_base = _base_local_for_relative_task_phrase(
+            message,
+            timezone_value,
+            base_time,
+        )
+        if not relative_base:
             return None
-        if parsed_dt.tzinfo is None:
-            tz_name = timezone_value or "America/Los_Angeles"
-            try:
-                parsed_dt = parsed_dt.replace(tzinfo=ZoneInfo(tz_name))
-            except Exception:
-                parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
-        return parsed_dt.astimezone(timezone.utc).isoformat()
+        relative_local = _parse_local_time_on_base_date(message, relative_base)
+        if relative_local:
+            return relative_local.astimezone(timezone.utc).isoformat()
+        return relative_base.replace(hour=9, minute=0, second=0, microsecond=0).astimezone(
+            timezone.utc
+        ).isoformat()
     month_str, day_str, year_str = date_match.groups()
     try:
         month = int(month_str)
@@ -4592,6 +4675,26 @@ def _routine_plan_guidance(*, child_name: str, weeks: Optional[int]) -> str:
     ).strip()
 
 
+def _rolling_milestone_guidance(*, child_name: str, weeks: Optional[int]) -> str:
+    age_line = f"around week {weeks}" if weeks is not None else "at this stage"
+    return "\n\n".join(
+        [
+            "That’s a great question, and it’s stressful when milestones feel late.",
+            (
+                f"Assumptions: based on what you shared, I'm assuming {child_name} is {age_line}, "
+                "otherwise healthy, and not yet consistently rolling both directions."
+            ),
+            "1. Increase supervised floor time daily in short blocks so your baby can practice transitions.",
+            "2. Place toys slightly to the side to cue weight shift and gentle trunk rotation.",
+            "3. Practice side-lying play and help complete the final roll slowly, then release support.",
+            "4. Prioritize time out of containers (swing/seat) during awake windows to build core strength.",
+            "What not to do: avoid forced repetitions when upset or long sessions that end in frustration.",
+            "Script: \"You’re working hard. Let’s try one more side roll, then we’ll take a break.\"",
+            "Reply with your baby’s age in months and what happens during tummy time, and I’ll tailor a 1-week practice plan.",
+        ]
+    ).strip()
+
+
 def stage_guidance(
     message: str,
     child_data: dict,
@@ -4618,9 +4721,14 @@ def stage_guidance(
     sleep_signals = any(
         token in lower for token in ["wake", "waking", "4am", "early wake", "night wake", "night waking"]
     )
+    rolling_signals = any(
+        token in lower for token in ["roll over", "rolling over", "rollover", "rolling"]
+    )
 
     if re.search(aggression_pattern, lower):
         return _behavior_hitting_guidance(child_name=child_name, weeks=weeks)
+    if rolling_signals:
+        return _rolling_milestone_guidance(child_name=child_name, weeks=weeks)
     if question_category == "sleep" or (plan_request and sleep_signals):
         return _sleep_plan_guidance(
             child_name=child_name,

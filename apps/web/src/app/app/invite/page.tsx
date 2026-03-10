@@ -12,28 +12,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function InviteAcceptPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
+  const [tokenReady, setTokenReady] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "success">("idle");
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        router.replace("/auth/sign-in");
-      }
-    };
-    void checkSession();
-  }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const nextToken = params.get("token") ?? "";
     setToken(nextToken);
+    setTokenReady(true);
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!tokenReady) return;
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      const hasActiveSession = Boolean(data.session);
+      setHasSession(hasActiveSession);
+      setSessionChecked(true);
+      if (!hasActiveSession) {
+        const nextPath = token ? `/app/invite?token=${encodeURIComponent(token)}` : "/app/invite";
+        router.replace(`/auth/sign-in?next=${encodeURIComponent(nextPath)}`);
+      }
+    };
+    void checkSession();
+  }, [router, token, tokenReady]);
+
+  useEffect(() => {
+    if (!token || !sessionChecked || !hasSession) return;
     let cancelled = false;
     const accept = async () => {
       setStatus("loading");
@@ -73,7 +83,16 @@ export default function InviteAcceptPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, token]);
+  }, [hasSession, router, sessionChecked, token]);
+
+  const handleSignOutAndSwitch = async () => {
+    setIsSigningOut(true);
+    await supabase.auth.signOut().catch(() => {});
+    const nextPath = token ? `/app/invite?token=${encodeURIComponent(token)}` : "/app/invite";
+    router.replace(`/auth/sign-in?next=${encodeURIComponent(nextPath)}`);
+  };
+
+  const mismatchedAccount = (error || "").toLowerCase().includes("does not match this account");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12 text-foreground">
@@ -85,15 +104,26 @@ export default function InviteAcceptPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {status === "loading" ? (
+          {!token ? (
+            <p className="text-sm text-destructive">Invite token is missing.</p>
+          ) : !sessionChecked ? (
+            <p className="text-sm text-muted-foreground">Checking session…</p>
+          ) : status === "loading" ? (
             <p className="text-sm text-muted-foreground">Accepting invite…</p>
           ) : null}
           {status === "error" ? (
             <div className="space-y-2">
               <p className="text-sm text-destructive">{error}</p>
-              <Button size="sm" onClick={() => router.replace("/app")}>
-                Go to app
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {mismatchedAccount ? (
+                  <Button size="sm" onClick={handleSignOutAndSwitch} disabled={isSigningOut}>
+                    {isSigningOut ? "Signing out..." : "Sign out and switch account"}
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="outline" onClick={() => router.replace("/app")}>
+                  Go to app
+                </Button>
+              </div>
             </div>
           ) : null}
           {status === "success" ? (
