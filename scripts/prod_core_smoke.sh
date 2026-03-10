@@ -165,7 +165,19 @@ count_events() {
   local end_iso="$5"
   api_call "GET" "/events?start=${start_iso}&end=${end_iso}&child_id=${child_id}" "$token" "$family_id" "$child_id"
   assert_status_200_quiet
-  jq -r 'length' <<<"$API_BODY"
+  jq -r '
+    if type == "array" then
+      length
+    elif type == "object" then
+      if has("actions") then
+        ((.actions // []) | length)
+      else
+        ((.events // .items // []) | length)
+      end
+    else
+      0
+    end
+  ' <<<"$API_BODY"
 }
 
 run_core_flow() {
@@ -296,6 +308,43 @@ run_core_flow() {
     exit 1
   fi
   echo "[pass] Tracking persisted event count before=${before_count} after=${after_tracking_count}"
+  local latest_event_start
+  latest_event_start="$(jq -r '
+    if type == "array" then
+      (.[0].start_at // .[0].start // empty)
+    elif type == "object" then
+      if has("actions") then
+        ((.actions // [])[0].timestamp // empty)
+      else
+        ((.events // .items // [])[0].start_at // (.events // .items // [])[0].start // empty)
+      end
+    else
+      empty
+    end
+  ' <<<"$API_BODY")"
+  if [[ -z "$latest_event_start" || "$latest_event_start" == "null" ]]; then
+    echo "[fail] Unable to read latest event start_at for tracking parity check"
+    echo "$API_BODY" | jq -C . || true
+    exit 1
+  fi
+  local latest_event_local_hour
+  latest_event_local_hour="$(python3 - <<PY
+from datetime import datetime
+from zoneinfo import ZoneInfo
+start = "${latest_event_start}"
+if start.endswith("Z"):
+    start = start[:-1] + "+00:00"
+dt = datetime.fromisoformat(start)
+if dt.tzinfo is None:
+    dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+print(dt.astimezone(ZoneInfo("America/Los_Angeles")).hour)
+PY
+)"
+  if [[ "$latest_event_local_hour" != "15" ]]; then
+    echo "[fail] Explicit-time tracking parity mismatch: expected 3pm local, got hour=${latest_event_local_hour} start_at=${latest_event_start}"
+    exit 1
+  fi
+  echo "[pass] Explicit-time tracking parity check matched 3pm local"
 
   api_call "GET" "/api/v1/conversations/${conversation_id}" "$token" "$family_id"
   assert_status_200 "Fetch conversation after first message"

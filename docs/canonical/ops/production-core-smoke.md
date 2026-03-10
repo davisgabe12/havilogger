@@ -17,6 +17,7 @@ For end-to-end deploy/release sequencing (push -> verify -> smoke -> evidence), 
    - guidance message,
    - task creation,
    - conversation auto-title + rename persistence.
+   - explicit-time tracking parity (`baby pooped at 3pm` must remain 3pm local in persisted action timestamp).
 4. Invariant:
    - tracking adds timeline event,
    - guidance does not add timeline event,

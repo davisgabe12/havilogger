@@ -61,3 +61,10 @@ Targeted production-facing UX fixes for settings, auth/invite flow, chat compose
   - production UI smoke gate (2 consecutive): pass (`prod-ui-smoke-after-ui-reliability-hotfix-20260310-final.json`)
   - updated GREEN smoke suite: pass
 - Direct production probe now returns timed-task acknowledgment with due time (`for Mar 11 at 4:00 PM`), confirming API deploy propagation.
+
+## Follow-on hardening (March 10, 2026)
+- GREEN smoke now asserts feedback visual state persistence after thumbs-up/thumbs-down actions (`aria-pressed=true`).
+- Production core smoke now includes explicit-time tracking parity check so `baby pooped at 3pm` must persist at 3pm local in action timestamp.
+- Verified on production:
+  - `PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green` -> pass
+  - `HAVI_SMOKE_LABEL=after-prod-core-time-parity-guard-20260310d ./scripts/prod_core_smoke.sh` -> pass

@@ -436,11 +436,15 @@ test("GREEN smoke", async ({ page }) => {
   const thumbsUpResponse = page.waitForResponse((res: any) =>
     matchesFeedbackRequest(res, mixedAssistantMessageId, "up"),
   );
-  await mixedAssistantWrapper.getByRole("button", { name: "Thumbs up" }).click();
+  const thumbsUpButton = mixedAssistantWrapper.getByRole("button", {
+    name: "Thumbs up",
+  });
+  await thumbsUpButton.click();
   const thumbsUpRes = await thumbsUpResponse;
   const thumbsUpStatus = thumbsUpRes.status();
   const thumbsUpPayload = readRequestPayload(thumbsUpRes.request());
   expect(thumbsUpStatus).toBe(200);
+  await expect(thumbsUpButton).toHaveAttribute("aria-pressed", "true");
   expect(thumbsUpPayload?.model_version).toBeTruthy();
   expect(
     thumbsUpPayload?.response_metadata?.route_metadata?.route_kind,
@@ -449,7 +453,11 @@ test("GREEN smoke", async ({ page }) => {
   const thumbsDownResponse = page.waitForResponse((res: any) =>
     matchesFeedbackRequest(res, mixedAssistantMessageId, "down"),
   );
-  await mixedAssistantWrapper.getByRole("button", { name: "Thumbs down" }).click();
+  const thumbsDownButton = mixedAssistantWrapper.getByRole("button", {
+    name: "Thumbs down",
+  });
+  await thumbsDownButton.click();
+  await expect(thumbsDownButton).toHaveAttribute("aria-pressed", "true");
   await mixedAssistantWrapper
     .getByPlaceholder("What didn’t work? (optional)")
     .fill("Too generic");
