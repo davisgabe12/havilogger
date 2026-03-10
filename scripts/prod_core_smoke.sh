@@ -245,8 +245,10 @@ run_core_flow() {
 
   local start_iso
   local end_iso
-  start_iso="$(date -u -v-1H +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d '1 hour ago' +"%Y-%m-%dT%H:%M:%SZ")"
-  end_iso="$(date -u -v+2H +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d '2 hours' +"%Y-%m-%dT%H:%M:%SZ")"
+  # Use a wide query window so explicit-time logs (for example "at 3pm") are
+  # counted even when the smoke runs at a different hour.
+  start_iso="$(date -u -v-24H +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d '24 hours ago' +"%Y-%m-%dT%H:%M:%SZ")"
+  end_iso="$(date -u -v+24H +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d '24 hours' +"%Y-%m-%dT%H:%M:%SZ")"
 
   local before_count
   before_count="$(count_events "$token" "$family_id" "$child_id" "$start_iso" "$end_iso")"
