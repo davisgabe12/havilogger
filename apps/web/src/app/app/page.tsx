@@ -2510,9 +2510,14 @@ export default function Home() {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (isComposerLocked) return;
       if (event.key === "Enter" && !event.shiftKey) {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) {
+          return;
+        }
         event.preventDefault();
+        if (isComposerLocked) {
+          return;
+        }
         sendMessage();
       }
     },
@@ -5097,7 +5102,7 @@ export default function Home() {
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
                       onKeyDown={handleKeyDown}
-                      disabled={isComposerLocked || voiceState !== "idle"}
+                      disabled={profileAccessLocked || voiceState !== "idle"}
                       className="flex-1 bg-transparent"
                       inputRef={composerRef}
                     />
@@ -5120,7 +5125,10 @@ export default function Home() {
                   type="button"
                   aria-label="Send message"
                   data-testid="chat-send"
-                  onClick={() => sendMessage()}
+                  onClick={() => {
+                    composerRef.current?.focus();
+                    sendMessage();
+                  }}
                   disabled={
                     !message.trim() ||
                     isComposerLocked ||

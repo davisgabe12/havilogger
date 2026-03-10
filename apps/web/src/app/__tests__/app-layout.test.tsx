@@ -239,3 +239,53 @@ describe("Home zones – V1 foundations", () => {
     });
   });
 });
+
+describe("Composer focus retention", () => {
+  const activityCallCount = (fetchMock: jest.Mock) =>
+    fetchMock.mock.calls.filter(([input]) =>
+      String(input).includes("/api/v1/activities"),
+    ).length;
+
+  it("keeps composer focus after Enter send", async () => {
+    const { fetchMock } = await renderHome();
+    const input = screen.getByTestId("chat-input") as HTMLTextAreaElement;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "baby woke at 4am" } });
+
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+    await waitFor(() => expect(activityCallCount(fetchMock)).toBe(1));
+    await waitFor(() => expect(document.activeElement).toBe(input));
+  });
+
+  it("keeps composer focus after click send", async () => {
+    const { fetchMock } = await renderHome();
+    const input = screen.getByTestId("chat-input") as HTMLTextAreaElement;
+    const sendButton = screen.getByTestId("chat-send");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "baby pooped at 3pm" } });
+
+    fireEvent.click(sendButton);
+
+    await waitFor(() => expect(activityCallCount(fetchMock)).toBe(1));
+    await waitFor(() => expect(document.activeElement).toBe(input));
+  });
+
+  it("does not submit on Enter while IME composition is active", async () => {
+    const { fetchMock } = await renderHome();
+    const input = screen.getByTestId("chat-input") as HTMLTextAreaElement;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "かな" } });
+
+    fireEvent.keyDown(input, {
+      key: "Enter",
+      code: "Enter",
+      charCode: 13,
+      isComposing: true,
+      keyCode: 229,
+    });
+
+    await waitFor(() => expect(activityCallCount(fetchMock)).toBe(0));
+    expect(document.activeElement).toBe(input);
+  });
+});
