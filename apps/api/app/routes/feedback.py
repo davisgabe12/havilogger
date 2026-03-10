@@ -102,12 +102,63 @@ async def _save_feedback(
         "response_metadata": response_metadata,
     }
 
-    saved_rows = await auth.supabase.upsert(
+    try:
+        saved_rows = await auth.supabase.upsert(
+            "message_feedback",
+            feedback_payload,
+            on_conflict="conversation_id,message_id,user_id",
+        )
+        return saved_rows[0] if saved_rows else {
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "user_id": auth.user_id,
+            "rating": payload.rating,
+            "feedback_text": payload.feedback_text,
+        }
+    except HTTPException as exc:
+        # Backward compatibility: some environments may not yet have the
+        # expected unique constraint for this ON CONFLICT target.
+        detail_text = str(getattr(exc, "detail", ""))
+        if exc.status_code != 400 or "42P10" not in detail_text:
+            raise
+
+    existing_rows = await auth.supabase.select(
+        "message_feedback",
+        params={
+            "select": (
+                "id,conversation_id,message_id,user_id,session_id,rating,feedback_text,"
+                "model_version,response_metadata"
+            ),
+            "conversation_id": f"eq.{conversation_id}",
+            "message_id": f"eq.{message_id}",
+            "user_id": f"eq.{auth.user_id}",
+            "limit": "1",
+        },
+    )
+
+    if existing_rows:
+        existing_id = existing_rows[0].get("id")
+        updated_rows = await auth.supabase.update(
+            "message_feedback",
+            feedback_payload,
+            params={"id": f"eq.{existing_id}"},
+        )
+        if updated_rows:
+            return updated_rows[0]
+        return {
+            "id": existing_id,
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "user_id": auth.user_id,
+            "rating": payload.rating,
+            "feedback_text": payload.feedback_text,
+        }
+
+    created_rows = await auth.supabase.insert(
         "message_feedback",
         feedback_payload,
-        on_conflict="conversation_id,message_id,user_id",
     )
-    return saved_rows[0] if saved_rows else {
+    return created_rows[0] if created_rows else {
         "conversation_id": conversation_id,
         "message_id": message_id,
         "user_id": auth.user_id,
