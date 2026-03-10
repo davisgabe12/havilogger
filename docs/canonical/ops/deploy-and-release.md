@@ -105,7 +105,7 @@ Ship only when all are true:
 1. `git push origin main` succeeds
 2. production health endpoints are healthy
 3. production release gate passes
-5. release proof bundle is committed
+4. release proof bundle is committed
 
 ## Rollback trigger and action
 
@@ -125,3 +125,4 @@ Immediate response:
 1. Keep deploy/release commits separate from large unrelated local workspace changes.
 2. Do not use raw iterative artifacts as release evidence; use curated bundle format.
 3. Avoid repeated overlapping Railway deploy attempts; confirm one deployment reaches `SUCCESS` before starting another.
+4. If feedback save regression appears with Postgres `42P10` on `message_feedback` upsert, treat it as schema drift and ensure the latest API compatibility fix is deployed before re-running gates.

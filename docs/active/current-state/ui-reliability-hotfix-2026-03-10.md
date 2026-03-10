@@ -82,3 +82,16 @@ Targeted production-facing UX fixes for settings, auth/invite flow, chat compose
   - Result: PASS
   - Release proof bundle:
     - `docs/active/green-proof/releases/2026-03-10-release-gate-hardening/`
+
+## Feedback reliability compatibility fix (March 10, 2026)
+- Root cause discovered during production gate:
+  - feedback save returned `400` with Postgres code `42P10` (`no unique or exclusion constraint matching ON CONFLICT`) on environments without the expected `message_feedback` unique constraint shape.
+- Fixes shipped:
+  - API feedback route now attempts atomic upsert first and automatically falls back to legacy select/update/insert when `42P10` is encountered.
+  - Feedback payload no longer sends `session_id` from the web client for authenticated feedback saves.
+  - GREEN smoke feedback assertion now validates eventual successful save with retry awareness, while still failing when no `200` is observed.
+- Production validation run:
+  - `HAVI_RELEASE_LABEL=after-feedback-compat-fix-20260310 ./scripts/prod_release_gate.sh`
+  - Result: PASS
+  - Release proof bundle:
+    - `docs/active/green-proof/releases/2026-03-10-feedback-reliability-compat-fix/`
