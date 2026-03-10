@@ -2,6 +2,14 @@ import React from "react";
 import "@testing-library/jest-dom";
 import "whatwg-fetch";
 
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+}
+
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
+}
+
 jest.mock("react-markdown", () => ({
   __esModule: true,
   default: ({

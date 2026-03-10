@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "jest",
+    "test": "npm run tokens:check && jest",
     "tokens:sync": "node scripts/sync-havi-tokens.mjs",
     "tokens:check": "node scripts/sync-havi-tokens.mjs --check",
     "test:green": "playwright test tests/smoke/green.smoke.spec.ts",

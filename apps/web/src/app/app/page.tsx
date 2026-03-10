@@ -2459,6 +2459,7 @@ export default function Home() {
           void refreshConversationTitle(activeConversationIdRef.current);
         }
         setMessage("");
+        setTimeout(() => composerRef.current?.focus(), 0);
         setPendingCategoryHint(null);
         fetchHistory({ silent: true });
         rotateChips();
@@ -2512,12 +2513,14 @@ export default function Home() {
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.key === "Enter" && !event.shiftKey) {
         if (event.nativeEvent.isComposing || event.keyCode === 229) {
+          composerRef.current?.focus();
           return;
         }
         event.preventDefault();
         if (isComposerLocked) {
           return;
         }
+        composerRef.current?.focus();
         sendMessage();
       }
     },

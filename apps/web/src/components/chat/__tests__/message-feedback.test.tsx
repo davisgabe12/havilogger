@@ -4,16 +4,20 @@ import userEvent from "@testing-library/user-event";
 
 import { CHAT_ACTION_BUTTON_CLASS, CHAT_ACTION_ICON_CLASS, MessageFeedback } from "../message-feedback";
 
+const mockApiFetch = jest.fn();
+
+jest.mock("@/lib/api", () => ({
+  apiFetch: (...args: unknown[]) => mockApiFetch(...args),
+}));
+
 describe("MessageFeedback", () => {
   const apiBaseUrl = "http://localhost";
 
   const mockFetch = () =>
-    jest
-      .spyOn(global, "fetch")
-      .mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    mockApiFetch.mockReset();
     jest.useRealTimers();
   });
 
@@ -139,9 +143,7 @@ describe("MessageFeedback", () => {
 
   it("shows terminal error after retry budget is exhausted", async () => {
     jest.useFakeTimers();
-    const fetchSpy = jest
-      .spyOn(global, "fetch")
-      .mockRejectedValue(new Error("network"));
+    const fetchSpy = mockApiFetch.mockRejectedValue(new Error("network"));
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
     render(
@@ -208,8 +210,7 @@ describe("MessageFeedback", () => {
 
   it("recovers when user retries from terminal error", async () => {
     jest.useFakeTimers();
-    const fetchSpy = jest
-      .spyOn(global, "fetch")
+    const fetchSpy = mockApiFetch
       .mockRejectedValueOnce(new Error("network"))
       .mockRejectedValueOnce(new Error("network"))
       .mockRejectedValueOnce(new Error("network"))

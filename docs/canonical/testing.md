@@ -48,7 +48,7 @@ This document lists the test and lint commands that are defined in the repo and 
 - **Test and lint commands**
   - Defined in `apps/web/package.json`:
     - `npm test`
-      - Runs Jest with `jest.config.js` and `jest.setup.ts`.
+      - Runs token drift gate (`npm run tokens:check`) and then Jest (`jest.config.js`, `jest.setup.ts`).
     - `npm run lint`
       - Runs `eslint` per `eslint.config.mjs`.
        - At the time of writing, `npm run lint` fails because `apps/web/scripts/dev-safe.js` uses CommonJS `require()` imports, which violates the `@typescript-eslint/no-require-imports` rule. This is known tech debt and intentionally not addressed in this docs‑only change.

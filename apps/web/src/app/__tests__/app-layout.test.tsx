@@ -9,7 +9,15 @@ if (!("scrollTo" in window.HTMLElement.prototype)) {
   });
 }
 
-import Home from "../page";
+import Home from "../app/page";
+
+jest.mock("@/lib/guards/use-family-guard", () => ({
+  useFamilyGuard: () => ({ status: "ready", error: null }),
+}));
+
+jest.mock("@/lib/api", () => ({
+  apiFetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
+}));
 
 const baseSettings = {
   caregiver: {
@@ -20,12 +28,15 @@ const baseSettings = {
     relationship: "Parent",
   },
   child: {
-    id: 1,
+    id: "1",
     first_name: "Ava",
     last_name: "Davis",
     birth_date: "2024-05-01",
     due_date: "",
     gender: "girl",
+    birth_weight: "7.5",
+    latest_weight: "15.2",
+    latest_weight_date: "2025-03-01",
     timezone: "America/Los_Angeles",
   },
 };
@@ -54,6 +65,9 @@ const mockFetch = (events: Array<Record<string, unknown>> = []) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url.includes("/api/v1/settings")) {
       return new Response(JSON.stringify(baseSettings), { status: 200 });
+    }
+    if (url.includes("/api/active-family")) {
+      return new Response(JSON.stringify({ familyId: "family-1" }), { status: 200 });
     }
     if (url.includes("/events")) {
       return new Response(JSON.stringify(events), { status: 200 });
@@ -95,6 +109,7 @@ const renderHome = async (events: Array<Record<string, unknown>> = []) => {
   const fetchMock = mockFetch(events);
   const utils = render(<Home />);
   await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByTestId("app-ready")).toBeInTheDocument());
   return { fetchMock, ...utils };
 };
 
@@ -139,7 +154,7 @@ describe("App layout – mobile overlay behaviour", () => {
     await renderHome();
 
     // Canonical content frame should always be present
-    const frame = screen.getByTestId("app-frame");
+    const frame = screen.getByTestId("app-ready");
     expect(frame).toBeInTheDocument();
 
     // Initially overlay/backdrop should not be present
@@ -156,7 +171,7 @@ describe("App layout – mobile overlay behaviour", () => {
     expect(backdrop).toBeInTheDocument();
 
     // Frame must still be present while overlay is open
-    expect(screen.getByTestId("app-frame")).toBeInTheDocument();
+    expect(screen.getByTestId("app-ready")).toBeInTheDocument();
 
     // Close via backdrop click
     fireEvent.click(backdrop);
@@ -167,7 +182,7 @@ describe("App layout – mobile overlay behaviour", () => {
     ).not.toBeInTheDocument();
 
     // Frame must remain mounted
-    expect(screen.getByTestId("app-frame")).toBeInTheDocument();
+    expect(screen.getByTestId("app-ready")).toBeInTheDocument();
   });
 });
 
@@ -223,13 +238,13 @@ describe("Home zones – V1 foundations", () => {
     expect(screen.getByText("Last")).toBeInTheDocument();
   });
 
-  it("routes quick chips into chat", async () => {
+  it("routes utility actions into chat", async () => {
     await renderHome([]);
     fireEvent.click(screen.getByRole("button", { name: "Home" }));
-    const chip = await screen.findByRole("button", {
-      name: "Changed a dirty diaper",
+    const askButton = await screen.findByRole("button", {
+      name: "Ask a question",
     });
-    fireEvent.click(chip);
+    fireEvent.click(askButton);
     await waitFor(() => {
       expect(
         screen.getByPlaceholderText(
@@ -255,7 +270,7 @@ describe("Composer focus retention", () => {
     fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
 
     await waitFor(() => expect(activityCallCount(fetchMock)).toBe(1));
-    await waitFor(() => expect(document.activeElement).toBe(input));
+    await waitFor(() => expect(screen.getByTestId("chat-input")).toHaveFocus());
   });
 
   it("keeps composer focus after click send", async () => {
@@ -268,7 +283,7 @@ describe("Composer focus retention", () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => expect(activityCallCount(fetchMock)).toBe(1));
-    await waitFor(() => expect(document.activeElement).toBe(input));
+    await waitFor(() => expect(screen.getByTestId("chat-input")).toHaveFocus());
   });
 
   it("does not submit on Enter while IME composition is active", async () => {
@@ -286,6 +301,6 @@ describe("Composer focus retention", () => {
     });
 
     await waitFor(() => expect(activityCallCount(fetchMock)).toBe(0));
-    expect(document.activeElement).toBe(input);
+    expect(screen.getByTestId("chat-input")).toHaveFocus();
   });
 });
