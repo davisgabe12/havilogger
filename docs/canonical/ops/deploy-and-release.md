@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 5, 2026
+Last updated: March 10, 2026
 
 # HAVI Deploy And Release Runbook
 
@@ -32,6 +32,24 @@ git push origin main
 ```bash
 curl -I https://gethavi.com
 curl -s -o /dev/null -w "%{http_code}\n" https://api-production-0a5d.up.railway.app/health
+```
+
+If API behavior does not match the pushed commit, verify Railway deployment metadata before running smoke gates:
+
+```bash
+npx @railway/cli deployment list --service api --json | jq -r '.[0:3][] | "\(.id) \(.status) providers=\(.meta.nixpacksProviders // []) config=\(.meta.configFile // "")"'
+```
+
+Expected latest deployment shape:
+1. `providers=["python"]`
+2. `config=railway.toml`
+3. status eventually `SUCCESS`
+
+If manual API deploy is needed, run from `apps/api` so Railway does not infer a Node root:
+
+```bash
+cd apps/api
+npx @railway/cli up . --service api --detach --path-as-root
 ```
 
 4. Run production core smoke gate
@@ -95,3 +113,4 @@ Immediate response:
 
 1. Keep deploy/release commits separate from large unrelated local workspace changes.
 2. Do not use raw iterative artifacts as release evidence; use curated bundle format.
+3. Avoid repeated overlapping Railway deploy attempts; confirm one deployment reaches `SUCCESS` before starting another.

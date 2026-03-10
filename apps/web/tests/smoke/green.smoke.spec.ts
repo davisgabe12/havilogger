@@ -409,6 +409,14 @@ test("GREEN smoke", async ({ page }) => {
   expect(askPayload.route_metadata?.route_kind).toBe("ask");
   expect((askPayload.actions ?? []).length).toBe(0);
 
+  const rollingPayload = await sendMessage(
+    "my baby is not rolling over, what do you recommend?",
+  );
+  expect(rollingPayload.route_metadata?.route_kind).toBe("ask");
+  const rollingAssistant = String(rollingPayload.assistant_message ?? "").toLowerCase();
+  expect(rollingAssistant).not.toContain("i'm not sure i caught that");
+  expect(rollingAssistant).not.toContain("i’m not sure i caught that");
+
   const mixedPayload = await sendMessage(
     "baby pooped at 4pm, what should i do if he keeps waking at night?",
   );
@@ -467,6 +475,13 @@ test("GREEN smoke", async ({ page }) => {
     inferredMemoryPayload.route_metadata?.route_kind,
   );
   expect((inferredMemoryPayload.actions ?? []).length).toBeGreaterThan(0);
+
+  const timedTaskPayload = await sendMessage(
+    "remind me to call my doctor tomorrow at 4pm",
+  );
+  expect(timedTaskPayload.route_metadata?.route_kind).toBe("task");
+  const timedTaskAssistant = String(timedTaskPayload.assistant_message ?? "");
+  expect(timedTaskAssistant).toMatch(/4:00 PM/i);
 
   await page.getByTestId("nav-tasks").click();
   await page.getByTestId("tasks-view-all").click();

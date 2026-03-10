@@ -52,3 +52,11 @@ Targeted production-facing UX fixes for settings, auth/invite flow, chat compose
 
 ## Known test-environment caveat
 - Full `tests/test_message_fallbacks.py` run in this local runtime still fails in pre-existing setup paths due `/api/v1/conversations` boot failure in existing fixtures; targeted new assertions pass.
+
+## Deployment and production verification update (March 10, 2026)
+- Commit `1cd946a` was pushed to `main`.
+- Canonical release gates run:
+  - production core smoke: pass (`prod-core-smoke-after-ui-reliability-hotfix-20260310.json`)
+  - production UI smoke gate (2 consecutive): pass on rerun after Playwright browser install (`prod-ui-smoke-after-ui-reliability-hotfix-20260310-rerun.json`)
+- Additional GREEN regression was added to lock timed-task acknowledgment contract (`tomorrow at 4pm` should include due time in assistant reply).
+- Direct production probe currently still returns old task acknowledgment text without due time, indicating API deploy propagation mismatch that remains in progress.
