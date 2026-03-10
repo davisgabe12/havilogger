@@ -12,8 +12,16 @@ function resolveMetadataBase(): URL {
 
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
-  title: "HAVI Logger",
-  description: "Mobile-first baby activity logger powered by GPT",
+  title: {
+    default: "Havi",
+    template: "%s | Havi",
+  },
+  applicationName: "Havi",
+  description: "Calm, conversation-first family support with shared memory and guidance.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: ["/icon.svg"],
+  },
 };
 
 export default function RootLayout({
