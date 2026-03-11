@@ -62,7 +62,6 @@ async def list_events(
         "order": "start.desc",
         "and": f"(start.gte.{start.isoformat()},start.lt.{end.isoformat()})",
     }
-    recorder_column_available = True
     try:
         rows = await auth.supabase.select("timeline_events", params=params)
     except HTTPException as exc:
@@ -70,7 +69,6 @@ async def list_events(
         missing_recorder = "recorded_by_user_id" in detail and "does not exist" in detail
         if not missing_recorder:
             raise
-        recorder_column_available = False
         legacy_params = dict(params)
         legacy_params["select"] = (
             "id,child_id,type,title,detail,amount_label,start,end,has_note,"
@@ -80,33 +78,36 @@ async def list_events(
         for row in rows:
             row["recorded_by_user_id"] = None
 
-    if not recorder_column_available:
-        origin_message_ids = sorted(
-            {str(row.get("origin_message_id")) for row in rows if row.get("origin_message_id")}
-        )
-        if origin_message_ids:
-            try:
-                message_rows = await auth.supabase.select(
-                    "conversation_messages",
-                    params={
-                        "select": "id,user_id",
-                        "id": f"in.({','.join(origin_message_ids)})",
-                    },
-                )
-            except HTTPException:
-                message_rows = []
-            by_message_id = {
-                str(row.get("id")): str(row.get("user_id"))
-                for row in message_rows
-                if row.get("id") and row.get("user_id")
-            }
-            for row in rows:
-                if row.get("recorded_by_user_id"):
-                    continue
-                origin_message_id = str(row.get("origin_message_id") or "")
-                inferred_recorder = by_message_id.get(origin_message_id)
-                if inferred_recorder:
-                    row["recorded_by_user_id"] = inferred_recorder
+    origin_message_ids = sorted(
+        {
+            str(row.get("origin_message_id"))
+            for row in rows
+            if row.get("origin_message_id") and not row.get("recorded_by_user_id")
+        }
+    )
+    if origin_message_ids:
+        try:
+            message_rows = await auth.supabase.select(
+                "conversation_messages",
+                params={
+                    "select": "id,user_id",
+                    "id": f"in.({','.join(origin_message_ids)})",
+                },
+            )
+        except HTTPException:
+            message_rows = []
+        by_message_id = {
+            str(row.get("id")): str(row.get("user_id"))
+            for row in message_rows
+            if row.get("id") and row.get("user_id")
+        }
+        for row in rows:
+            if row.get("recorded_by_user_id"):
+                continue
+            origin_message_id = str(row.get("origin_message_id") or "")
+            inferred_recorder = by_message_id.get(origin_message_id)
+            if inferred_recorder:
+                row["recorded_by_user_id"] = inferred_recorder
 
     recorder_ids = sorted(
         {str(row.get("recorded_by_user_id")) for row in rows if row.get("recorded_by_user_id")}

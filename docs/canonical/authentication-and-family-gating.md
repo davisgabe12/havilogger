@@ -65,6 +65,7 @@ Public routes remain accessible:
 - `/auth/*`
 - `/app/onboarding/*`
 - `/app/select-family`
+- `/app/invite` (invite token and logged-out invite setup)
 
 ## 6. Interaction with RLS
 - Supabase RLS restricts data access to rows where the user belongs to the
@@ -80,4 +81,5 @@ Public routes remain accessible:
 - DB constraints define truth for required child dates.
 - Guards resume incomplete onboarding deterministically based on data.
 - Invite acceptance adds invitee account to target family membership before app core access.
+- Invite-context auth screens must clearly direct first-time invitees to set up account credentials (password + required profile fields) before sign-in attempts.
 - Care-team identity surfaces (chat, tasks, timeline) must not regress to self-only views when RLS is stricter than expected; API routes fall back to admin-scoped member lookup where needed.

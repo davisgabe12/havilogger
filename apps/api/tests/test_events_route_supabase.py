@@ -178,6 +178,62 @@ def test_list_events_falls_back_when_recorder_column_missing(monkeypatch) -> Non
         app.dependency_overrides.clear()
 
 
+def test_list_events_infers_recorder_when_column_exists_but_value_missing(monkeypatch) -> None:
+    child_id = str(uuid4())
+    message_id = str(uuid4())
+    recorder_id = str(uuid4())
+    fake = FakeSupabase(
+        select_queue={
+            "timeline_events": [
+                [
+                    {
+                        "id": str(uuid4()),
+                        "child_id": child_id,
+                        "type": "activity",
+                        "title": "Activity",
+                        "detail": "Logged from chat",
+                        "amount_label": None,
+                        "start": "2026-03-05T20:00:00+00:00",
+                        "end": None,
+                        "has_note": False,
+                        "is_custom": False,
+                        "source": "chat",
+                        "origin_message_id": message_id,
+                        "recorded_by_user_id": None,
+                    }
+                ]
+            ],
+            "conversation_messages": [[{"id": message_id, "user_id": recorder_id}]],
+            "family_members": [[{"user_id": recorder_id, "first_name": "Green", "last_name": "Invitee"}]],
+        }
+    )
+    auth = _build_auth(fake)
+    monkeypatch.setattr("app.routes.events.get_admin_client", lambda: fake)
+    client = _client_with_auth(auth)
+    try:
+        response = client.get(
+            "/api/v1/events",
+            params={
+                "child_id": child_id,
+                "start": "2026-03-05T00:00:00+00:00",
+                "end": "2026-03-06T00:00:00+00:00",
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert len(payload) == 1
+        assert payload[0]["recorded_by_user_id"] == recorder_id
+        assert payload[0]["recorded_by_first_name"] == "Green"
+        assert payload[0]["recorded_by_last_name"] == "Invitee"
+
+        event_calls = [call for call in fake.select_calls if call[0] == "timeline_events"]
+        assert len(event_calls) == 1
+        conversation_calls = [call for call in fake.select_calls if call[0] == "conversation_messages"]
+        assert len(conversation_calls) == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_list_events_handles_missing_recorder_member_row(monkeypatch) -> None:
     child_id = str(uuid4())
     recorder_id = str(uuid4())

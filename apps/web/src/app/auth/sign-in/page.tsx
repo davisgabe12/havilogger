@@ -37,6 +37,9 @@ const LoginPage = () => {
   const [nextPath, setNextPath] = useState("/app");
   const [signUpHref, setSignUpHref] = useState("/auth/sign-up");
   const shouldAutoContinueInvite = nextPath.startsWith("/app/invite");
+  const inviteSetupHref = shouldAutoContinueInvite
+    ? (resolveNextPathFromLocation() ?? nextPath)
+    : null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -44,7 +47,11 @@ const LoginPage = () => {
     const nextRaw = searchParams.get("next");
     if (nextRaw && nextRaw.startsWith("/")) {
       setNextPath(nextRaw);
-      setSignUpHref(`/auth/sign-up?next=${encodeURIComponent(nextRaw)}`);
+      if (nextRaw.startsWith("/app/invite")) {
+        setSignUpHref(nextRaw);
+      } else {
+        setSignUpHref(`/auth/sign-up?next=${encodeURIComponent(nextRaw)}`);
+      }
       try {
         const nextUrl = new URL(nextRaw, window.location.origin);
         const inviteEmail = nextUrl.searchParams.get("email");
@@ -120,7 +127,13 @@ const LoginPage = () => {
     if (signInError) {
       const message = signInError.message.toLowerCase();
       if (message.includes("invalid login credentials")) {
-        setError("Invalid email or password. If you just signed up, confirm your email first.");
+        if (shouldAutoContinueInvite) {
+          setError(
+            "No account password found for this invite yet. Use Set up invited account below.",
+          );
+        } else {
+          setError("Invalid email or password. If you just signed up, confirm your email first.");
+        }
       } else {
         setError(signInError.message);
       }
@@ -146,7 +159,9 @@ const LoginPage = () => {
             </div>
             <CardTitle className="havi-type-page-title">Welcome back</CardTitle>
             <CardDescription className="havi-type-body">
-              Sign in to continue to your Havi dashboard.
+              {shouldAutoContinueInvite
+                ? "You were invited to join a family. Sign in if you already have a password."
+                : "Sign in to continue to your Havi dashboard."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -179,6 +194,12 @@ const LoginPage = () => {
               </div>
             ) : (
               <form className="space-y-4" onSubmit={handleSubmit}>
+                {shouldAutoContinueInvite ? (
+                  <NoticeBanner tone="info">
+                    First time with this invite? Choose Set up invited account to create your
+                    password and profile details.
+                  </NoticeBanner>
+                ) : null}
                 <Field>
                   <FieldLabel htmlFor="signin-email" required>
                     Email
@@ -217,6 +238,16 @@ const LoginPage = () => {
                 <Button className="w-full" type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Signing in..." : "Sign in"}
                 </Button>
+                {inviteSetupHref ? (
+                  <Button
+                    className="w-full"
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.replace(inviteSetupHref)}
+                  >
+                    Set up invited account
+                  </Button>
+                ) : null}
                 <p className="havi-type-meta text-center">
                   New here?{" "}
                   <Link href={signUpHref} className="text-foreground hover:underline">

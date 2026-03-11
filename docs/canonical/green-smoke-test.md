@@ -14,6 +14,17 @@ For deterministic production UI release gating (two consecutive passes), run:
 HAVI_UI_SMOKE_LABEL=release-<change-name> ./scripts/prod_ui_smoke_gate.sh
 ```
 
+Optional deterministic auth seeds for prod UI gate:
+
+```bash
+HAVI_UI_SMOKE_LABEL=release-<change-name> \
+HAVI_SMOKE_EXISTING_EMAIL=<existing-email> \
+HAVI_SMOKE_EXISTING_PASSWORD=<existing-password> \
+HAVI_SMOKE_INVITEE_EMAIL=<invitee-email> \
+HAVI_SMOKE_INVITEE_PASSWORD=<invitee-password> \
+./scripts/prod_ui_smoke_gate.sh
+```
+
 ## Prereqs
 - API running on `http://127.0.0.1:8000`
 - Web running on `http://localhost:3001`

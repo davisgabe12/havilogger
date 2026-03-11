@@ -84,6 +84,17 @@ HAVI_RELEASE_LABEL=after-<slice-name> HAVI_UI_GATE_EXTRA_ATTEMPTS=2 ./scripts/pr
 HAVI_UI_SMOKE_LABEL=after-<slice-name>-manual ./scripts/prod_ui_smoke_gate.sh
 ```
 
+Optional deterministic auth seeds for UI gate:
+
+```bash
+HAVI_UI_SMOKE_LABEL=after-<slice-name>-manual \
+HAVI_SMOKE_EXISTING_EMAIL=<existing-email> \
+HAVI_SMOKE_EXISTING_PASSWORD=<existing-password> \
+HAVI_SMOKE_INVITEE_EMAIL=<invitee-email> \
+HAVI_SMOKE_INVITEE_PASSWORD=<invitee-password> \
+./scripts/prod_ui_smoke_gate.sh
+```
+
 6. Curate release proof bundle (required)
 
 Create:
@@ -133,4 +144,4 @@ Immediate response:
 2. Do not use raw iterative artifacts as release evidence; use curated bundle format.
 3. Avoid repeated overlapping Railway deploy attempts; confirm one deployment reaches `SUCCESS` before starting another.
 4. If feedback save regression appears with Postgres `42P10` on `message_feedback` upsert, treat it as schema drift and ensure the latest API compatibility fix is deployed before re-running gates.
-5. If release gate UI fails with `App core not ready. Current URL: https://gethavi.com/auth/sign-in` at invitee readiness, triage invite acceptance/auth-return flow before re-running gates (see invite acceptance issues under SID-58 program).
+5. If release gate UI fails with `App core not ready. Current URL: https://gethavi.com/auth/sign-in` at invitee readiness, triage invite acceptance/auth-return flow before re-running gates (see invite acceptance issues under SID-58 program). Verify `tests/smoke/green.smoke.spec.ts` invite flow helper remains in parity with `tests/smoke/invite-join.smoke.spec.ts` (`Continue to app` auth-state branch included).

@@ -44,7 +44,7 @@ This document lists the test and lint commands that are defined in the repo and 
       - `test_tasks_route_supabase.py` – assignee/creator display-name enrichment on task responses (admin-client fallback for member names under strict RLS).
       - `test_router.py` – `app.router.classify_intent` behavior.
     - Care-team + invites:
-      - `test_invites.py` – invite create/accept lifecycle, complete-signup provisioning, and legacy schema fallbacks.
+      - `test_invites.py` – invite create/accept lifecycle, complete-signup provisioning, invite email-config signaling (`email_enabled`), and legacy schema fallbacks.
       - `test_care_team_route.py` – `/api/v1/care-team` list resilience (legacy invite schema + invite-read failure isolation + member dedupe) and profile update validation.
     - Sharing:
       - `test_share.py` – share link creation/retrieval via `/api/v1/share/*`.
@@ -59,6 +59,7 @@ This document lists the test and lint commands that are defined in the repo and 
       - Full Playwright GREEN smoke (`tests/smoke/green.smoke.spec.ts`).
     - `npm run test:green:invite`
       - Invite-only Playwright smoke (`tests/smoke/invite-join.smoke.spec.ts`) covering invite link join, shared-thread visibility, timeline recorder attribution, and cross-caregiver task assignment.
+      - GREEN and invite-only smokes share invite auth-state handling via `tests/smoke/helpers/invite-flow.ts` to avoid branch drift in `/app/invite` and `/auth/sign-in` (`Continue to app` state).
     - `npm run lint`
       - Runs `eslint` per `eslint.config.mjs`.
        - At the time of writing, `npm run lint` fails because `apps/web/scripts/dev-safe.js` uses CommonJS `require()` imports, which violates the `@typescript-eslint/no-require-imports` rule. This is known tech debt and intentionally not addressed in this docs‑only change.

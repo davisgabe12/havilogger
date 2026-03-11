@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { completeInviteLinkFlow } from "./helpers/invite-flow";
 
 const trackConsoleErrors = (page: any, bucket: string[], label: string) => {
   page.on("pageerror", (err: Error) => {
@@ -323,135 +324,6 @@ const sendChatAndWaitForAssistant = async (page: any, text: string): Promise<str
   return conversationId;
 };
 
-const completeInviteSignupIfShown = async (
-  page: any,
-  inviteeEmail: string,
-  inviteePassword: string,
-) => {
-  const submit = page.getByTestId("invite-signup-submit");
-  const visible = await submit.isVisible().catch(() => false);
-  if (!visible) return false;
-  const disabled = await submit.isDisabled().catch(() => false);
-  if (disabled) {
-    await page.waitForTimeout(1_000);
-    return false;
-  }
-  await page.getByTestId("invite-signup-first-name").fill("Green");
-  await page.getByTestId("invite-signup-last-name").fill("Invitee");
-  await page.getByTestId("invite-signup-phone").fill("5551234567");
-  await page.getByTestId("invite-signup-password").fill(inviteePassword);
-  const currentInviteEmail = await page
-    .getByTestId("invite-signup-email")
-    .inputValue()
-    .catch(() => "");
-  if (currentInviteEmail.toLowerCase() !== inviteeEmail.toLowerCase()) {
-    throw new Error(
-      `Invite signup email mismatch. Expected ${inviteeEmail}, got ${currentInviteEmail || "<empty>"}.`,
-    );
-  }
-  await submit.click();
-  try {
-    await page.waitForURL(/\/app(\?|$)/, { timeout: 45_000 });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const completeInviteLinkFlow = async (
-  page: any,
-  inviteeEmail: string,
-  inviteePassword: string,
-  hasInviteeCreds: boolean,
-) => {
-  const deadline = Date.now() + 120_000;
-  while (Date.now() < deadline) {
-    const currentUrl = page.url();
-    if (/\/app(\?|$)/.test(currentUrl)) {
-      return;
-    }
-
-    if (currentUrl.includes("/app/invite")) {
-      if (await completeInviteSignupIfShown(page, inviteeEmail, inviteePassword)) {
-        continue;
-      }
-      const inviteJoinError = page.locator(".havi-notice-banner-danger");
-      if (await inviteJoinError.isVisible().catch(() => false)) {
-        throw new Error(`Invite join error: ${(await inviteJoinError.innerText()).trim()}`);
-      }
-      const signInFromInvite = page.getByTestId("invite-signup-sign-in");
-      if (hasInviteeCreds && (await signInFromInvite.isVisible().catch(() => false))) {
-        await signInFromInvite.click();
-      } else {
-        await page.waitForTimeout(800);
-      }
-      continue;
-    }
-
-    if (currentUrl.includes("/auth/sign-in")) {
-      const continueSignedIn = page.getByRole("button", { name: /continue to app/i });
-      if (await continueSignedIn.isVisible().catch(() => false)) {
-        await continueSignedIn.click();
-        try {
-          await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
-        } catch {
-          // Retry loop handles transitional auth redirects.
-        }
-        continue;
-      }
-      await page.fill('input[type="email"]', inviteeEmail);
-      await page.fill('input[type="password"]', inviteePassword);
-      await page.getByRole("button", { name: /sign in/i }).click();
-      try {
-        await page.waitForURL(/\/app(\?|$)|\/auth\/sign-in/, { timeout: 20_000 });
-      } catch {
-        // Retry loop handles transient auth delays.
-      }
-      if (page.url().includes("/auth/sign-in") && !hasInviteeCreds) {
-        const createAccountLink = page.getByRole("link", { name: /create account/i }).first();
-        if (await createAccountLink.isVisible().catch(() => false)) {
-          await createAccountLink.click();
-        }
-      }
-      continue;
-    }
-
-    if (currentUrl.includes("/auth/sign-up")) {
-      const continueSignedIn = page.getByRole("button", { name: /continue to app/i });
-      if (await continueSignedIn.isVisible().catch(() => false)) {
-        await continueSignedIn.click();
-        try {
-          await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
-        } catch {
-          // Retry loop handles transitional auth redirects.
-        }
-        continue;
-      }
-      await page.fill('input[type="email"]', inviteeEmail);
-      await page.fill('input[type="password"]', inviteePassword);
-      await page.getByRole("button", { name: /continue/i }).click();
-      try {
-        await page.waitForURL(/\/app(\?|$)|\/auth\/sign-in/, { timeout: 20_000 });
-      } catch {
-        const inviteeError = page.locator(".havi-notice-banner-danger");
-        const inviteeNotice = page.locator(".havi-notice-banner-info");
-        if (await inviteeError.isVisible().catch(() => false)) {
-          throw new Error(`Invitee signup error: ${(await inviteeError.innerText()).trim()}`);
-        }
-        if (await inviteeNotice.isVisible().catch(() => false)) {
-          throw new Error(
-            "Invitee signup requires email confirmation. Set GREEN_INVITEE_EMAIL and GREEN_INVITEE_PASSWORD.",
-          );
-        }
-      }
-      continue;
-    }
-
-    await page.waitForTimeout(500);
-  }
-  throw new Error(`Invite flow did not reach app. Current URL: ${page.url()}`);
-};
-
 test("Invite join smoke", async ({ page, browser }) => {
   test.setTimeout(240_000);
   const consoleErrors: string[] = [];
@@ -549,7 +421,11 @@ test("Invite join smoke", async ({ page, browser }) => {
   trackConsoleErrors(inviteePage, consoleErrors, "invitee");
   trackCareTeamResponses(inviteePage, "invitee");
   await inviteePage.goto(inviteLink);
-  await completeInviteLinkFlow(inviteePage, inviteeEmail, inviteePassword, hasInviteeCreds);
+  await completeInviteLinkFlow(inviteePage, {
+    inviteeEmail,
+    inviteePassword,
+    hasInviteeCreds,
+  });
 
   await waitForAppCoreReady(inviteePage);
   await expect(inviteePage.getByTestId("profile-lock-modal")).toHaveCount(0);

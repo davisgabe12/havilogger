@@ -176,6 +176,16 @@ type CareTeamResponsePayload = {
   }>;
 };
 
+type InviteCreateResponse = {
+  token: string;
+  family_id: string;
+  email: string;
+  invite_url?: string | null;
+  email_enabled?: boolean;
+  email_status?: "sent" | "failed" | "skipped" | string;
+  email_error?: string | null;
+};
+
 const buildDisplayName = (
   firstName?: string | null,
   lastName?: string | null,
@@ -3135,10 +3145,15 @@ export default function Home() {
         const detail = await res.json().catch(() => ({}));
         throw new Error(detail?.detail ?? "Unable to create invite.");
       }
-      const data = await res.json();
+      const data = (await res.json()) as InviteCreateResponse;
       setInviteLink(data.invite_url ?? null);
+      const emailEnabled = data.email_enabled ?? true;
       if (data.email_status === "sent") {
         setInviteNotice("Invite email sent.");
+      } else if (!emailEnabled || data.email_status === "skipped") {
+        setInviteNotice(
+          "Invite created. Email delivery is not configured, so copy and share the link below.",
+        );
       } else if (data.email_status === "failed") {
         setInviteNotice("Invite created, but email send failed. Copy and share the link below.");
       } else {
@@ -5388,7 +5403,7 @@ export default function Home() {
             <div className="space-y-1">
               <p className="havi-type-section-title">Invite a caregiver</p>
               <p className="text-sm text-muted-foreground">
-                Send an invite email. You can also copy the private link.
+                Create an invite link. If email delivery is configured, Havi will email it automatically.
               </p>
             </div>
             <div className="space-y-2">
@@ -5463,7 +5478,7 @@ export default function Home() {
                 Close
               </Button>
               <Button size="sm" onClick={handleSendInvite} disabled={inviteSending}>
-                {inviteSending ? "Sending..." : "Send invite"}
+                {inviteSending ? "Creating..." : "Create invite"}
               </Button>
             </div>
           </div>

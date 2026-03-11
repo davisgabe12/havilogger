@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { API_BASE_URL } from "@/lib/api-base-url";
 import { supabase } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,7 +181,7 @@ export default function InviteAcceptPage() {
           <CardHeader>
             <CardTitle className="havi-type-page-title">Join family</CardTitle>
             <CardDescription className="havi-type-body">
-              We&apos;ll connect you to the shared family workspace.
+              Set your password and required details to join the shared family workspace.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -191,7 +192,8 @@ export default function InviteAcceptPage() {
             ) : !hasSession ? (
               <form className="space-y-4" onSubmit={handleInviteSignupSubmit}>
                 <p className="havi-type-body">
-                  Set your password and complete required caregiver details to join.
+                  Set your password and complete required caregiver details to join. No separate
+                  confirmation email is required for this invite link.
                 </p>
                 <Field>
                   <FieldLabel htmlFor="invite-signup-email" required>

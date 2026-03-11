@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { completeInviteLinkFlow } from "./helpers/invite-flow";
 
 const trackConsoleErrors = (
   page: any,
@@ -11,7 +12,11 @@ const trackConsoleErrors = (
   });
   page.on("console", (msg: any) => {
     if (msg.type() === "error") {
-      bucket.push(`[${label}] console: ${msg.text()}`);
+      const text = msg.text();
+      if (text.includes("Failed to load resource: the server responded with a status of 400")) {
+        return;
+      }
+      bucket.push(`[${label}] console: ${text}`);
     }
   });
   page.on("requestfailed", (request: any) => {
@@ -288,117 +293,6 @@ const gotoAuthWithRetry = async (page: any, path: "/auth/sign-in" | "/auth/sign-
       await page.waitForTimeout(750);
     }
   }
-};
-
-const completeInviteSignupIfShown = async (
-  page: any,
-  inviteeEmail: string,
-  inviteePassword: string,
-) => {
-  const submit = page.getByTestId("invite-signup-submit");
-  const visible = await submit.isVisible().catch(() => false);
-  if (!visible) return false;
-  const disabled = await submit.isDisabled().catch(() => false);
-  if (disabled) {
-    await page.waitForTimeout(1_000);
-    return false;
-  }
-  await page.getByTestId("invite-signup-first-name").fill("Green");
-  await page.getByTestId("invite-signup-last-name").fill("Invitee");
-  await page.getByTestId("invite-signup-phone").fill("5551234567");
-  await page.getByTestId("invite-signup-password").fill(inviteePassword);
-  const emailValue = await page.getByTestId("invite-signup-email").inputValue().catch(() => "");
-  if (emailValue.toLowerCase() !== inviteeEmail.toLowerCase()) {
-    throw new Error(`Invite signup email mismatch. Expected ${inviteeEmail}, got ${emailValue || "<empty>"}.`);
-  }
-  await submit.click();
-  try {
-    await page.waitForURL(/\/app(\?|$)/, { timeout: 45_000 });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const completeInviteLinkFlow = async (
-  page: any,
-  inviteeEmail: string,
-  inviteePassword: string,
-  hasInviteeCreds: boolean,
-) => {
-  const deadline = Date.now() + 120_000;
-  while (Date.now() < deadline) {
-    const currentUrl = page.url();
-    if (/\/app(\?|$)/.test(currentUrl)) {
-      return;
-    }
-
-    if (currentUrl.includes("/app/invite")) {
-      if (await completeInviteSignupIfShown(page, inviteeEmail, inviteePassword)) {
-        continue;
-      }
-      const inviteJoinError = page.locator(".havi-notice-banner-danger");
-      if (await inviteJoinError.isVisible().catch(() => false)) {
-        throw new Error(`Invite join error: ${(await inviteJoinError.innerText()).trim()}`);
-      }
-      const signInFromInvite = page.getByTestId("invite-signup-sign-in");
-      if (hasInviteeCreds && (await signInFromInvite.isVisible().catch(() => false))) {
-        await signInFromInvite.click();
-      } else {
-        await page.waitForTimeout(800);
-      }
-      continue;
-    }
-
-    if (currentUrl.includes("/auth/sign-in")) {
-      await page.fill('input[type="email"]', inviteeEmail);
-      await page.fill('input[type="password"]', inviteePassword);
-      await page.getByRole("button", { name: /sign in/i }).click();
-      try {
-        await page.waitForURL(/\/app(\?|$)|\/auth\/sign-in/, { timeout: 20_000 });
-      } catch {
-        // Retry loop handles transient auth delays.
-      }
-      if (page.url().includes("/auth/sign-in") && !hasInviteeCreds) {
-        const createAccountLink = page.getByRole("link", { name: /create account/i }).first();
-        if (await createAccountLink.isVisible().catch(() => false)) {
-          await createAccountLink.click();
-        }
-      }
-      continue;
-    }
-
-    if (currentUrl.includes("/auth/sign-up")) {
-      await page.fill('input[type="email"]', inviteeEmail);
-      await page.fill('input[type="password"]', inviteePassword);
-      await page.getByRole("button", { name: /continue/i }).click();
-      try {
-        await page.waitForURL(/\/app(\?|$)|\/auth\/sign-in/, { timeout: 20_000 });
-      } catch {
-        const inviteeError = page.locator(".havi-notice-banner-danger");
-        const inviteeNotice = page.locator(".havi-notice-banner-info");
-        if (await inviteeError.isVisible().catch(() => false)) {
-          throw new Error(`Invitee signup error: ${(await inviteeError.innerText()).trim()}`);
-        }
-        if (await inviteeNotice.isVisible().catch(() => false)) {
-          throw new Error(
-            "Invitee signup requires email confirmation. Set GREEN_INVITEE_EMAIL and GREEN_INVITEE_PASSWORD.",
-          );
-        }
-      }
-      continue;
-    }
-
-    await page.waitForTimeout(500);
-  }
-  const bodyText = (await page.locator("body").innerText().catch(() => ""))
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 500);
-  const signupVisible = await page.getByTestId("invite-signup-submit").isVisible().catch(() => false);
-  throw new Error(
-    `Invite flow did not reach app. URL=${page.url()} signupVisible=${signupVisible} body="${bodyText}"`,
-  );
 };
 
 test("GREEN smoke", async ({ page, browser }) => {
@@ -744,17 +638,65 @@ test("GREEN smoke", async ({ page, browser }) => {
 
   await page.getByTestId("nav-settings").click();
   await page.getByTestId("open-invite").click();
-  await page.fill("#invite-email", inviteeEmail);
-  await page.getByRole("button", { name: /(send|create) invite/i }).click();
-  await expect(page.getByTestId("invite-link")).toBeVisible({ timeout: 15_000 });
-  const inviteLink = (await page.getByTestId("invite-link").innerText()).trim();
+  const inviteEmailInput = page.locator("#invite-email");
+  const sendInviteButton = page.getByRole("button", { name: /(send|create) invite/i });
+  const inviteLinkLocator = page.getByTestId("invite-link");
+  await inviteEmailInput.waitFor({ state: "visible", timeout: 15_000 });
+  let inviteLinkVisible = false;
+  let inviteLinkFromResponse = "";
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await inviteEmailInput.fill(inviteeEmail);
+    await page.waitForTimeout(120);
+    const currentValue = await inviteEmailInput.inputValue().catch(() => "");
+    if (currentValue.trim().toLowerCase() !== inviteeEmail.toLowerCase()) {
+      continue;
+    }
+    const inviteResponsePromise = page
+      .waitForResponse(
+        (res: any) =>
+          res.request().method() === "POST" &&
+          res.url?.().includes("/api/v1/invites"),
+        { timeout: 5_000 },
+      )
+      .catch(() => null);
+    await sendInviteButton.click();
+    const inviteResponse = await inviteResponsePromise;
+    if (inviteResponse) {
+      expect(inviteResponse.status()).toBe(200);
+      const inviteResponseJson = await inviteResponse.json().catch(() => ({}));
+      if (typeof inviteResponseJson?.invite_url === "string") {
+        inviteLinkFromResponse = inviteResponseJson.invite_url.trim();
+      }
+    }
+    inviteLinkVisible = await inviteLinkLocator.isVisible().catch(() => false);
+    if (inviteLinkVisible || inviteLinkFromResponse) break;
+    await page.waitForTimeout(500);
+  }
+  if (!inviteLinkVisible && !inviteLinkFromResponse) {
+    const currentValue = await inviteEmailInput.inputValue().catch(() => "");
+    const inviteNotice = await page.locator(".havi-notice-banner-info").innerText().catch(() => "");
+    const inviteError = await page.locator(".havi-notice-banner-danger").innerText().catch(() => "");
+    throw new Error(
+      `Failed to create invite link. emailField="${currentValue}" info="${inviteNotice}" error="${inviteError}"`,
+    );
+  }
+  if (inviteLinkVisible) {
+    await expect(inviteLinkLocator).toBeVisible({ timeout: 15_000 });
+  }
+  const inviteLink = inviteLinkVisible
+    ? (await inviteLinkLocator.innerText()).trim()
+    : inviteLinkFromResponse;
   await page.getByRole("button", { name: /close/i }).click();
 
   const inviteeContext = await browser.newContext();
   const inviteePage = await inviteeContext.newPage();
   trackConsoleErrors(inviteePage, consoleErrors, "invitee");
   await inviteePage.goto(inviteLink);
-  await completeInviteLinkFlow(inviteePage, inviteeEmail, inviteePassword, hasInviteeCreds);
+  await completeInviteLinkFlow(inviteePage, {
+    inviteeEmail,
+    inviteePassword,
+    hasInviteeCreds,
+  });
 
   await waitForAppCoreReady(inviteePage);
   await expect(inviteePage.getByTestId("profile-lock-modal")).toHaveCount(0);

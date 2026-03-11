@@ -2839,6 +2839,7 @@ async def create_invite(
         "family_id": auth.family_id,
         "email": email,
         "invite_url": invite_url,
+        "email_enabled": _invite_email_enabled(),
         "email_status": email_status,
         "email_error": email_error,
     }
@@ -2940,6 +2941,13 @@ async def _send_invite_email(
         inviter_name=inviter_name,
         role=role,
     )
+
+
+def _invite_email_enabled() -> bool:
+    host = (os.getenv("HAVI_SMTP_HOST") or "").strip()
+    from_email = (os.getenv("HAVI_SMTP_FROM_EMAIL") or "").strip()
+    username = (os.getenv("HAVI_SMTP_USERNAME") or "").strip()
+    return bool(host and (from_email or username))
 
 
 async def _select_invite_by_token(

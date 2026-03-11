@@ -132,6 +132,7 @@ def test_create_invite_falls_back_when_status_column_missing(monkeypatch) -> Non
         payload = response.json()
         assert payload["email"] == "invitee@example.com"
         assert payload["email_status"] == "sent"
+        assert payload["email_enabled"] is False
         assert payload["invite_url"].startswith("https://gethavi.com/app/invite?token=")
         assert "email=invitee%40example.com" in payload["invite_url"]
 
@@ -140,6 +141,32 @@ def test_create_invite_falls_back_when_status_column_missing(monkeypatch) -> Non
         second_payload = fake.insert_calls[1][1]
         assert first_payload["status"] == "pending"
         assert "status" not in second_payload
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_create_invite_reports_email_enabled_when_smtp_configured(monkeypatch) -> None:
+    fake = FakeSupabase()
+    auth_ctx = _build_auth_ctx(fake)
+    client = _client_with_auth_ctx(auth_ctx)
+    monkeypatch.setenv("HAVI_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("HAVI_SMTP_FROM_EMAIL", "noreply@gethavi.com")
+
+    async def fake_send_invite_email(**kwargs):
+        return "sent", None
+
+    monkeypatch.setattr("app.main._send_invite_email", fake_send_invite_email)
+
+    try:
+        response = client.post(
+            "/api/v1/invites",
+            json={"email": "invitee@example.com", "role": "parent"},
+            headers={"origin": "https://gethavi.com"},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["email_enabled"] is True
+        assert payload["email_status"] == "sent"
     finally:
         app.dependency_overrides.clear()
 

@@ -163,7 +163,9 @@ const SignupPage = () => {
             </div>
             <CardTitle className="havi-type-page-title">Create your account</CardTitle>
             <CardDescription className="havi-type-body">
-              Step 1: Enter your email and password to get started.
+              {shouldAutoContinueInvite
+                ? "You were invited to join a family. Continue to invited account setup."
+                : "Step 1: Enter your email and password to get started."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -195,46 +197,67 @@ const SignupPage = () => {
                 </div>
               </div>
             ) : (
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <Field>
-                  <FieldLabel htmlFor="signup-email" required>
-                    Email
-                  </FieldLabel>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="signup-password" required>
-                    Password
-                  </FieldLabel>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    required
-                  />
-                </Field>
-                {error ? <NoticeBanner tone="danger">{error}</NoticeBanner> : null}
-                {notice ? <NoticeBanner tone="info">{notice}</NoticeBanner> : null}
-                <Button className="w-full" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Creating account..." : "Continue"}
-                </Button>
+              shouldAutoContinueInvite ? (
+                <div className="space-y-4">
+                  <NoticeBanner tone="info">
+                    Use the invite setup form to set your password plus required caregiver details.
+                  </NoticeBanner>
+                  <Button
+                    className="w-full"
+                    type="button"
+                    onClick={() => router.replace(resolveNextPathFromLocation() ?? nextPath)}
+                  >
+                    Continue
+                  </Button>
+                  <p className="havi-type-meta text-center">
+                    Already have an account?{" "}
+                    <Link href={signInHref} className="text-foreground hover:underline">
+                      Sign in
+                    </Link>
+                  </p>
+                </div>
+              ) : (
+                <form className="space-y-4" onSubmit={handleSubmit}>
+                  <Field>
+                    <FieldLabel htmlFor="signup-email" required>
+                      Email
+                    </FieldLabel>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="signup-password" required>
+                      Password
+                    </FieldLabel>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                    />
+                  </Field>
+                  {error ? <NoticeBanner tone="danger">{error}</NoticeBanner> : null}
+                  {notice ? <NoticeBanner tone="info">{notice}</NoticeBanner> : null}
+                  <Button className="w-full" type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating account..." : "Continue"}
+                  </Button>
 
-                <p className="havi-type-meta text-center">
-                  Already have an account?{" "}
-                  <Link href={signInHref} className="text-foreground hover:underline">
-                    Sign in
-                  </Link>
-                </p>
-              </form>
+                  <p className="havi-type-meta text-center">
+                    Already have an account?{" "}
+                    <Link href={signInHref} className="text-foreground hover:underline">
+                      Sign in
+                    </Link>
+                  </p>
+                </form>
+              )
             )}
           </CardContent>
         </Card>

@@ -5,6 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_URL="${HAVI_PROD_SITE_BASE_URL:-https://gethavi.com}"
 RUN_LABEL="${HAVI_UI_SMOKE_LABEL:-manual-$(date +%Y%m%d%H%M%S)}"
 REQUIRED_RUNS="${HAVI_UI_SMOKE_RUNS:-2}"
+GREEN_EXISTING_EMAIL="${GREEN_EXISTING_EMAIL:-${HAVI_SMOKE_EXISTING_EMAIL:-}}"
+GREEN_EXISTING_PASSWORD="${GREEN_EXISTING_PASSWORD:-${HAVI_SMOKE_EXISTING_PASSWORD:-}}"
+GREEN_INVITEE_EMAIL="${GREEN_INVITEE_EMAIL:-${HAVI_SMOKE_INVITEE_EMAIL:-}}"
+GREEN_INVITEE_PASSWORD="${GREEN_INVITEE_PASSWORD:-${HAVI_SMOKE_INVITEE_PASSWORD:-}}"
 REPORT_DIR="${ROOT_DIR}/docs/active/green-proof/prod-ui-smoke-${RUN_LABEL}"
 SUMMARY_FILE="${ROOT_DIR}/docs/active/green-proof/prod-ui-smoke-${RUN_LABEL}.json"
 
@@ -26,6 +30,16 @@ echo "Running production UI smoke gate..."
 echo "Base URL: ${BASE_URL}"
 echo "Required consecutive passes: ${REQUIRED_RUNS}"
 echo "Label: ${RUN_LABEL}"
+if [[ -n "${GREEN_EXISTING_EMAIL}" ]]; then
+  echo "Using existing-account auth seed: ${GREEN_EXISTING_EMAIL}"
+else
+  echo "Using default GREEN existing-account flow (no seed creds provided)."
+fi
+if [[ -n "${GREEN_INVITEE_EMAIL}" ]]; then
+  echo "Using invitee auth seed: ${GREEN_INVITEE_EMAIL}"
+else
+  echo "Using generated invitee account flow (no invitee seed creds provided)."
+fi
 
 consecutive_passes=0
 attempt=1
@@ -41,7 +55,12 @@ while (( attempt <= REQUIRED_RUNS )); do
   set +e
   (
     cd "${ROOT_DIR}/apps/web"
-    PLAYWRIGHT_BASE_URL="${BASE_URL}" npm run test:green
+    PLAYWRIGHT_BASE_URL="${BASE_URL}" \
+    GREEN_EXISTING_EMAIL="${GREEN_EXISTING_EMAIL}" \
+    GREEN_EXISTING_PASSWORD="${GREEN_EXISTING_PASSWORD}" \
+    GREEN_INVITEE_EMAIL="${GREEN_INVITEE_EMAIL}" \
+    GREEN_INVITEE_PASSWORD="${GREEN_INVITEE_PASSWORD}" \
+    npm run test:green
   ) >"${log_file}" 2>&1
   run_exit=$?
   set -e

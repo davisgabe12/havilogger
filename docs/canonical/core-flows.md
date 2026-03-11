@@ -181,17 +181,21 @@ This document connects user‑visible flows to specific endpoints and code paths
   - Backend:
     - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py:create_invite`
     - writes `family_invites` row with lifecycle fields (`status`, `expires_at`, `invited_by`) when available.
-    - returns `invite_url` with `token` + `email`.
+    - returns `invite_url` with `token` + `email`, plus `email_enabled` and `email_status` for truthful UX messaging.
     - attempts SMTP email send; invite link remains usable even when SMTP is not configured.
   - Frontend:
     - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/page.tsx`
-    - Settings modal sends invite and surfaces email send status + copyable link fallback.
+    - Settings modal creates invite link and surfaces explicit delivery state:
+      - email sent,
+      - email not configured (copy/share link),
+      - email send failed (copy/share link).
 
 - **Invite accept + account join**
   - Frontend route:
     - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/invite/page.tsx`
     - preserves full invite query through auth redirect (`next=/app/invite?...`).
     - supports logged-out invitees with required-field signup (first name, last name, email, phone, password) before join.
+    - invite-context auth pages (`/auth/sign-in`, `/auth/sign-up` with `next=/app/invite...`) guide first-time users to invite setup instead of generic signup-confirm-email loops.
   - API endpoint:
     - `POST /api/v1/invites/accept`
     - `POST /api/v1/invites/complete-signup`
