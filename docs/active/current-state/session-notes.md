@@ -15,6 +15,63 @@ Use this log for every coding session, regardless of whether Linear was updated.
 
 ---
 
+## 2026-03-11
+
+- Objective: Unblock production deploy by resolving auth sign-in merge conflict and verify live health after deploy.
+- Scope completed:
+  - Resolved merge conflict markers in `auth/sign-in` while keeping the upstream invite-continuation path (`inviteSetupHref`) that powers invited-user setup flow.
+  - Deployed web to Vercel production and confirmed alias to `https://gethavi.com`.
+  - Ran post-deploy route/API checks and full production core smoke.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/auth/sign-in/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/smoke checks run:
+  - `cd apps/web && npm run build`
+  - `cd apps/web && npx vercel --prod -y`
+  - `curl -I https://gethavi.com`
+  - `curl -I https://www.gethavi.com`
+  - `curl -s -o /dev/null -w "%{http_code}\n" https://api-production-0a5d.up.railway.app/health`
+  - `./scripts/prod_core_smoke.sh`
+- Results:
+  - Production deploy succeeded and aliased to apex domain.
+  - Route health checks passed (`gethavi.com=200`, `www` redirect=`308`, API health=`200`).
+  - Core smoke passed for both existing-account and new-signup flows with logging/guidance/task/title invariants.
+  - Smoke artifact: `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/prod-core-smoke-manual-20260311152403.json`
+- Risks/follow-ups:
+  - None from this deploy slice; keep monitoring compact chat action tap targets on smaller touch devices in future UI-gate runs.
+- Linear issue(s): N/A
+
+## 2026-03-11
+
+- Objective: Ship chat-composer control polish and action-density fixes requested in product review (compact copy/thumb controls, aligned send/voice controls, helper-copy removal), plus update brand/design-system docs.
+- Scope completed:
+  - Reduced shared assistant action control sizing to a compact, ChatGPT-like hierarchy (about 30% smaller button target).
+  - Moved voice control into the same composer row as send, kept equal icon-button sizing, and removed the helper sentence above composer controls.
+  - Removed now-unused `.havi-voice-toolbar` style.
+  - Updated canonical and active docs (style guide, brand notes, app surface system, design-system rollout spec) to codify the new control-density and composer-alignment rules.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/message-feedback.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/__tests__/message-bubble.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/__tests__/message-feedback.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/__tests__/app-layout.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/public/brand/docs/HAVI_STYLE_GUIDE.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/brand-theming-notes.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/design/app-surface-system.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/design-system-unification-rollout-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/smoke checks run:
+  - `cd apps/web && node ./node_modules/jest/bin/jest.js --runInBand src/components/chat/__tests__/message-bubble.test.tsx src/components/chat/__tests__/message-feedback.test.tsx src/app/__tests__/app-layout.test.tsx`
+  - `cd apps/web && npm run build`
+- Results:
+  - Targeted UI/component suites pass (`3/3`, `31` tests).
+  - Web production build passes (Next.js compile + TypeScript + static generation complete).
+  - Requested UI behavior and documentation updates are implemented in one slice.
+- Risks/follow-ups:
+  - Compacting assistant action controls reduces tap target size; monitor usability on smaller touch devices during broader smoke/UX pass.
+- Linear issue(s): N/A (no new issue discovered in this slice)
+
 ## 2026-03-10
 
 - Objective: Establish mandatory session note workflow in the `havi-session-bootstrap` skill.
