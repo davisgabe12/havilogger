@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api-base-url";
 import { supabase } from "@/lib/supabase/client";
+import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function InviteAcceptPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
+  const [queryString, setQueryString] = useState("");
   const [tokenReady, setTokenReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -24,6 +26,7 @@ export default function InviteAcceptPage() {
     const params = new URLSearchParams(window.location.search);
     const nextToken = params.get("token") ?? "";
     setToken(nextToken);
+    setQueryString(window.location.search || "");
     setTokenReady(true);
   }, []);
 
@@ -35,12 +38,12 @@ export default function InviteAcceptPage() {
       setHasSession(hasActiveSession);
       setSessionChecked(true);
       if (!hasActiveSession) {
-        const nextPath = token ? `/app/invite?token=${encodeURIComponent(token)}` : "/app/invite";
+        const nextPath = queryString ? `/app/invite${queryString}` : "/app/invite";
         router.replace(`/auth/sign-in?next=${encodeURIComponent(nextPath)}`);
       }
     };
     void checkSession();
-  }, [router, token, tokenReady]);
+  }, [queryString, router, tokenReady]);
 
   useEffect(() => {
     if (!token || !sessionChecked || !hasSession) return;
@@ -88,49 +91,51 @@ export default function InviteAcceptPage() {
   const handleSignOutAndSwitch = async () => {
     setIsSigningOut(true);
     await supabase.auth.signOut().catch(() => {});
-    const nextPath = token ? `/app/invite?token=${encodeURIComponent(token)}` : "/app/invite";
+    const nextPath = queryString ? `/app/invite${queryString}` : "/app/invite";
     router.replace(`/auth/sign-in?next=${encodeURIComponent(nextPath)}`);
   };
 
   const mismatchedAccount = (error || "").toLowerCase().includes("does not match this account");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12 text-foreground">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Join family</CardTitle>
-          <CardDescription>
-            We’re adding you to the family. This may take a moment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!token ? (
-            <p className="text-sm text-destructive">Invite token is missing.</p>
-          ) : !sessionChecked ? (
-            <p className="text-sm text-muted-foreground">Checking session…</p>
-          ) : status === "loading" ? (
-            <p className="text-sm text-muted-foreground">Accepting invite…</p>
-          ) : null}
-          {status === "error" ? (
-            <div className="space-y-2">
-              <p className="text-sm text-destructive">{error}</p>
-              <div className="flex flex-wrap gap-2">
-                {mismatchedAccount ? (
-                  <Button size="sm" onClick={handleSignOutAndSwitch} disabled={isSigningOut}>
-                    {isSigningOut ? "Signing out..." : "Sign out and switch account"}
+    <main className="havi-app-main min-h-screen">
+      <div className="havi-app-shell max-w-md py-10">
+        <Card className="havi-card-shell w-full">
+          <CardHeader>
+            <CardTitle className="havi-type-page-title">Join family</CardTitle>
+            <CardDescription className="havi-type-body">
+              We’re adding you to the family. This may take a moment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!token ? (
+              <NoticeBanner tone="danger">Invite token is missing.</NoticeBanner>
+            ) : !sessionChecked ? (
+              <p className="havi-type-body">Checking session…</p>
+            ) : status === "loading" ? (
+              <p className="havi-type-body">Accepting invite…</p>
+            ) : null}
+            {status === "error" ? (
+              <div className="space-y-2">
+                <NoticeBanner tone="danger">{error}</NoticeBanner>
+                <div className="flex flex-wrap gap-2">
+                  {mismatchedAccount ? (
+                    <Button size="sm" onClick={handleSignOutAndSwitch} disabled={isSigningOut}>
+                      {isSigningOut ? "Signing out..." : "Sign out and switch account"}
+                    </Button>
+                  ) : null}
+                  <Button size="sm" variant="outline" onClick={() => router.replace("/app")}>
+                    Go to app
                   </Button>
-                ) : null}
-                <Button size="sm" variant="outline" onClick={() => router.replace("/app")}>
-                  Go to app
-                </Button>
+                </div>
               </div>
-            </div>
-          ) : null}
-          {status === "success" ? (
-            <p className="text-sm text-muted-foreground">Invite accepted. Redirecting…</p>
-          ) : null}
-        </CardContent>
-      </Card>
+            ) : null}
+            {status === "success" ? (
+              <p className="havi-type-body">Invite accepted. Redirecting…</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

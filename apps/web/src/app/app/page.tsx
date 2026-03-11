@@ -4,11 +4,13 @@ import type { Metadata } from "next";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Menu } from "lucide-react";
+import { ArrowUpRight, Menu, Mic, Square } from "lucide-react";
 
 import { TimelinePanel } from "@/components/timeline/timeline-panel";
-import { DictateButton, ShareButton } from "@/components/ui/action-buttons";
+import { ShareButton } from "@/components/ui/action-buttons";
+import { DrawerPanel, NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -19,6 +21,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { FieldError } from "@/components/ui/field";
 import { type FeedbackRating } from "@/components/chat/message-feedback";
 import { MessageBubble, CHAT_BODY_TEXT } from "@/components/chat/message-bubble";
 import type {
@@ -29,7 +33,6 @@ import type {
   MessageFeedbackEntry,
 } from "@/components/chat/types";
 import { chipLibrary } from "@/components/chat/chips";
-import { buildHaviModelRequest } from "@/lib/havi-model-request";
 import { API_BASE_URL } from "@/lib/api-base-url";
 import { supabase } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
@@ -147,6 +150,45 @@ type TaskItem = {
   created_by_user_id?: string | null;
   assigned_to_user_id?: string | null;
   assigned_to_name?: string | null;
+  created_by_name?: string | null;
+};
+
+type CareTeamMember = {
+  user_id: string;
+  role: string;
+  is_primary?: boolean;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  relationship?: string | null;
+  display_name?: string;
+  initials?: string;
+};
+
+type CareTeamResponsePayload = {
+  members: CareTeamMember[];
+  invites?: Array<{
+    id: string;
+    email: string;
+    role?: string | null;
+    status?: string;
+  }>;
+};
+
+const buildDisplayName = (
+  firstName?: string | null,
+  lastName?: string | null,
+  email?: string | null,
+): string => {
+  const full = [firstName ?? "", lastName ?? ""]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+  if (full) return full;
+  const fallbackEmail = (email ?? "").trim();
+  if (fallbackEmail) return fallbackEmail;
+  return "Caregiver";
 };
 
 const filterTasksByAssignee = (
@@ -486,7 +528,7 @@ const GuardShell = ({
       <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-6 py-16">
         <Card className="w-full max-w-lg">
           <CardHeader>
-            <CardTitle>{title}</CardTitle>
+            <CardTitle className="havi-type-section-title">{title}</CardTitle>
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           {children ? <CardContent>{children}</CardContent> : null}
@@ -688,6 +730,7 @@ export default function Home() {
   const [taskCreating, setTaskCreating] = useState(false);
   const tasksLoadRequestRef = useRef(0);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState<string>("");
   const [tasksView, setTasksView] = useState<
     "all" | "open" | "scheduled" | "unscheduled" | "completed"
   >("open");
@@ -701,6 +744,7 @@ export default function Home() {
   const [taskDetailTitle, setTaskDetailTitle] = useState("");
   const [taskDetailDueDate, setTaskDetailDueDate] = useState<string>("");
   const [taskDetailDueTime, setTaskDetailDueTime] = useState<string>("");
+  const [taskDetailAssigneeId, setTaskDetailAssigneeId] = useState<string>("");
   const [taskSaving, setTaskSaving] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
@@ -713,6 +757,7 @@ export default function Home() {
   const [childLastName, setChildLastName] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string>("");
+  const [careTeamMembers, setCareTeamMembers] = useState<CareTeamMember[]>([]);
   const [chatTitle, setChatTitle] = useState<string | null>(null);
   const statusFilteredTasks = useMemo(() => {
     const base = tasks;
@@ -782,6 +827,7 @@ export default function Home() {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteSending, setInviteSending] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [recentEvents, setRecentEvents] = useState<HomeEvent[]>([]);
   const [recentEventsLoading, setRecentEventsLoading] = useState(false);
@@ -798,9 +844,6 @@ export default function Home() {
         longDescription:
           "Capture quick reminders and keep them handy across chat and daily routines.",
         createdBy: "HAVI",
-        createdAt: "2024-08-01",
-        usedXTimes: 128,
-        usedByYUsers: 64,
         savedPrompt:
           "Remind Agent: Capture a quick reminder for me—make it concise and actionable.",
         statusBadge: "Available",
@@ -813,12 +856,9 @@ export default function Home() {
         longDescription:
           "Suggest wake windows and nap routines tuned to recent days and gentle rhythms.",
         createdBy: "HAVI",
-        createdAt: "2024-08-10",
-        usedXTimes: 0,
-        usedByYUsers: 0,
         savedPrompt:
           "Routine Wiz: Build a simple routine based on the last 3 days of logs.",
-        statusBadge: "Coming soon",
+        statusBadge: "Preview",
       },
       {
         id: "behavior-coach",
@@ -828,12 +868,9 @@ export default function Home() {
         longDescription:
           "Offer calm, age-appropriate responses for tricky moments and tantrums.",
         createdBy: "HAVI",
-        createdAt: "2024-08-15",
-        usedXTimes: 0,
-        usedByYUsers: 0,
         savedPrompt:
           "Behavior Coach: Give a short script to defuse a fussy moment.",
-        statusBadge: "Coming soon",
+        statusBadge: "Preview",
       },
       {
         id: "travel-guide",
@@ -843,12 +880,9 @@ export default function Home() {
         longDescription:
           "Assemble packing lists and travel-day plans matched to your child’s needs.",
         createdBy: "HAVI",
-        createdAt: "2024-08-20",
-        usedXTimes: 0,
-        usedByYUsers: 0,
         savedPrompt:
           "Travel Guide: Draft a packing list and travel day plan for a short flight.",
-        statusBadge: "Coming soon",
+        statusBadge: "Preview",
       },
       {
         id: "activity-ace",
@@ -858,12 +892,9 @@ export default function Home() {
         longDescription:
           "Surface quick activities based on energy, space, and what you have on hand.",
         createdBy: "HAVI",
-        createdAt: "2024-08-25",
-        usedXTimes: 0,
-        usedByYUsers: 0,
         savedPrompt:
           "Activity Ace: Suggest a 10-minute activity with common household items.",
-        statusBadge: "Coming soon",
+        statusBadge: "Preview",
       },
       {
         id: "entertainer-eddy",
@@ -873,12 +904,9 @@ export default function Home() {
         longDescription:
           "Suggest soothing distractions for transitions or fussy moments.",
         createdBy: "HAVI",
-        createdAt: "2024-08-28",
-        usedXTimes: 0,
-        usedByYUsers: 0,
         savedPrompt:
           "Entertainer Eddy: Give a playful distraction for a tough diaper change.",
-        statusBadge: "Coming soon",
+        statusBadge: "Preview",
       },
     ],
     [],
@@ -1087,6 +1115,12 @@ export default function Home() {
     if (!caregiverLastName.trim()) {
       missing.push("caregiver last name");
     }
+    if (!caregiverEmail.trim()) {
+      missing.push("caregiver email");
+    }
+    if (!caregiverPhone.trim()) {
+      missing.push("caregiver phone");
+    }
     if (!(childFirstName || activeChildName).trim()) {
       missing.push("child name");
     }
@@ -1107,8 +1141,10 @@ export default function Home() {
     return missing;
   }, [
     activeChildName,
+    caregiverEmail,
     caregiverFirstName,
     caregiverLastName,
+    caregiverPhone,
     childBirthWeight,
     childDob,
     childDueDate,
@@ -1124,8 +1160,10 @@ export default function Home() {
   const caregiverProfileIncomplete = useMemo(
     () =>
       !caregiverFirstName.trim() ||
-      !caregiverLastName.trim(),
-    [caregiverFirstName, caregiverLastName],
+      !caregiverLastName.trim() ||
+      !caregiverEmail.trim() ||
+      !caregiverPhone.trim(),
+    [caregiverEmail, caregiverFirstName, caregiverLastName, caregiverPhone],
   );
   const hasAtLeastOneCompleteChild = useMemo(() => {
     const hasCompleteShape = (
@@ -1379,6 +1417,8 @@ export default function Home() {
         if (!messagesRes.ok) throw new Error("Unable to load conversation messages.");
         const conversation: ConversationSession = await conversationRes.json();
         const messages: ConversationMessage[] = await messagesRes.json();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const sessionUserId = sessionData.session?.user?.id ?? currentUserId;
         setActiveConversationId(conversation.id);
         setChatTitle(conversation.title);
         setChatEntries(
@@ -1388,8 +1428,23 @@ export default function Home() {
             text: msg.content,
             messageId: String(msg.id),
             createdAt: msg.created_at,
-            senderType: msg.role === "assistant" ? "assistant" : "self",
-            senderName: msg.role === "assistant" ? "HAVI" : caregiverFirstName || "You",
+            senderType:
+              msg.role === "assistant"
+                ? "assistant"
+                : msg.user_id && sessionUserId && msg.user_id !== sessionUserId
+                  ? "caregiver"
+                  : "self",
+            senderId: msg.user_id ?? undefined,
+            senderName:
+              msg.role === "assistant"
+                ? "HAVI"
+                : msg.user_id && sessionUserId && msg.user_id !== sessionUserId
+                  ? buildDisplayName(
+                      msg.sender_first_name ?? null,
+                      msg.sender_last_name ?? null,
+                      msg.sender_email ?? null,
+                    )
+                  : undefined,
           })),
         );
         setHasAnyLog(messages.length > 0);
@@ -1398,7 +1453,7 @@ export default function Home() {
         setHistoryError(reason);
       }
     },
-    [caregiverFirstName],
+    [currentUserId],
   );
 
   const createConversation = useCallback(
@@ -1647,8 +1702,12 @@ export default function Home() {
 
   const openSignupPanel = useCallback(() => {
     setNavOpen(false);
+    if (caregiverProfileIncomplete && hasAtLeastOneCompleteChild) {
+      router.push("/app/onboarding/care-member");
+      return;
+    }
     router.push("/app/onboarding/profile");
-  }, [router]);
+  }, [caregiverProfileIncomplete, hasAtLeastOneCompleteChild, router]);
 
   const clearActiveFamilyCookie = useCallback(async () => {
     await fetch("/api/active-family", {
@@ -1665,6 +1724,9 @@ export default function Home() {
       setActiveChildId(null);
       setPrimaryChildId("");
       setActiveChildName("");
+      setCurrentUserId(null);
+      setCurrentUserName("");
+      setCareTeamMembers([]);
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(ACTIVE_CHILD_KEY);
       }
@@ -1783,6 +1845,33 @@ export default function Home() {
     }
   }, [activeChildId]);
 
+  const loadCareTeam = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const sessionUserId = data.session?.user?.id ?? null;
+      setCurrentUserId(sessionUserId);
+      const res = await apiFetch(`${API_BASE_URL}/api/v1/care-team`);
+      if (!res.ok) throw new Error("Unable to load care team");
+      const payload = (await res.json()) as CareTeamResponsePayload;
+      const members = payload.members ?? [];
+      setCareTeamMembers(members);
+      if (!sessionUserId) {
+        setCurrentUserName("");
+        return;
+      }
+      const me = members.find((member) => member.user_id === sessionUserId);
+      if (!me) {
+        setCurrentUserName("");
+        return;
+      }
+      setCurrentUserName(
+        buildDisplayName(me.first_name ?? null, me.last_name ?? null, me.email ?? null),
+      );
+    } catch {
+      setCareTeamMembers([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!guardReady) return;
     loadInferences();
@@ -1800,6 +1889,17 @@ export default function Home() {
       loadSavedMemories();
     }
   }, [activePanel, guardReady, loadInferences, loadSavedMemories]);
+
+  useEffect(() => {
+    if (!guardReady) return;
+    loadCareTeam();
+  }, [guardReady, loadCareTeam]);
+
+  useEffect(() => {
+    if (!newTaskAssigneeId && currentUserId) {
+      setNewTaskAssigneeId(currentUserId);
+    }
+  }, [currentUserId, newTaskAssigneeId]);
 
   const loadTasks = useCallback(async () => {
     const requestId = tasksLoadRequestRef.current + 1;
@@ -1880,6 +1980,7 @@ export default function Home() {
           body: JSON.stringify({
             title,
             child_id: childId,
+            assigned_to_user_id: newTaskAssigneeId || currentUserId || undefined,
           }),
         });
         if (!res.ok) throw new Error("Unable to create task");
@@ -1897,7 +1998,7 @@ export default function Home() {
         setTaskCreating(false);
       }
     },
-    [activeChildId, loadTasks, primaryChildId, newTaskTitle],
+    [activeChildId, currentUserId, loadTasks, newTaskAssigneeId, primaryChildId, newTaskTitle],
   );
 
   useEffect(() => {
@@ -2369,7 +2470,7 @@ export default function Home() {
           text: textToSend,
           createdAt: new Date().toISOString(),
           senderType: "self",
-          senderName: caregiverFirstName || "You",
+          senderId: currentUserId ?? undefined,
         });
       }
       setLastMessageDraft(textToSend);
@@ -2377,17 +2478,6 @@ export default function Home() {
 
       const timezone = childTimezone || DEFAULT_TIMEZONE;
       const resolvedSource = options?.source ?? "chat";
-      const modelRequest = buildHaviModelRequest({
-        userMessage: textToSend,
-        userPreferences: null,
-        child: {
-          name: activeChildName || childFirstName || null,
-          dob: childDob || null,
-          dueDate: childDueDate || null,
-        },
-        feedbackSummary: null,
-      });
-
       try {
         const res = await apiFetch(`${API_BASE_URL}/api/v1/activities`, {
           method: "POST",
@@ -2401,7 +2491,6 @@ export default function Home() {
             source: resolvedSource,
             child_id: resolvedChildId,
             conversation_id: activeConversationIdRef.current,
-            model_request: modelRequest,
           }),
         });
 
@@ -2510,6 +2599,7 @@ export default function Home() {
       clearLoadingTimers,
       conversationState,
       createConversation,
+      currentUserId,
       fetchHistory,
       activeChildId,
       primaryChildId,
@@ -2625,18 +2715,23 @@ export default function Home() {
     });
   };
 
-  const openTaskDetails = useCallback((task: TaskItem) => {
-    setSelectedTask(task);
-    setTaskDetailTitle(task.title);
-    setTaskDetailDueDate(formatDateInput(task.due_at));
-    setTaskDetailDueTime(formatTimeInput(task.due_at));
-  }, []);
+  const openTaskDetails = useCallback(
+    (task: TaskItem) => {
+      setSelectedTask(task);
+      setTaskDetailTitle(task.title);
+      setTaskDetailDueDate(formatDateInput(task.due_at));
+      setTaskDetailDueTime(formatTimeInput(task.due_at));
+      setTaskDetailAssigneeId(task.assigned_to_user_id ?? currentUserId ?? "");
+    },
+    [currentUserId],
+  );
 
   const closeTaskDetails = useCallback(() => {
     setSelectedTask(null);
     setTaskDetailTitle("");
     setTaskDetailDueDate("");
     setTaskDetailDueTime("");
+    setTaskDetailAssigneeId("");
     setTaskSaving(false);
   }, []);
 
@@ -2659,6 +2754,10 @@ export default function Home() {
         const isoString = new Date(`${nextDate}T${timePart}:00`).toISOString();
         updates.due_at = isoString;
       }
+    }
+    const normalizedAssignee = taskDetailAssigneeId || null;
+    if (normalizedAssignee !== (selectedTask.assigned_to_user_id ?? null)) {
+      updates.assigned_to_user_id = normalizedAssignee;
     }
     if (Object.keys(updates).length === 0) {
       closeTaskDetails();
@@ -2687,6 +2786,7 @@ export default function Home() {
     closeTaskDetails,
     loadTasks,
     selectedTask,
+    taskDetailAssigneeId,
     taskDetailDueDate,
     taskDetailDueTime,
     taskDetailTitle,
@@ -2765,7 +2865,7 @@ export default function Home() {
           text: personalized,
           createdAt: new Date().toISOString(),
           senderType: "self",
-          senderName: caregiverFirstName || "You",
+          senderId: currentUserId ?? undefined,
         });
         setMessage("");
         return localId;
@@ -3011,6 +3111,7 @@ export default function Home() {
   const handleSendInvite = useCallback(async () => {
     if (inviteSending) return;
     setInviteError(null);
+    setInviteNotice(null);
     setInviteLink(null);
     const email = inviteEmail.trim();
     if (!email) {
@@ -3030,13 +3131,21 @@ export default function Home() {
       }
       const data = await res.json();
       setInviteLink(data.invite_url ?? null);
+      if (data.email_status === "sent") {
+        setInviteNotice("Invite email sent.");
+      } else if (data.email_status === "failed") {
+        setInviteNotice("Invite created, but email send failed. Copy and share the link below.");
+      } else {
+        setInviteNotice("Invite created. Copy and share the link below.");
+      }
+      void loadCareTeam();
     } catch (err) {
       const reason = err instanceof Error ? err.message : "Unable to create invite.";
       setInviteError(reason);
     } finally {
       setInviteSending(false);
     }
-  }, [inviteEmail, inviteRole, inviteSending]);
+  }, [inviteEmail, inviteRole, inviteSending, loadCareTeam]);
 
   const showSettingsSuccess = useCallback(() => {
     setSettingsSuccess("Saved");
@@ -3314,7 +3423,7 @@ export default function Home() {
         data-core-ready={appCoreReady ? "1" : "0"}
         className="flex min-h-screen w-full"
       >
-        <aside className="hidden md:flex md:w-60 flex-col gap-4 border-r border-border/60 bg-sidebar p-3">
+        <aside className="havi-app-sidebar">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             HAVI
           </div>
@@ -3353,8 +3462,8 @@ export default function Home() {
           </div>
         </aside>
 
-        <main className="flex-1 px-4 md:px-6 lg:px-8 py-6">
-          <div className="mb-4 flex items-center gap-3 md:hidden">
+        <main className="havi-app-main">
+          <div className="havi-app-mobile-topbar">
             <Button
               type="button"
               variant="outline"
@@ -3368,16 +3477,17 @@ export default function Home() {
             <span className="text-sm font-semibold">HAVI</span>
           </div>
           {guard.error ? (
-            <div
-              className="mb-4 rounded-md border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-sm text-amber-50"
+            <NoticeBanner
+              tone="warning"
+              className="mb-4"
               data-testid="guard-warning"
             >
               {guard.error}
-            </div>
+            </NoticeBanner>
           ) : null}
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>Active child</span>
-            <select
+            <Select
               id="active-child-select"
               className="havi-select text-xs"
               data-testid="active-child-select"
@@ -3395,13 +3505,13 @@ export default function Home() {
                   {child.first_name || child.name || "Child"}
                 </option>
               ))}
-            </select>
+            </Select>
             <span data-testid="timezone-label">Times shown in {timezoneLabel}</span>
           </div>
-          <section className="border-b border-border/60">
-            <div className="mx-auto w-full max-w-6xl px-6 py-10">
+          <section>
+            <div className="havi-app-shell">
           {conversationState === "network_offline" ? (
-            <div className="rounded-md border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-sm text-amber-50">
+            <NoticeBanner tone="warning">
               <p>You're offline. Check your connection and try again.</p>
               <div className="mt-2 flex gap-2">
                 <Button
@@ -3428,11 +3538,11 @@ export default function Home() {
                   Retry
                 </Button>
               </div>
-            </div>
+            </NoticeBanner>
           ) : null}
 
           {conversationState === "rate_limited" && rateLimitedMessage ? (
-            <div className="rounded-md border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-sm text-amber-50">
+            <NoticeBanner tone="warning">
               <p>{rateLimitedMessage}</p>
               <div className="mt-2 flex gap-2">
                 <Button
@@ -3463,11 +3573,11 @@ export default function Home() {
                   Okay
                 </Button>
               </div>
-            </div>
+            </NoticeBanner>
           ) : null}
 
           {conversationState === "error_hard" && hardErrorMessage ? (
-            <div className="rounded-md border border-destructive/50 bg-destructive/20 px-3 py-2 text-sm text-destructive-foreground">
+            <NoticeBanner tone="danger">
               <p>{hardErrorMessage}</p>
               <div className="mt-2 flex gap-2">
                 <Button
@@ -3515,13 +3625,13 @@ export default function Home() {
                   </Button>
                 ) : null}
               </div>
-            </div>
+            </NoticeBanner>
           ) : null}
 
       {activePanel === "home" ? (
         <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Home</CardTitle>
+            <CardTitle className="havi-type-section-title">Home</CardTitle>
             <CardDescription className="text-muted-foreground">
               A calm, structured snapshot.
             </CardDescription>
@@ -3532,9 +3642,9 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
                   Status
                 </p>
-                <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                <div className="havi-panel-inset space-y-2">
                   <p className="text-sm text-muted-foreground">{homeGreeting}</p>
-                  <p className="text-lg font-semibold">
+                  <p className="havi-type-section-title">
                     {homeChildName} · {homeAgeLabel}
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -3560,14 +3670,14 @@ export default function Home() {
                   </p>
                 ) : null}
                 {!recentEventsLoading && !showLastTile ? (
-                  <div className="rounded-md border border-dashed border-border/40 p-4">
+                  <div className="havi-panel-inset border-dashed">
                     <p className="text-sm text-muted-foreground">
                       You’re up to date. Log something to see it here.
                     </p>
                   </div>
                 ) : null}
                 {showChapterTile ? (
-                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                  <div className="havi-panel-inset space-y-2">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold">Last chapter</p>
@@ -3588,7 +3698,7 @@ export default function Home() {
                   </div>
                 ) : null}
                 {showLastTile ? (
-                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-2">
+                  <div className="havi-panel-inset space-y-2">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold">Last</p>
@@ -3613,7 +3723,7 @@ export default function Home() {
                   Coming up
                 </p>
                 {showComingUp && comingUpWeek ? (
-                  <div className="rounded-md border border-border/40 bg-background/60 p-4 space-y-3">
+                  <div className="havi-panel-inset space-y-3">
                     <div>
                       <p className="text-sm font-semibold">
                         What to expect
@@ -3640,7 +3750,7 @@ export default function Home() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="rounded-md border border-dashed border-border/40 p-4">
+                  <div className="havi-panel-inset border-dashed">
                     <p className="text-sm text-muted-foreground">
                       We’ll surface what’s next when a new age window starts.
                     </p>
@@ -3684,7 +3794,7 @@ export default function Home() {
       {activePanel === "timeline" ? (
         <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Timeline</CardTitle>
+            <CardTitle className="havi-type-section-title">Timeline</CardTitle>
             <CardDescription className="text-muted-foreground">
               Review events for {childFirstName || "your child"}.
             </CardDescription>
@@ -3707,7 +3817,7 @@ export default function Home() {
       {activePanel === "tasks" ? (
         <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Tasks</CardTitle>
+            <CardTitle className="havi-type-section-title">Tasks</CardTitle>
             <CardDescription className="text-muted-foreground">
               Includes family tasks and items for the selected child.
             </CardDescription>
@@ -3727,6 +3837,24 @@ export default function Home() {
                 className="bg-background"
                 data-testid="task-input"
               />
+              <Select
+                className="havi-select bg-background sm:w-48"
+                value={newTaskAssigneeId}
+                onChange={(event) => setNewTaskAssigneeId(event.target.value)}
+                data-testid="task-assignee"
+              >
+                {careTeamMembers.length === 0 ? (
+                  <option value={currentUserId ?? ""}>Me</option>
+                ) : (
+                  careTeamMembers.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.user_id === currentUserId
+                        ? `${buildDisplayName(member.first_name, member.last_name, member.email)} (Me)`
+                        : buildDisplayName(member.first_name, member.last_name, member.email)}
+                    </option>
+                  ))
+                )}
+              </Select>
               <Button
                 type="submit"
                 size="sm"
@@ -3737,7 +3865,7 @@ export default function Home() {
               </Button>
             </form>
             {taskCreateError ? (
-              <p className="text-sm text-destructive">{taskCreateError}</p>
+              <NoticeBanner tone="danger">{taskCreateError}</NoticeBanner>
             ) : null}
             <div className="relative">
               <div
@@ -3769,12 +3897,26 @@ export default function Home() {
               </div>
               <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card/90 to-transparent" />
             </div>
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+              {(["all", "me", "others"] as const).map((filter) => (
+                <Button
+                  key={filter}
+                  size="sm"
+                  variant={tasksAssigneeFilter === filter ? "secondary" : "ghost"}
+                  className="shrink-0"
+                  onClick={() => setTasksAssigneeFilter(filter)}
+                  data-testid={`tasks-assignee-${filter}`}
+                >
+                  {filter === "all" ? "Everyone" : filter === "me" ? "Assigned to me" : "Assigned to others"}
+                </Button>
+              ))}
+            </div>
             {remindersLoading ? (
               <p className="text-sm text-muted-foreground">Loading reminders…</p>
             ) : remindersError ? (
-              <p className="text-sm text-destructive">{remindersError}</p>
+              <NoticeBanner tone="danger">{remindersError}</NoticeBanner>
             ) : dueReminders.length > 0 ? (
-              <div className="space-y-2 rounded-md border border-amber-200/30 bg-amber-50/10 p-3">
+              <div className="havi-notice-banner havi-notice-banner-warning space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-amber-200">
                     Reminders due now
@@ -3787,7 +3929,7 @@ export default function Home() {
                   {dueReminders.map((task) => (
                     <div
                       key={task.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/40 bg-background/70 p-2"
+                      className="havi-panel-inset-alt flex flex-wrap items-center justify-between gap-2 p-2"
                     >
                       <div>
                         <p className="text-sm font-medium">{task.title}</p>
@@ -3824,7 +3966,7 @@ export default function Home() {
             {tasksLoading ? (
               <p className="text-sm text-muted-foreground">Loading tasks…</p>
             ) : tasksError ? (
-              <p className="text-sm text-destructive">{tasksError}</p>
+              <NoticeBanner tone="danger">{tasksError}</NoticeBanner>
             ) : tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {getTasksTabEmptyMessage(tasksView)}
@@ -3843,12 +3985,11 @@ export default function Home() {
                   <li
                     key={task.id}
                     data-testid="task-item"
-                    className="flex items-start gap-3 rounded-md border border-border/40 bg-background/60 p-3 hover:border-border cursor-pointer"
+                    className="havi-panel-inset flex cursor-pointer items-start gap-3 p-3 hover:border-[color:var(--havi-app-panel-border-strong)]"
                     onClick={() => openTaskDetails(task)}
                   >
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-border/60"
+                    <Checkbox
+                      className="mt-1"
                       onChange={(e) => {
                         e.stopPropagation();
                         const targetStatus =
@@ -3868,10 +4009,16 @@ export default function Home() {
                           currentUserId,
                           currentUserName,
                         );
-                        if (!meta) return null;
+                        const assignee = task.assigned_to_name
+                          ? `Assigned to ${task.assigned_to_name}${
+                              task.assigned_to_user_id === currentUserId ? " (Me)" : ""
+                            }`
+                          : null;
+                        const metaLine = [meta, assignee].filter(Boolean).join(" • ");
+                        if (!metaLine) return null;
                         return (
                           <p className="text-[11px] text-muted-foreground">
-                            {meta}
+                            {metaLine}
                           </p>
                         );
                       })()}
@@ -3899,16 +4046,16 @@ export default function Home() {
       ) : null}
       {selectedTask ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 md:items-stretch md:justify-end"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[color:var(--havi-app-overlay-bg)] md:items-stretch md:justify-end"
           onClick={closeTaskDetails}
         >
-          <div
-            className="w-full max-w-[420px] rounded-t-2xl border border-border/60 bg-card p-4 shadow-xl md:h-full md:rounded-none md:rounded-l-2xl"
+          <DrawerPanel
+            className="w-full max-w-[420px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-semibold">Task details</h3>
+                <h3 className="havi-type-section-title">Task details</h3>
                 <p className="text-xs text-muted-foreground">
                   Created {new Date(selectedTask.created_at).toLocaleString([], {
            month: "short", day: "numeric" })}
@@ -3921,8 +4068,8 @@ export default function Home() {
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground">Title</p>
-                <input
-                  className="mt-1 havi-input"
+                <Input
+                  className="mt-1"
                   value={taskDetailTitle}
                   onChange={(e) => setTaskDetailTitle(e.target.value)}
                   data-testid="task-detail-title"
@@ -3933,18 +4080,18 @@ export default function Home() {
                 <div className="mt-1 space-y-2">
                   <div>
                     <p className="text-[11px] text-muted-foreground">Date</p>
-                    <input
+                    <Input
                       type="date"
-                      className="mt-1 havi-input"
+                      className="mt-1"
                       value={taskDetailDueDate}
                       onChange={(e) => setTaskDetailDueDate(e.target.value)}
                     />
                   </div>
                   <div>
                     <p className="text-[11px] text-muted-foreground">Time</p>
-                    <input
+                    <Input
                       type="time"
-                      className="mt-1 havi-input"
+                      className="mt-1"
                       value={taskDetailDueTime}
                       onChange={(e) => setTaskDetailDueTime(e.target.value)}
                     />
@@ -3962,6 +4109,27 @@ export default function Home() {
                     Clear due
                   </button>
                 ) : null}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Assigned to</p>
+                <Select
+                  className="mt-1 w-full havi-select"
+                  value={taskDetailAssigneeId}
+                  onChange={(event) => setTaskDetailAssigneeId(event.target.value)}
+                  data-testid="task-detail-assignee"
+                >
+                  {careTeamMembers.length === 0 ? (
+                    <option value={currentUserId ?? ""}>Me</option>
+                  ) : (
+                    careTeamMembers.map((member) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.user_id === currentUserId
+                          ? `${buildDisplayName(member.first_name, member.last_name, member.email)} (Me)`
+                          : buildDisplayName(member.first_name, member.last_name, member.email)}
+                      </option>
+                    ))
+                  )}
+                </Select>
               </div>
             </div>
             <div className="mt-4 flex items-center gap-2">
@@ -3995,7 +4163,7 @@ export default function Home() {
                 {selectedTask.status === "done" ? "Reopen" : "Mark complete"}
               </Button>
             </div>
-          </div>
+          </DrawerPanel>
         </div>
       ) : null}
 
@@ -4004,7 +4172,7 @@ export default function Home() {
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-base font-semibold">Chat history</CardTitle>
+                <CardTitle className="havi-type-section-title">Chat history</CardTitle>
                 <CardDescription className="text-muted-foreground">
                   Recent conversations auto-titled by HAVI.
                 </CardDescription>
@@ -4018,7 +4186,7 @@ export default function Home() {
             {historyLoading ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : historyError ? (
-              <p className="text-sm text-destructive">{historyError}</p>
+              <NoticeBanner tone="danger">{historyError}</NoticeBanner>
             ) : sessions.length === 0 ? (
               <p className="text-sm text-muted-foreground">No chats yet.</p>
             ) : (
@@ -4060,7 +4228,7 @@ export default function Home() {
       {activePanel === "knowledge" ? (
         <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Memories</CardTitle>
+            <CardTitle className="havi-type-section-title">Memories</CardTitle>
             <CardDescription className="text-muted-foreground">
               Review what HAVI noticed and save the moments that matter.
             </CardDescription>
@@ -4086,7 +4254,7 @@ export default function Home() {
               {inferenceLoading ? (
                 <p className="text-sm text-muted-foreground">Loading suggestions…</p>
               ) : inferenceError ? (
-                <div className="text-sm text-destructive">{inferenceError}</div>
+                <NoticeBanner tone="danger">{inferenceError}</NoticeBanner>
               ) : inferenceCards.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No new suggestions right now.
@@ -4198,7 +4366,7 @@ export default function Home() {
                   Loading saved memories…
                 </p>
               ) : savedMemoriesError ? (
-                <div className="text-sm text-destructive">{savedMemoriesError}</div>
+                <NoticeBanner tone="danger">{savedMemoriesError}</NoticeBanner>
               ) : savedMemories.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No memories saved yet.
@@ -4274,9 +4442,9 @@ export default function Home() {
       ) : null}
 
       {activePanel === "integrations" ? (
-        <Card className="bg-card/80 shadow-lg">
+        <Card className="havi-card-shell">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Integrations & Agents</CardTitle>
+            <CardTitle className="havi-type-section-title">Integrations & Agents</CardTitle>
             <CardDescription className="text-muted-foreground">
               Lightweight previews of what’s coming next.
             </CardDescription>
@@ -4287,7 +4455,7 @@ export default function Home() {
                 <button
                   key={agent.id}
                   className={cn(
-                    "flex items-start justify-between rounded-lg border border-border/50 bg-background/70 p-3 text-left",
+                    "havi-panel-inset-alt flex items-start justify-between rounded-lg p-3 text-left",
                     selectedAgentId === agent.id && "ring-1 ring-primary/40",
                   )}
                   onClick={() => setSelectedAgentId(agent.id)}
@@ -4306,16 +4474,13 @@ export default function Home() {
                       <p className="text-sm text-muted-foreground">
                         {agent.shortDescription}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Used by {agent.usedByYUsers} users
-                      </p>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
             {selectedAgentId ? (
-              <div className="rounded-lg border border-border/60 bg-background/80 p-4">
+              <div className="havi-panel-inset-alt rounded-lg p-4">
                 {agentCards
                   .filter((agent) => agent.id === selectedAgentId)
                   .map((agent) => (
@@ -4323,7 +4488,7 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <span className="text-xl">{agent.icon}</span>
                         <div>
-                          <p className="text-lg font-semibold">{agent.name}</p>
+                          <p className="havi-type-section-title">{agent.name}</p>
                           <p className="text-sm text-muted-foreground">
                             {agent.shortDescription}
                           </p>
@@ -4337,9 +4502,7 @@ export default function Home() {
                       </p>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         <span>Created by {agent.createdBy}</span>
-                        <span>Created {agent.createdAt}</span>
-                        <span>Used {agent.usedXTimes} times</span>
-                        <span>Used by {agent.usedByYUsers} users</span>
+                        <span>Preview capability</span>
                       </div>
                       <div className="space-y-1 rounded-md border border-border/60 bg-muted/20 p-3">
                         <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
@@ -4380,7 +4543,7 @@ export default function Home() {
                       >
                         {agent.statusBadge === "Available"
                           ? "Use Remind Agent"
-                          : "Coming soon"}
+                          : "Preview only"}
                       </Button>
                     </div>
                   ))}
@@ -4404,7 +4567,7 @@ export default function Home() {
       {activePanel === "settings" ? (
         <Card className="havi-card-shell">
           <CardHeader>
-            <CardTitle className="text-base">Settings</CardTitle>
+            <CardTitle className="havi-type-section-title">Settings</CardTitle>
             <CardDescription className="text-muted-foreground">
               Manage caregiver and child details.
             </CardDescription>
@@ -4415,12 +4578,12 @@ export default function Home() {
             ) : (
               <>
                 {settingsError ? (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <NoticeBanner tone="danger">
                     There was a problem saving your settings. Please try again.
-                    <div className="text-[11px] text-destructive/80">
+                    <div className="text-[11px] text-muted-foreground">
                       {settingsError}
                     </div>
-                  </div>
+                  </NoticeBanner>
                 ) : null}
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -4487,7 +4650,7 @@ export default function Home() {
                     </div>
                   </div>
                   {showCaregiverForm ? (
-                    <div className="space-y-2 rounded-md border border-border/60 bg-background/70 p-3">
+                    <div className="havi-panel-inset-alt space-y-2 p-3">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         <EditableField
                           label="First Name"
@@ -4515,7 +4678,7 @@ export default function Home() {
                           <p className="text-[11px] text-muted-foreground">
                             Relationship
                           </p>
-                          <select
+                          <Select
                             className="mt-1 w-full havi-select"
                             value={relationship}
                             onChange={(event) =>
@@ -4527,13 +4690,13 @@ export default function Home() {
                                 <option key={option}>{option}</option>
                               ),
                             )}
-                          </select>
+                          </Select>
                         </div>
                       </div>
                     </div>
                   ) : null}
                   {newChildOpen ? (
-                    <div className="space-y-3 rounded-md border border-border/60 bg-background/70 p-3">
+                    <div className="havi-panel-inset-alt space-y-3 p-3">
                       <div>
                         <p className="text-sm font-semibold">Add a child</p>
                         <p className="text-xs text-muted-foreground">
@@ -4557,7 +4720,7 @@ export default function Home() {
                           <p className="text-[11px] text-muted-foreground">
                             Gender
                           </p>
-                          <select
+                          <Select
                             id="new-child-gender"
                             className="mt-1 w-full havi-select"
                             value={newChildGender}
@@ -4569,7 +4732,7 @@ export default function Home() {
                             <option value="unknown">Unknown</option>
                             <option value="boy">Boy</option>
                             <option value="girl">Girl</option>
-                          </select>
+                          </Select>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -4617,8 +4780,8 @@ export default function Home() {
                           <p className="text-[11px] text-muted-foreground">
                             Birth Weight Unit
                           </p>
-                          <select
-                            className="mt-1 w-full rounded-md border border-border/40 bg-background/60 p-2 text-sm"
+                          <Select
+                            className="mt-1 w-full havi-select"
                             value={newChildBirthWeightUnit}
                             onChange={(event) =>
                               setNewChildBirthWeightUnit(event.target.value)
@@ -4629,14 +4792,14 @@ export default function Home() {
                                 {unit}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </div>
                       </div>
                       <div>
                         <p className="text-[11px] text-muted-foreground">
                           Timezone
                         </p>
-                        <select
+                        <Select
                           id="new-child-timezone"
                           className="w-full havi-select"
                           value={newChildTimezone || "America/Los_Angeles"}
@@ -4646,10 +4809,10 @@ export default function Home() {
                           <option value="America/Denver">Mountain (MT)</option>
                           <option value="America/Chicago">Central (CT)</option>
                           <option value="America/New_York">Eastern (ET)</option>
-                        </select>
+                        </Select>
                       </div>
                       {newChildError ? (
-                        <p className="text-sm text-destructive">{newChildError}</p>
+                        <NoticeBanner tone="danger">{newChildError}</NoticeBanner>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -4706,7 +4869,7 @@ export default function Home() {
                       </Button>
                     </div>
                   </div>
-                  <div className="rounded-md border border-border/50 bg-background/60 p-3 text-sm">
+                  <div className="havi-panel-inset p-3 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="font-semibold text-foreground">
@@ -4753,7 +4916,7 @@ export default function Home() {
                     ) : null}
                   </div>
                   {showChildForm ? (
-                    <div className="space-y-2 rounded-md border border-border/60 bg-background/70 p-3">
+                    <div className="havi-panel-inset-alt space-y-2 p-3">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         <EditableField
                           label="First Name"
@@ -4802,9 +4965,7 @@ export default function Home() {
                             testId="settings-child-dob"
                           />
                           {fieldErrors.childDob ? (
-                            <p className="text-xs text-destructive">
-                              {fieldErrors.childDob}
-                            </p>
+                            <FieldError>{fieldErrors.childDob}</FieldError>
                           ) : null}
                         </div>
                       ) : (
@@ -4817,9 +4978,7 @@ export default function Home() {
                             testId="settings-child-due-date"
                           />
                           {fieldErrors.childDueDate ? (
-                            <p className="text-xs text-destructive">
-                              {fieldErrors.childDueDate}
-                            </p>
+                            <FieldError>{fieldErrors.childDueDate}</FieldError>
                           ) : null}
                         </div>
                       )}
@@ -4828,7 +4987,7 @@ export default function Home() {
                           <p className="text-[11px] text-muted-foreground">
                             Gender
                           </p>
-                          <select
+                          <Select
                             className="mt-1 w-full havi-select"
                             value={childGender}
                             onChange={(event) =>
@@ -4840,11 +4999,9 @@ export default function Home() {
                             <option value="unknown">Unknown</option>
                             <option value="boy">Boy</option>
                             <option value="girl">Girl</option>
-                          </select>
+                          </Select>
                           {fieldErrors.childGender ? (
-                            <p className="text-xs text-destructive">
-                              {fieldErrors.childGender}
-                            </p>
+                            <FieldError>{fieldErrors.childGender}</FieldError>
                           ) : null}
                         </div>
                         <div>
@@ -4856,17 +5013,15 @@ export default function Home() {
                             testId="settings-child-birth-weight"
                           />
                           {fieldErrors.childBirthWeight ? (
-                            <p className="text-xs text-destructive">
-                              {fieldErrors.childBirthWeight}
-                            </p>
+                            <FieldError>{fieldErrors.childBirthWeight}</FieldError>
                           ) : null}
                         </div>
                         <div>
                           <p className="text-[11px] text-muted-foreground">
                             Birth Weight Unit
                           </p>
-                          <select
-                            className="mt-1 w-full rounded-md border border-border/40 bg-background/60 p-2 text-sm"
+                          <Select
+                            className="mt-1 w-full havi-select"
                             value={childBirthWeightUnit}
                             onChange={(event) =>
                               setChildBirthWeightUnit(event.target.value)
@@ -4877,7 +5032,7 @@ export default function Home() {
                                 {unit}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </div>
                         <EditableField
                           label="Latest Weight (optional)"
@@ -4892,15 +5047,13 @@ export default function Home() {
                           placeholder="MM-DD-YYYY"
                         />
                         {fieldErrors.childLatestWeightDate ? (
-                          <p className="text-xs text-destructive">
-                            {fieldErrors.childLatestWeightDate}
-                          </p>
+                          <FieldError>{fieldErrors.childLatestWeightDate}</FieldError>
                         ) : null}
                         <div>
                           <p className="text-[11px] text-muted-foreground">
                             Timezone
                           </p>
-                          <select
+                          <Select
                             className="w-full havi-select"
                             value={childTimezone || "America/Los_Angeles"}
                             onChange={(e) => setChildTimezone(e.target.value)}
@@ -4913,14 +5066,14 @@ export default function Home() {
                             <option value="America/New_York">
                               Eastern (ET)
                             </option>
-                          </select>
+                          </Select>
                         </div>
                       </div>
                       <div>
                         <p className="text-[11px] text-muted-foreground">
                           Current age
                         </p>
-                        <p className="rounded-md border border-border/40 bg-background/60 px-2 py-1 text-sm">
+                        <p className="havi-panel-inset px-2 py-1 text-sm">
                           {formatAdjustedAge(childDob, childDueDate)}
                         </p>
                       </div>
@@ -5052,12 +5205,16 @@ export default function Home() {
             <CardContent>
               <ScrollArea
                 ref={handleScrollViewportRef}
-                className="h-[360px] rounded-md border border-border/40 bg-background/30 p-3 space-y-3"
+                className="h-[360px] space-y-3 rounded-md border border-[color:var(--havi-app-panel-border)] bg-[color:var(--havi-app-inset-bg)] p-3"
               >
                 {chatEntries.map((entry, index) => {
                   const currentSender =
                     entry.senderType ??
                     (entry.role === "havi" ? "assistant" : "self");
+                  const currentSenderKey =
+                    currentSender === "caregiver"
+                      ? `${currentSender}:${entry.senderId ?? "unknown"}`
+                      : currentSender;
                   const prevSender =
                     index > 0
                       ? chatEntries[index - 1].senderType ??
@@ -5065,8 +5222,16 @@ export default function Home() {
                           ? "assistant"
                           : "self")
                       : null;
+                  const prevSenderKey =
+                    index > 0
+                      ? prevSender === "caregiver"
+                        ? `${prevSender}:${chatEntries[index - 1].senderId ?? "unknown"}`
+                        : prevSender
+                      : null;
                   const gap =
-                    index === 0 ? 0 : prevSender === currentSender ? 6 : 12;
+                    index === 0 ? 0 : prevSenderKey === currentSenderKey ? 6 : 12;
+                  const showSenderLabel =
+                    currentSender === "caregiver" && prevSenderKey !== currentSenderKey;
                   return (
                     <div
                       key={entry.id}
@@ -5075,6 +5240,7 @@ export default function Home() {
                     >
                       <MessageBubble
                         entry={entry}
+                        showSenderLabel={showSenderLabel}
                         isPinned={pinnedTimestampId === entry.id}
                         onToggleTimestamp={(id) =>
                           setPinnedTimestampId((prev) =>
@@ -5121,7 +5287,37 @@ export default function Home() {
 
           <div className="mt-4 space-y-3">
             <div className="flex flex-col gap-2">
-              <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card/70 px-2 py-2">
+              <div className="havi-voice-toolbar">
+                <Button
+                  type="button"
+                  data-testid="voice-primary"
+                  data-recording={voiceState === "recording" ? "true" : "false"}
+                  className="havi-voice-primary"
+                  onClick={() =>
+                    voiceState === "recording" ? stopVoice() : startVoice()
+                  }
+                  disabled={isComposerLocked || voiceState === "transcribing"}
+                >
+                  {voiceState === "transcribing" ? (
+                    <InlineSpinner />
+                  ) : voiceState === "recording" ? (
+                    <Square className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                  <span>
+                    {voiceState === "recording"
+                      ? `Stop voice (${formatVoiceTime(voiceSeconds)})`
+                      : voiceState === "transcribing"
+                        ? "Transcribing…"
+                        : "Voice input"}
+                  </span>
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Voice and typing are always available.
+                </span>
+              </div>
+              <div className="havi-panel-inset-alt flex items-end gap-2 rounded-2xl px-2 py-2">
                 <div className="flex-1 min-w-0">
                   {voiceState === "recording" ? (
                     <div className="flex items-center gap-2 rounded-xl bg-background/60 px-3 py-2 text-sm text-muted-foreground">
@@ -5152,19 +5348,6 @@ export default function Home() {
                     />
                   )}
                 </div>
-                <DictateButton
-                  isRecording={voiceState === "recording"}
-                  onClick={() =>
-                    voiceState === "recording" ? stopVoice() : startVoice()
-                  }
-                  disabled={isComposerLocked || voiceState === "transcribing"}
-                  className={cn(
-                    "mb-0.5 h-10 w-10 self-end rounded-xl border border-border/60",
-                    voiceState === "recording"
-                      ? "bg-red-500/10 text-red-500"
-                      : "bg-background",
-                  )}
-                />
                 <Button
                   type="button"
                   aria-label="Send message"
@@ -5184,7 +5367,9 @@ export default function Home() {
                 </Button>
               </div>
               {voiceError ? (
-                <p className="text-xs text-destructive">{voiceError}</p>
+                <NoticeBanner tone="danger" className="text-xs">
+                  {voiceError}
+                </NoticeBanner>
               ) : null}
             </div>
           </div>
@@ -5192,12 +5377,12 @@ export default function Home() {
       ) : null}
 
       {inviteOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--havi-app-overlay-bg)] px-4">
+          <div className="havi-panel-shell w-full max-w-md space-y-3 rounded-lg p-4">
             <div className="space-y-1">
-              <p className="text-base font-semibold">Invite a caregiver</p>
+              <p className="havi-type-section-title">Invite a caregiver</p>
               <p className="text-sm text-muted-foreground">
-                Share a private link to join your family.
+                Send an invite email. You can also copy the private link.
               </p>
             </div>
             <div className="space-y-2">
@@ -5214,7 +5399,7 @@ export default function Home() {
               </label>
               <label className="text-sm font-medium">
                 Role
-                <select
+                <Select
                   id="invite-role"
                   className="mt-2 w-full havi-select"
                   value={inviteRole}
@@ -5225,7 +5410,7 @@ export default function Home() {
                       {role}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {inviteLink ? (
                 <div className="space-y-2">
@@ -5252,7 +5437,10 @@ export default function Home() {
                 </div>
               ) : null}
               {inviteError ? (
-                <p className="text-sm text-destructive">{inviteError}</p>
+                <NoticeBanner tone="danger">{inviteError}</NoticeBanner>
+              ) : null}
+              {inviteNotice ? (
+                <NoticeBanner tone="info">{inviteNotice}</NoticeBanner>
               ) : null}
             </div>
             <div className="flex justify-end gap-2">
@@ -5262,13 +5450,14 @@ export default function Home() {
                 onClick={() => {
                   setInviteOpen(false);
                   setInviteError(null);
+                  setInviteNotice(null);
                   setInviteLink(null);
                 }}
               >
                 Close
               </Button>
               <Button size="sm" onClick={handleSendInvite} disabled={inviteSending}>
-                {inviteSending ? "Creating..." : "Create invite"}
+                {inviteSending ? "Sending..." : "Send invite"}
               </Button>
             </div>
           </div>
@@ -5277,20 +5466,20 @@ export default function Home() {
 
       {profileAccessLocked ? (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-[color:var(--havi-app-overlay-bg)] px-4"
           data-testid="profile-lock-modal"
         >
-          <div className="w-full max-w-md space-y-3 rounded-lg border border-border/60 bg-card p-4 shadow-xl">
+          <div className="havi-panel-shell w-full max-w-md space-y-3 rounded-lg p-4">
             <div className="space-y-1">
-              <p className="text-base font-semibold">
-                Complete profile to use HAVI
+              <p className="havi-type-section-title">
+                Finish required profile fields
               </p>
               <p className="text-sm text-muted-foreground">
-                You can open the app, but chat, tasks, and timeline stay locked until required profile fields are complete.
+                Chat, tasks, and timeline stay locked until required caregiver and child details are complete.
               </p>
             </div>
             {missingProfileFields.length ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="havi-panel-inset text-xs text-muted-foreground">
                 Missing: {missingProfileFields.join(", ")}
               </p>
             ) : null}
@@ -5316,10 +5505,10 @@ export default function Home() {
           <button
             type="button"
             aria-label="Close navigation overlay"
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-[color:var(--havi-app-overlay-bg)]"
             onClick={() => setNavOpen(false)}
           />
-          <aside className="relative z-10 h-full w-72 border-r border-border/60 bg-sidebar p-4">
+          <aside className="havi-app-sidebar relative z-10 h-full w-72 p-4 md:flex">
             <div className="flex items-center justify-between pb-4">
               <span className="text-sm font-semibold">HAVI</span>
               <Button
@@ -5658,8 +5847,8 @@ function EditableField({
   return (
     <div>
       <p className="text-[11px] text-muted-foreground">{label}</p>
-      <input
-        className="mt-1 havi-input"
+      <Input
+        className="mt-1"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}

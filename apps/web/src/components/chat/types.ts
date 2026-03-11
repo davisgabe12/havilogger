@@ -24,6 +24,7 @@ export type ChatEntry = {
   routeMetadata?: ChatRouteMetadata | null;
   createdAt: string;
   senderType?: "self" | "assistant" | "caregiver";
+  senderId?: string;
   senderName?: string;
 };
 
@@ -51,4 +52,8 @@ export type ConversationMessage = {
   role: string;
   content: string;
   created_at: string;
+  user_id?: string | null;
+  sender_first_name?: string | null;
+  sender_last_name?: string | null;
+  sender_email?: string | null;
 };

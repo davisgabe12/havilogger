@@ -44,10 +44,10 @@
   --background: var(--havi-bg);
   --foreground: var(--havi-text);
 
-  --card: var(--havi-surface-2);
+  --card: var(--havi-app-panel-bg);
   --card-foreground: var(--havi-text);
 
-  --popover: var(--havi-surface-1);
+  --popover: var(--havi-app-inset-bg);
   --popover-foreground: var(--havi-text);
 
   /* Actions */
@@ -57,7 +57,7 @@
   --secondary: var(--havi-secondary-bg);
   --secondary-foreground: var(--havi-text);
 
-  --muted: var(--havi-surface-1);
+  --muted: var(--havi-app-inset-bg-alt);
   --muted-foreground: var(--havi-text-muted);
 
   --accent: var(--havi-secondary-bg);

@@ -47,23 +47,23 @@ const tiers = [
 export default function PricingPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-light">
+        <div className="havi-container-wide">
           <div className="max-w-2xl space-y-4">
-            <h1 className="text-3xl font-semibold md:text-4xl">Simple pricing for modern families</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Simple pricing for modern families</h1>
+            <p className="havi-text-body">
               Havi is built to reduce mental load, not add more work. Start for free and
               upgrade when you want deeper memory, Runway guidance, and shared alignment.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {tiers.map((tier) => (
-              <Card key={tier.title} className="h-full">
+              <Card key={tier.title} className="h-full havi-showcase-card">
                 <CardHeader>
-                  <CardTitle className="text-lg">{tier.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{tier.price}</p>
+                  <CardTitle className="havi-marketing-card-title">{tier.title}</CardTitle>
+                  <p className="havi-marketing-card-body">{tier.price}</p>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm text-muted-foreground">
+                <CardContent className="space-y-4 text-sm havi-text-body">
                   <p>{tier.detail}</p>
                   <ul className="space-y-2">
                     {tier.bullets.map((bullet) => (
@@ -75,10 +75,10 @@ export default function PricingPage() {
             ))}
           </div>
           <div className="mt-10 flex flex-wrap items-center gap-3">
-            <Button asChild>
+            <Button className="havi-cta-primary" asChild>
               <Link href="/auth/sign-up">Get started</Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button className="havi-cta-secondary" variant="outline" asChild>
               <Link href="/stories">Read stories</Link>
             </Button>
           </div>

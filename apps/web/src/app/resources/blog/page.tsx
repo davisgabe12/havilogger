@@ -28,20 +28,20 @@ const posts = [
 export default function BlogPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-5xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-light">
+        <div className="havi-container-wide max-w-5xl">
           <div className="max-w-2xl space-y-4">
-            <h1 className="text-3xl font-semibold md:text-4xl">Havi blog</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Havi blog</h1>
+            <p className="havi-text-body">
               Calm, thoughtful reads on memory, mental load, and staying aligned as a
               family.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {posts.map((post) => (
-              <Card key={post.title} className="h-full">
-                <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
-                  <h2 className="text-base font-semibold text-foreground">{post.title}</h2>
+              <Card key={post.title} className="h-full havi-showcase-card">
+                <CardContent className="space-y-3 p-6 text-sm havi-text-body">
+                  <h2 className="havi-marketing-card-title">{post.title}</h2>
                   <p>{post.description}</p>
                 </CardContent>
               </Card>

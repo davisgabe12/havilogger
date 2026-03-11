@@ -13,6 +13,9 @@ export interface TimelineEvent {
   isCustom?: boolean;
   source?: "chat" | "chip" | "manual" | "import";
   originMessageId?: string;
+  recordedByUserId?: string;
+  recordedByFirstName?: string;
+  recordedByLastName?: string;
 }
 
 export type TimelineFilterId = "all" | TimelineEventType;

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 
@@ -217,7 +218,7 @@ export function MessageFeedback({
   return (
     <div className={cn(wrapperClasses, containerClassName)}>
       {hasFeedbackTarget && rating === "down" ? (
-        <input
+        <Input
           className={inputClasses}
           value={comment}
           placeholder="What didn’t work? (optional)"

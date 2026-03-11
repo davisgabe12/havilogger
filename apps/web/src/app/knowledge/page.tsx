@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import KnowledgeList from "@/components/knowledge/KnowledgeList";
+import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HaviWordmark } from "@/components/brand/HaviWordmark";
@@ -92,57 +93,62 @@ export default function KnowledgePage() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
-      <header>
-        <h1 className="text-3xl font-bold text-muted-foreground">
-          <HaviWordmark />
-        </h1>
-      </header>
-      <Card className="bg-card/70 backdrop-blur">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Knowledge review</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
-            Confirm or edit what HAVI has learned so far.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{loading ? "Refreshing…" : "Up to date"}</span>
-            <Button size="sm" variant="outline" onClick={fetchItems} disabled={loading}>
-              Refresh
-            </Button>
-          </div>
-          {error ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
+    <main className="havi-app-main min-h-screen">
+      <div className="havi-app-shell max-w-3xl">
+        <header className="havi-panel-inset-alt rounded-xl p-4">
+          <h1 className="havi-type-page-title">
+            <HaviWordmark />
+          </h1>
+          <p className="havi-type-body mt-1">
+            Review and confirm what HAVI is retaining for your family.
+          </p>
+        </header>
+        <Card className="havi-card-shell">
+          <CardHeader>
+            <CardTitle className="havi-type-section-title">Knowledge review</CardTitle>
+            <CardDescription className="havi-type-body">
+              Confirm or edit what HAVI has learned so far.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="havi-panel-inset-alt havi-type-body flex items-center justify-between rounded-lg px-3 py-2">
+              <span>{loading ? "Refreshing…" : "Up to date"}</span>
+              <Button size="sm" variant="outline" onClick={fetchItems} disabled={loading}>
+                Refresh
+              </Button>
             </div>
-          ) : null}
-          {loading && !items.length ? (
-            <p className="text-sm text-muted-foreground">Loading what HAVI remembers…</p>
-          ) : null}
-          {!loading && items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No knowledge saved yet. As you chat, HAVI will collect helpful details here.
-            </p>
-          ) : null}
-          {Object.entries(groups)
-            .sort(([a], [b]) => {
-              const ai = KNOWLEDGE_GROUPS.indexOf(a);
-              const bi = KNOWLEDGE_GROUPS.indexOf(b);
-              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-            })
-            .map(([group, groupItems]) => (
-              <KnowledgeList
-                key={group}
-                group={group}
-                items={groupItems}
-                onConfirm={handleConfirm}
-                onDismiss={handleDismiss}
-                onEdit={handleEdit}
-              />
-            ))}
-        </CardContent>
-      </Card>
+            {error ? (
+              <NoticeBanner tone="danger">
+                {error}
+              </NoticeBanner>
+            ) : null}
+            {loading && !items.length ? (
+              <p className="havi-type-body">Loading what HAVI remembers…</p>
+            ) : null}
+            {!loading && items.length === 0 ? (
+              <p className="havi-type-body">
+                No knowledge saved yet. As you chat, HAVI will collect helpful details here.
+              </p>
+            ) : null}
+            {Object.entries(groups)
+              .sort(([a], [b]) => {
+                const ai = KNOWLEDGE_GROUPS.indexOf(a);
+                const bi = KNOWLEDGE_GROUPS.indexOf(b);
+                return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+              })
+              .map(([group, groupItems]) => (
+                <KnowledgeList
+                  key={group}
+                  group={group}
+                  items={groupItems}
+                  onConfirm={handleConfirm}
+                  onDismiss={handleDismiss}
+                  onEdit={handleEdit}
+                />
+              ))}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

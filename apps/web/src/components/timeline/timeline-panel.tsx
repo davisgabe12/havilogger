@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivitySquare, Droplets, Milk, Moon, Ruler } from "lucide-react";
 
+import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api-base-url";
 import { mockTimelineEvents } from "./timeline-data";
@@ -96,6 +98,9 @@ type TimelineApiEvent = {
   is_custom?: boolean;
   source?: string;
   origin_message_id?: string;
+  recorded_by_user_id?: string;
+  recorded_by_first_name?: string;
+  recorded_by_last_name?: string;
 };
 
 function mapApiEvent(event: TimelineApiEvent): TimelineEvent {
@@ -123,7 +128,29 @@ function mapApiEvent(event: TimelineApiEvent): TimelineEvent {
     originMessageId: event.origin_message_id
       ? String(event.origin_message_id)
       : undefined,
+    recordedByUserId: event.recorded_by_user_id
+      ? String(event.recorded_by_user_id)
+      : undefined,
+    recordedByFirstName: event.recorded_by_first_name ?? undefined,
+    recordedByLastName: event.recorded_by_last_name ?? undefined,
   };
+}
+
+function initialsForEvent(event: TimelineEvent): string {
+  const first = (event.recordedByFirstName ?? "").trim();
+  const last = (event.recordedByLastName ?? "").trim();
+  if (first || last) {
+    return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase() || "CT";
+  }
+  return "CT";
+}
+
+function recorderNameForEvent(event: TimelineEvent): string {
+  const full = [event.recordedByFirstName ?? "", event.recordedByLastName ?? ""]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+  return full || "Care team";
 }
 
 function useTimelineEvents(
@@ -395,6 +422,14 @@ export function TimelinePanel({
                       <div className="mt-1 text-muted-foreground">
                         <p>{detailText}</p>
                       </div>
+                      {event.recordedByUserId ? (
+                        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                            {initialsForEvent(event)}
+                          </span>
+                          <span>Logged by {recorderNameForEvent(event)}</span>
+                        </div>
+                      ) : null}
                       <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                         {event.hasNote ? (
                           <span className="rounded-full bg-muted/50 px-2 py-0.5">
@@ -443,7 +478,7 @@ export function TimelinePanel({
         <div className="sticky top-0 z-20 space-y-2 bg-card/85 backdrop-blur px-1 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Child</span>
-            <select
+            <Select
               className="havi-select text-xs"
               data-testid="timeline-child-select"
               value={effectiveChildId ?? ""}
@@ -458,7 +493,7 @@ export function TimelinePanel({
                   {child.name}
                 </option>
               ))}
-            </select>
+            </Select>
             {timezoneLabel ? (
               <span className="text-xs text-muted-foreground" data-testid="timeline-timezone">
                 Times shown in {timezoneLabel}
@@ -481,7 +516,7 @@ export function TimelinePanel({
 
         <div className="space-y-2 pt-2">{renderEventRows()}</div>
         {isError ? (
-          <p className="text-xs text-destructive">Unable to load events.</p>
+          <NoticeBanner tone="danger">Unable to load events.</NoticeBanner>
         ) : null}
       </div>
     </div>

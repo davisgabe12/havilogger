@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { KnowledgeReviewItem } from "@/types/knowledge";
 
 type Props = {
@@ -44,24 +45,24 @@ export default function KnowledgeItemCard({ item, variant, onConfirm, onDismiss,
     <Card
       className={
         variant === "pending"
-          ? "border-amber-300/50 bg-amber-50/10"
-          : "border-border/50 bg-card/40 text-muted-foreground"
+          ? "havi-panel-inset border-[color:var(--havi-app-notice-warning-border)] bg-[color:var(--havi-app-notice-warning-bg)]"
+          : "havi-panel-inset-alt text-muted-foreground"
       }
     >
       <div className="space-y-2 p-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.group}</p>
+            <p className="havi-type-meta uppercase tracking-wide">{item.group}</p>
             {editing ? (
-              <textarea
-                className="mt-1 w-full rounded-md border border-border/50 bg-background/70 p-2 text-sm"
+              <Textarea
+                className="mt-1"
                 value={draftSummary}
                 onChange={(e) => setDraftSummary(e.target.value)}
               />
             ) : (
-              <p className="text-sm font-medium leading-relaxed">{humanSummary}</p>
+              <p className="havi-type-body font-medium">{humanSummary}</p>
             )}
-            <p className="text-[11px] text-muted-foreground">
+            <p className="havi-type-meta">
               {item.status?.toLowerCase() === "pending" ? "Pending review" : "Active"}
             </p>
           </div>

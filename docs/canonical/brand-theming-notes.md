@@ -31,6 +31,9 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
 
 - Core HAVI tokens (CSS): `apps/web/src/styles/havi-tokens.css`
   - Core colors: `--havi-bg`, `--havi-fg`, `--havi-fg-fog`, `--havi-fg-oat`, `--havi-moss`, surfaces 1–3.
+  - Neutral/oat families:
+    - Neutrals: `--havi-neutral-1`, `--havi-neutral-2`, `--havi-neutral-3`.
+    - Oat/ivory: `--havi-oat-1`, `--havi-oat-2`, `--havi-oat-3`, plus canvas tokens.
   - Text: `--havi-text`, `--havi-text-muted`, `--havi-text-disabled`.
   - Borders: `--havi-border`, `--havi-border-strong`.
   - Actions:
@@ -48,7 +51,12 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
   - Showcase surfaces (generic, not marketing-only):
     - Bands/surfaces: `--havi-surface-band-bg`, `--havi-surface-band-border`, `--havi-surface-elevated-bg`, `--havi-surface-elevated-strong`, `--havi-surface-hero-frame`.
     - Accent/glow: `--havi-accent-warm`, `--havi-accent-warm-soft`, `--havi-accent-sky`, `--havi-accent-coral`, `--havi-accent-mint`, `--havi-accent-sky-soft`, `--havi-accent-coral-soft`, `--havi-accent-mint-soft`, `--havi-glow-soft`.
-    - Light canvas + feature framing: `--havi-canvas-soft`, `--havi-canvas-soft-border`, `--havi-canvas-paper`, `--havi-feature-frame-border`, `--havi-feature-shadow`.
+  - Light canvas + feature framing: `--havi-canvas-soft`, `--havi-canvas-soft-border`, `--havi-canvas-paper`, `--havi-feature-frame-border`, `--havi-feature-shadow`.
+  - App semantic surfaces:
+    - `--havi-app-shell-bg`, `--havi-app-panel-bg`, `--havi-app-panel-bg-soft`, `--havi-app-inset-bg`, `--havi-app-inset-bg-alt`.
+    - Panel lines/shadows: `--havi-app-panel-border`, `--havi-app-panel-border-strong`, `--havi-app-panel-shadow`.
+    - Notices: `--havi-app-notice-info-*`, `--havi-app-notice-warning-*`, `--havi-app-notice-danger-*`.
+    - Voice emphasis: `--havi-voice-idle-*`, `--havi-voice-active-*`.
     - Media surfaces (generic): `--havi-media-surface`, `--havi-media-border-soft`, `--havi-media-shadow-soft`.
     - Signal contrast tokens: `--havi-signal-positive-bg`, `--havi-signal-positive-border`, `--havi-signal-negative-bg`, `--havi-signal-negative-border`.
     - Compatibility aliases remain available for existing marketing classes:
@@ -66,16 +74,16 @@ This file documents the HAVI brand assets, design tokens, and UI/theming changes
     - Surfaces:
       - `--background` → `--havi-bg`
       - `--foreground` → `--havi-text`
-      - `--card` → `--havi-surface-2`
+      - `--card` → `--havi-app-panel-bg`
       - `--card-foreground` → `--havi-text`
-      - `--popover` → `--havi-surface-1`
+      - `--popover` → `--havi-app-inset-bg`
       - `--popover-foreground` → `--havi-text`
     - Actions:
       - `--primary` → `--havi-primary-bg`
       - `--primary-foreground` → `--havi-primary-fg`
       - `--secondary` → `--havi-secondary-bg`
       - `--secondary-foreground` → `--havi-text`
-      - `--muted` → `--havi-surface-1`
+      - `--muted` → `--havi-app-inset-bg-alt`
       - `--muted-foreground` → `--havi-text-muted`
       - `--accent` → `--havi-secondary-bg`
       - `--accent-foreground` → `--havi-text`
@@ -189,7 +197,7 @@ Preferred usage:
 
 - Canonical app shell:
   - Class: `havi-app-shell` (defined in `apps/web/src/app/globals.css`).
-  - Applied to `<main>` in `apps/web/src/app/page.tsx`.
+  - Applied to core app route container in `apps/web/src/app/app/page.tsx`.
   - Layout:
     - Centered column, `max-w-[390px]`, `min-h-screen`, `w-full`.
     - Horizontal + vertical padding (`px-4 py-6`) with consistent gap between sections.
@@ -197,7 +205,7 @@ Preferred usage:
   - Class: `havi-card-shell`.
   - Applied to `Card` components for:
     - Chat panel (`activePanel === "havi"`).
-    - Timeline, Tasks, History, Knowledge, Settings panels in `app/page.tsx`.
+    - Timeline, Tasks, History, Knowledge, Settings panels in `apps/web/src/app/app/page.tsx`.
   - Visuals:
     - Uses `bg-card/70` with subtle backdrop blur for calm containment.
     - No per-panel background overrides; hierarchy comes from card vs background, not page-specific hacks.
@@ -205,6 +213,13 @@ Preferred usage:
   - Do: place primary app routes inside `havi-app-shell` and primary panels inside `havi-card-shell`.
   - Do: keep container width and padding consistent so navigation between Chat / History / Settings does not resize the frame.
   - Don’t: introduce page-specific max-widths or padding for these core panels unless explicitly called out in specs.
+
+## Color Permissibility Rules
+
+1. Marketing homepage and product surfaces must use tokenized colors/classes only.
+2. Avoid green-only compositions across long pages; blend neutral and oat surfaces for calm contrast.
+3. Use oat/light surfaces to create emphasis and readability breaks, not only accent colors.
+4. Do not hand-author one-off `bg-*` color utilities for core launch surfaces if a token/class exists.
 
 ## Layout + Navigation Rules (Phase 1 Stabilization)
 

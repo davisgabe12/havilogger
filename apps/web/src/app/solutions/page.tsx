@@ -46,22 +46,22 @@ const solutions = [
 export default function SolutionsPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-light">
+        <div className="havi-container-wide">
           <div className="max-w-2xl space-y-4">
-            <h1 className="text-3xl font-semibold md:text-4xl">Solutions for real family life</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Solutions for real family life</h1>
+            <p className="havi-text-body">
               Havi combines conversation-first capture, durable memory, and Runway
               foresight so families can stay present and prepared.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {solutions.map((solution) => (
-              <Card key={solution.title} className="h-full">
+              <Card key={solution.title} className="h-full havi-showcase-card">
                 <CardHeader>
-                  <CardTitle className="text-lg">{solution.title}</CardTitle>
+                  <CardTitle className="havi-marketing-card-title">{solution.title}</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <CardContent className="space-y-3 text-sm havi-text-body">
                   <p>{solution.description}</p>
                   <Link
                     href={solution.href}

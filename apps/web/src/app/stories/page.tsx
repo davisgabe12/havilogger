@@ -33,30 +33,30 @@ const stories = [
 export default function StoriesPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-soft">
+        <div className="havi-container-wide">
           <div className="max-w-2xl space-y-4">
-            <h1 className="text-3xl font-semibold md:text-4xl">Stories from real parents</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Stories from real parents</h1>
+            <p className="havi-text-body">
               These early stories capture what it feels like to have another brain for
               your family—calm, private, and always there.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {stories.map((story) => (
-              <Card key={story.title} className="h-full">
-                <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
-                  <h2 className="text-base font-semibold text-foreground">{story.title}</h2>
+              <Card key={story.title} className="h-full havi-showcase-card">
+                <CardContent className="space-y-3 p-6 text-sm havi-text-body">
+                  <h2 className="havi-marketing-card-title">{story.title}</h2>
                   <p>{story.body}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
           <div className="mt-10 flex flex-wrap items-center gap-3">
-            <Button asChild>
+            <Button className="havi-cta-primary" asChild>
               <Link href="/auth/sign-up">Get started</Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button className="havi-cta-secondary" variant="outline" asChild>
               <Link href="/resources">Explore resources</Link>
             </Button>
           </div>

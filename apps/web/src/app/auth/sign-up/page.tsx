@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase/client";
 
+import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+
 const SignupPage = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -31,10 +33,24 @@ const SignupPage = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const nextRaw = new URLSearchParams(window.location.search).get("next");
+    const searchParams = new URLSearchParams(window.location.search);
+    const nextRaw = searchParams.get("next");
     if (nextRaw && nextRaw.startsWith("/")) {
       setNextPath(nextRaw);
       setSignInHref(`/auth/sign-in?next=${encodeURIComponent(nextRaw)}`);
+      try {
+        const nextUrl = new URL(nextRaw, window.location.origin);
+        const inviteEmail = nextUrl.searchParams.get("email");
+        if (inviteEmail) {
+          setEmail(inviteEmail);
+        }
+      } catch {
+        // ignore malformed next path
+      }
+    }
+    const directEmail = searchParams.get("email");
+    if (directEmail) {
+      setEmail(directEmail);
     }
   }, []);
 
@@ -95,102 +111,92 @@ const SignupPage = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <Link href="/" className="font-semibold tracking-[0.2em] text-foreground">
-              HAVI
-            </Link>
-            <Link href={signInHref} className="hover:text-foreground">
-              Sign in
-            </Link>
-          </div>
-          <CardTitle>Create your account</CardTitle>
-          <CardDescription>
-            Step 1: Enter your email and password to get started.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!sessionChecked ? (
-            <p className="text-sm text-muted-foreground">Checking session…</p>
-          ) : sessionEmail ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                You are already signed in as <span className="text-foreground">{sessionEmail}</span>.
-              </p>
-              {error ? (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
-                </p>
-              ) : null}
-              <div className="grid gap-2">
-                <Button className="w-full" type="button" onClick={() => router.replace(nextPath)}>
-                  Continue to app
-                </Button>
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  type="button"
-                  onClick={handleSessionSignOut}
-                  disabled={isSigningOut}
-                >
-                  {isSigningOut ? "Signing out..." : "Sign out to switch account"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <Field>
-              <FieldLabel htmlFor="signup-email" required>
-                Email
-              </FieldLabel>
-              <Input
-                id="signup-email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="signup-password" required>
-                Password
-              </FieldLabel>
-              <Input
-                id="signup-password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </Field>
-            {error ? (
-              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-            {notice ? (
-              <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                {notice}
-              </p>
-            ) : null}
-            <Button className="w-full" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Creating account..." : "Continue"}
-            </Button>
-
-            <p className="text-center text-xs text-muted-foreground">
-              Already have an account?{" "}
-              <Link href={signInHref} className="text-foreground hover:underline">
+    <main className="havi-app-main min-h-screen">
+      <div className="havi-app-shell max-w-md py-10">
+        <Card className="havi-card-shell w-full">
+          <CardHeader>
+            <div className="havi-type-meta flex items-center justify-between">
+              <Link href="/" className="havi-brand-wordmark-text">
+                HAVI
+              </Link>
+              <Link href={signInHref} className="hover:text-foreground">
                 Sign in
               </Link>
-            </p>
-          </form>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+            <CardTitle className="havi-type-page-title">Create your account</CardTitle>
+            <CardDescription className="havi-type-body">
+              Step 1: Enter your email and password to get started.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!sessionChecked ? (
+              <p className="havi-type-body">Checking session…</p>
+            ) : sessionEmail ? (
+              <div className="space-y-4">
+                <p className="havi-type-body">
+                  You are already signed in as <span className="text-foreground">{sessionEmail}</span>.
+                </p>
+                {error ? <NoticeBanner tone="danger">{error}</NoticeBanner> : null}
+                <div className="grid gap-2">
+                  <Button className="w-full" type="button" onClick={() => router.replace(nextPath)}>
+                    Continue to app
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    type="button"
+                    onClick={handleSessionSignOut}
+                    disabled={isSigningOut}
+                  >
+                    {isSigningOut ? "Signing out..." : "Sign out to switch account"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <Field>
+                  <FieldLabel htmlFor="signup-email" required>
+                    Email
+                  </FieldLabel>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="signup-password" required>
+                    Password
+                  </FieldLabel>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                </Field>
+                {error ? <NoticeBanner tone="danger">{error}</NoticeBanner> : null}
+                {notice ? <NoticeBanner tone="info">{notice}</NoticeBanner> : null}
+                <Button className="w-full" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating account..." : "Continue"}
+                </Button>
+
+                <p className="havi-type-meta text-center">
+                  Already have an account?{" "}
+                  <Link href={signInHref} className="text-foreground hover:underline">
+                    Sign in
+                  </Link>
+                </p>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 };

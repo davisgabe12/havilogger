@@ -114,7 +114,7 @@ const renderHome = async (events: Array<Record<string, unknown>> = []) => {
 };
 
 describe("App layout – desktop padding and nav", () => {
-  it("applies sidebar and main padding classes", async () => {
+  it("applies canonical app shell classes", async () => {
     const { container } = await renderHome();
 
     const aside = container.querySelector("aside");
@@ -126,15 +126,10 @@ describe("App layout – desktop padding and nav", () => {
     const asideClass = aside?.className ?? "";
     const mainClass = main?.className ?? "";
 
-    // Sidebar: fixed width, padding, border on desktop
-    expect(asideClass).toContain("md:w-60");
-    expect(asideClass).toContain("p-3");
-    expect(asideClass).toContain("border-r");
-
-    // Main column: outer horizontal padding
-    expect(mainClass).toContain("px-4");
-    expect(mainClass).toContain("md:px-6");
-    expect(mainClass).toContain("lg:px-8");
+    expect(asideClass).toContain("havi-app-sidebar");
+    expect(mainClass).toContain("havi-app-main");
+    expect(container.querySelector(".havi-app-mobile-topbar")).not.toBeNull();
+    expect(container.querySelector(".havi-app-shell")).not.toBeNull();
   });
 
   it("renders Home first in the sidebar menu", async () => {
@@ -314,6 +309,14 @@ describe("Composer focus retention", () => {
 
     await waitFor(() => expect(activityCallCount(fetchMock)).toBe(0));
     expect(screen.getByTestId("chat-input")).toHaveFocus();
+  });
+});
+
+describe("Voice-first composer", () => {
+  it("renders the primary voice control in chat composer", async () => {
+    await renderHome();
+    expect(screen.getByTestId("voice-primary")).toBeInTheDocument();
+    expect(screen.getByText("Voice input")).toBeInTheDocument();
   });
 });
 

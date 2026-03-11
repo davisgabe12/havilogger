@@ -35,9 +35,9 @@ export default function RootLayout({
       className="dark"
       style={{
         ["--font-havi-sans" as string]:
-          '"Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif',
+          '"Manrope", "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif',
         ["--font-havi-display" as string]:
-          '"Avenir Next Demi Bold", "Avenir Next", "Segoe UI", sans-serif',
+          '"Sora", "Manrope", "Avenir Next Demi Bold", "Avenir Next", "Segoe UI", sans-serif',
       }}
     >
       <body className="bg-background text-foreground antialiased">

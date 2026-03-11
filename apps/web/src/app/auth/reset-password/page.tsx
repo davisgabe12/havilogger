@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 import { supabase } from "@/lib/supabase/client";
+import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 const ResetPasswordPage = () => {
@@ -72,88 +74,98 @@ const ResetPasswordPage = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <Link href="/" className="font-semibold tracking-[0.2em] text-foreground">
-              HAVI
-            </Link>
-            {hasSession ? (
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-              >
-                {isSigningOut ? "Signing out..." : "Sign out"}
-              </button>
-            ) : (
-              <Link href="/auth/sign-in" className="hover:text-foreground">
-                Sign in
+    <main className="havi-app-main min-h-screen">
+      <div className="havi-app-shell max-w-md py-10">
+        <Card className="havi-card-shell w-full">
+          <CardHeader>
+            <div className="havi-type-meta flex items-center justify-between">
+              <Link href="/" className="havi-brand-wordmark-text">
+                HAVI
               </Link>
-            )}
-          </div>
-          <CardTitle>Set a new password</CardTitle>
-          <CardDescription>
-            Use the link from your email to finish resetting your password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!ready ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : !hasSession ? (
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <p>We couldn’t find a recovery session.</p>
-              <p>
-                Request a new reset link from{" "}
-                <Link href="/auth/forgot-password" className="text-foreground hover:underline">
-                  Forgot password
+              {hasSession ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? "Signing out..." : "Sign out"}
+                </Button>
+              ) : (
+                <Link href="/auth/sign-in" className="hover:text-foreground">
+                  Sign in
                 </Link>
-                .
-              </p>
+              )}
             </div>
-          ) : (
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <label className="block text-sm font-medium">
-                New password
-                <Input
-                  className="mt-2"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
-              </label>
-              <label className="block text-sm font-medium">
-                Confirm password
-                <Input
-                  className="mt-2"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={(event) => setConfirm(event.target.value)}
-                  required
-                />
-              </label>
-              {error ? (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
+            <CardTitle className="havi-type-page-title">Set a new password</CardTitle>
+            <CardDescription className="havi-type-body">
+              Use the link from your email to finish resetting your password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!ready ? (
+              <p className="havi-type-body">Loading…</p>
+            ) : !hasSession ? (
+              <NoticeBanner tone="warning" className="space-y-2 text-sm">
+                <p>We couldn’t find a recovery session.</p>
+                <p>
+                  Request a new reset link from{" "}
+                  <Link href="/auth/forgot-password" className="text-foreground underline">
+                    Forgot password
+                  </Link>
+                  .
                 </p>
-              ) : null}
-              {notice ? (
-                <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                  {notice}
-                </p>
-              ) : null}
-              <Button className="w-full" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Updating..." : "Update password"}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
+              </NoticeBanner>
+            ) : (
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <Field>
+                  <FieldLabel htmlFor="reset-password" required>
+                    New password
+                  </FieldLabel>
+                  <Input
+                    id="reset-password"
+                    className="mt-2"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="reset-password-confirm" required>
+                    Confirm password
+                  </FieldLabel>
+                  <Input
+                    id="reset-password-confirm"
+                    className="mt-2"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirm}
+                    onChange={(event) => setConfirm(event.target.value)}
+                    required
+                  />
+                </Field>
+                {error ? (
+                  <NoticeBanner tone="danger">
+                    {error}
+                  </NoticeBanner>
+                ) : null}
+                {notice ? (
+                  <NoticeBanner tone="info">
+                    {notice}
+                  </NoticeBanner>
+                ) : null}
+                <Button className="w-full" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Updating..." : "Update password"}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 };

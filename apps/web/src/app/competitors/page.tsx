@@ -73,11 +73,11 @@ const competitors = [
 export default function CompetitorsPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-light">
+        <div className="havi-container-wide">
           <div className="max-w-2xl space-y-4">
-            <h1 className="text-3xl font-semibold md:text-4xl">Competitive landscape</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Competitive landscape</h1>
+            <p className="havi-text-body">
               Most tools optimize tracking or notes. Havi’s wedge is memory + conversation
               + Runway foresight across the whole family—without turning parenting into
               data entry.
@@ -86,32 +86,32 @@ export default function CompetitorsPage() {
 
           <div className="mt-10 space-y-6 md:hidden">
             {competitors.map((item) => (
-              <Card key={item.name}>
+              <Card key={item.name} className="havi-showcase-card">
                 <CardHeader>
-                  <CardTitle className="text-lg">{item.name}</CardTitle>
+                  <CardTitle className="havi-marketing-card-title">{item.name}</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <CardContent className="space-y-3 text-sm havi-text-body">
                   <p>
-                    <span className="font-semibold text-foreground">Job:</span> {item.job}
+                    <span className="font-semibold">Job:</span> {item.job}
                   </p>
                   <p>
-                    <span className="font-semibold text-foreground">Strengths:</span> {item.strengths}
+                    <span className="font-semibold">Strengths:</span> {item.strengths}
                   </p>
                   <p>
-                    <span className="font-semibold text-foreground">Where it breaks:</span> {item.breaks}
+                    <span className="font-semibold">Where it breaks:</span> {item.breaks}
                   </p>
                   <p>
-                    <span className="font-semibold text-foreground">Havi advantage:</span> {item.havi}
+                    <span className="font-semibold">Havi advantage:</span> {item.havi}
                   </p>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          <div className="mt-10 hidden overflow-x-auto md:block">
-            <table className="w-full border-collapse text-left text-sm">
+          <div className="mt-10 hidden overflow-x-auto rounded-2xl border border-[color:var(--havi-app-panel-border)] bg-white/70 p-2 md:block">
+            <table className="w-full border-collapse text-left text-sm havi-text-body">
               <thead>
-                <tr className="border-b border-border/60 text-muted-foreground">
+                <tr className="border-b border-[color:var(--havi-app-panel-border)]">
                   <th className="py-3 pr-4">Tool / Category</th>
                   <th className="py-3 pr-4">Primary job-to-be-done</th>
                   <th className="py-3 pr-4">Strengths</th>
@@ -119,10 +119,13 @@ export default function CompetitorsPage() {
                   <th className="py-3">Havi advantage</th>
                 </tr>
               </thead>
-              <tbody className="text-muted-foreground">
+              <tbody>
                 {competitors.map((item) => (
-                  <tr key={item.name} className="border-b border-border/40 align-top">
-                    <td className="py-4 pr-4 font-medium text-foreground">{item.name}</td>
+                  <tr
+                    key={item.name}
+                    className="border-b border-[color:var(--havi-app-panel-border)] align-top"
+                  >
+                    <td className="py-4 pr-4 font-medium">{item.name}</td>
                     <td className="py-4 pr-4">{item.job}</td>
                     <td className="py-4 pr-4">{item.strengths}</td>
                     <td className="py-4 pr-4">{item.breaks}</td>
@@ -134,8 +137,8 @@ export default function CompetitorsPage() {
           </div>
 
           <div className="mt-12 space-y-4">
-            <h2 className="text-2xl font-semibold">Why Havi is different</h2>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+            <h2 className="havi-marketing-card-title">Why Havi is different</h2>
+            <ul className="space-y-2 text-sm havi-text-body">
               <li>• Parents stitch together trackers, notes, calendars, and texts.</li>
               <li>• No single family brain remembers, explains, and anticipates.</li>
               <li>• Havi combines conversation-first capture, durable memory, and Runway foresight.</li>
@@ -144,10 +147,10 @@ export default function CompetitorsPage() {
           </div>
 
           <div className="mt-10 flex flex-wrap items-center gap-3">
-            <Button asChild>
+            <Button className="havi-cta-primary" asChild>
               <Link href="/auth/sign-up">Get started</Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button className="havi-cta-secondary" variant="outline" asChild>
               <Link href="/solutions">Explore solutions</Link>
             </Button>
           </div>

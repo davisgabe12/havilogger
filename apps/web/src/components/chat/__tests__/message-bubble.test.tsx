@@ -173,4 +173,71 @@ describe("MessageBubble width and spacing", () => {
     expect(actionRow?.className ?? "").toContain("min-h-10");
     expect(actionRow?.className ?? "").toContain("gap-1.5");
   });
+
+  it("shows caregiver label and initials only when sender label is enabled", () => {
+    const caregiverEntry: ChatEntry = {
+      id: "caregiver-1",
+      role: "user",
+      text: "I can take bedtime tonight.",
+      createdAt: new Date().toISOString(),
+      senderType: "caregiver",
+      senderName: "Morgan Davis",
+      senderId: "user-caregiver-1",
+    };
+
+    const { rerender } = render(
+      <MessageBubble
+        entry={caregiverEntry}
+        showSenderLabel={true}
+        onToggleTimestamp={noop}
+        isPinned={false}
+        onCopy={noop}
+        copiedMessageId={null}
+        highlightedMessageId={null}
+      />,
+    );
+
+    expect(screen.getByText("Morgan Davis")).toBeInTheDocument();
+    expect(screen.getByText("MD")).toBeInTheDocument();
+
+    rerender(
+      <MessageBubble
+        entry={caregiverEntry}
+        showSenderLabel={false}
+        onToggleTimestamp={noop}
+        isPinned={false}
+        onCopy={noop}
+        copiedMessageId={null}
+        highlightedMessageId={null}
+      />,
+    );
+
+    expect(screen.queryByText("Morgan Davis")).not.toBeInTheDocument();
+  });
+
+  it("does not render a self sender label even if senderName is present", () => {
+    const selfEntry: ChatEntry = {
+      id: "self-1",
+      role: "user",
+      text: "Logging this from me",
+      createdAt: new Date().toISOString(),
+      senderType: "self",
+      senderName: "Owner Parent",
+    };
+
+    render(
+      <MessageBubble
+        entry={selfEntry}
+        showSenderLabel={true}
+        onToggleTimestamp={noop}
+        isPinned={false}
+        onCopy={noop}
+        copiedMessageId={null}
+        highlightedMessageId={null}
+      />,
+    );
+
+    expect(screen.queryByText("Owner Parent")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chat-message")).toHaveAttribute("data-sender", "self");
+  });
 });

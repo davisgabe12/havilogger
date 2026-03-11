@@ -31,22 +31,22 @@ const resourceLinks = [
 export default function ResourcesPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-soft">
+        <div className="havi-container-wide">
           <div className="max-w-2xl space-y-4">
-            <h1 className="text-3xl font-semibold md:text-4xl">Resources for calmer parenting</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Resources for calmer parenting</h1>
+            <p className="havi-text-body">
               Explore guidance, stories, and frameworks that help reduce mental load and
               keep families aligned.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {resourceLinks.map((resource) => (
-              <Card key={resource.title} className="h-full">
+              <Card key={resource.title} className="h-full havi-showcase-card">
                 <CardHeader>
-                  <CardTitle className="text-lg">{resource.title}</CardTitle>
+                  <CardTitle className="havi-marketing-card-title">{resource.title}</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <CardContent className="space-y-3 text-sm havi-text-body">
                   <p>{resource.description}</p>
                   <Link
                     href={resource.href}

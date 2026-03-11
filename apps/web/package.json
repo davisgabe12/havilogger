@@ -11,6 +11,7 @@
     "tokens:sync": "node scripts/sync-havi-tokens.mjs",
     "tokens:check": "node scripts/sync-havi-tokens.mjs --check",
     "test:green": "playwright test tests/smoke/green.smoke.spec.ts",
+    "test:green:invite": "playwright test tests/smoke/invite-join.smoke.spec.ts",
     "test:green:full": "playwright test tests/smoke/green.spec.ts",
     "green:doctor": "node ../../scripts/green-doctor.mjs"
   },

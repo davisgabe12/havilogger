@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 import { supabase } from "@/lib/supabase/client";
+import { NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 const ForgotPasswordPage = () => {
@@ -68,68 +70,75 @@ const ForgotPasswordPage = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <Link href="/" className="font-semibold tracking-[0.2em] text-foreground">
-              HAVI
-            </Link>
-            {hasSession ? (
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-              >
-                {isSigningOut ? "Signing out..." : "Sign out"}
-              </button>
-            ) : (
-              <Link href="/auth/sign-in" className="hover:text-foreground">
-                Sign in
+    <main className="havi-app-main min-h-screen">
+      <div className="havi-app-shell max-w-md py-10">
+        <Card className="havi-card-shell w-full">
+          <CardHeader>
+            <div className="havi-type-meta flex items-center justify-between">
+              <Link href="/" className="havi-brand-wordmark-text">
+                HAVI
               </Link>
-            )}
-          </div>
-          <CardTitle>Reset your password</CardTitle>
-          <CardDescription>
-            Enter the email you used to sign up. We’ll send a reset link.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <label className="block text-sm font-medium">
-              Email
-              <Input
-                className="mt-2"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-            {error ? (
-              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
+              {hasSession ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? "Signing out..." : "Sign out"}
+                </Button>
+              ) : (
+                <Link href="/auth/sign-in" className="hover:text-foreground">
+                  Sign in
+                </Link>
+              )}
+            </div>
+            <CardTitle className="havi-type-page-title">Reset your password</CardTitle>
+            <CardDescription className="havi-type-body">
+              Enter the email you used to sign up. We’ll send a reset link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <Field>
+                <FieldLabel htmlFor="forgot-password-email" required>
+                  Email
+                </FieldLabel>
+                <Input
+                  id="forgot-password-email"
+                  className="mt-2"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </Field>
+              {error ? (
+                <NoticeBanner tone="danger">
+                  {error}
+                </NoticeBanner>
+              ) : null}
+              {notice ? (
+                <NoticeBanner tone="info">
+                  {notice}
+                </NoticeBanner>
+              ) : null}
+              <Button className="w-full" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Sending..." : "Send reset link"}
+              </Button>
+              <p className="havi-type-meta text-center">
+                Remembered your password?{" "}
+                <Link href="/auth/sign-in" className="text-foreground hover:underline">
+                  Sign in
+                </Link>
               </p>
-            ) : null}
-            {notice ? (
-              <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                {notice}
-              </p>
-            ) : null}
-            <Button className="w-full" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Sending..." : "Send reset link"}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              Remembered your password?{" "}
-              <Link href="/auth/sign-in" className="text-foreground hover:underline">
-                Sign in
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 };

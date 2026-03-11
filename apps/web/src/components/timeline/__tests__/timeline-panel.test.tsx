@@ -65,4 +65,24 @@ describe("TimelinePanel", () => {
     fireEvent.click(sleepOpen)
     expect(openSpy).toHaveBeenCalledWith("msg-1")
   })
+
+  it("renders recorder identity for timeline events", async () => {
+    const recorderEvents: TimelineEvent[] = [
+      {
+        id: "bottle-1",
+        type: "bottle",
+        title: "Bottle",
+        detail: "4 oz",
+        start: makeIsoForHour(9),
+        recordedByUserId: "caregiver-1",
+        recordedByFirstName: "Jamie",
+        recordedByLastName: "Lee",
+      },
+    ]
+
+    render(<TimelinePanel childName="Lev" events={recorderEvents} />)
+
+    expect(await screen.findByText(/logged by jamie lee/i)).toBeInTheDocument()
+    expect(screen.getByText("JL")).toBeInTheDocument()
+  })
 })

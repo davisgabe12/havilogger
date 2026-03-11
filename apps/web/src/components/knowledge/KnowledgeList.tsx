@@ -17,10 +17,10 @@ export default function KnowledgeList({ group, items, onConfirm, onDismiss, onEd
   const active = items.filter((item) => item.status?.toLowerCase() === "active");
 
   return (
-    <section className="space-y-3 rounded-xl border border-border/40 bg-card/50 p-4">
+    <section className="havi-panel-inset space-y-3 rounded-xl p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">{group}</h2>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        <h2 className="havi-type-section-title">{group}</h2>
+        <p className="havi-type-meta uppercase tracking-wide">
           {pending.length} to review · {active.length} active
         </p>
       </div>

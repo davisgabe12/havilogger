@@ -42,6 +42,7 @@ function getInitials(name: string): string {
 
 type MessageBubbleProps = {
   entry: ChatEntry;
+  showSenderLabel?: boolean;
   onToggleTimestamp: (id: string) => void;
   isPinned: boolean;
   onCopy: (text: string, id: string) => void;
@@ -57,6 +58,7 @@ type MessageBubbleProps = {
 
 export function MessageBubble({
   entry,
+  showSenderLabel = false,
   onToggleTimestamp,
   isPinned,
   onCopy,
@@ -206,9 +208,13 @@ export function MessageBubble({
           HAVI
         </span>
       ) : isCaregiver ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-          {getInitials(entry.senderName ?? "Caregiver")}
-        </span>
+        showSenderLabel ? (
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+            {getInitials(entry.senderName ?? "Caregiver")}
+          </span>
+        ) : (
+          <span className="inline-flex h-7 w-7" aria-hidden="true" />
+        )
       ) : null}
     </div>
   );
@@ -261,6 +267,11 @@ export function MessageBubble({
         style={bubbleMaxWidth}
         data-testid="message-bubble-wrapper"
       >
+        {isCaregiver && showSenderLabel && entry.senderName ? (
+          <p className="mb-1 ml-1 text-xs font-medium text-muted-foreground">
+            {entry.senderName}
+          </p>
+        ) : null}
         <div
           data-message-id={entry.messageId ?? undefined}
           data-testid="message-bubble"

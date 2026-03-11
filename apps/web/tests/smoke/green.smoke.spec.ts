@@ -159,6 +159,26 @@ const completeOnboardingIfNeeded = async (page: any) => {
       continue;
     }
 
+    if (currentUrl.includes("/app/onboarding/care-member")) {
+      await page.getByTestId("care-member-first-name").fill("Green");
+      await page.getByTestId("care-member-last-name").fill("Invitee");
+      const currentEmail = await page
+        .getByTestId("care-member-email")
+        .inputValue()
+        .catch(() => "");
+      if (!currentEmail) {
+        await page.getByTestId("care-member-email").fill(`green.invitee.${Date.now()}@example.com`);
+      }
+      await page.getByTestId("care-member-phone").fill("5551234567");
+      await page.getByTestId("care-member-submit").click();
+      try {
+        await page.waitForURL(/\/app(\?|$)/, { timeout: 12_000 });
+      } catch {
+        // Retry loop handles transient saves and route races.
+      }
+      continue;
+    }
+
     if (currentUrl.includes("/app/select-family")) {
       const familyButtons = page.locator('[data-testid^="select-family-"]');
       if ((await familyButtons.count()) > 0) {
@@ -253,7 +273,24 @@ const readSectionCount = async (section: any, label: "pending" | "saved") => {
   return match ? Number(match[1]) : 0;
 };
 
-test("GREEN smoke", async ({ page }) => {
+const gotoAuthWithRetry = async (page: any, path: "/auth/sign-in" | "/auth/sign-up") => {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const retriable =
+        message.includes("net::ERR_ABORTED") || message.includes("frame was detached");
+      if (!retriable || attempt === 1) {
+        throw error;
+      }
+      await page.waitForTimeout(750);
+    }
+  }
+};
+
+test("GREEN smoke", async ({ page, browser }) => {
   test.setTimeout(180_000);
   const consoleErrors: string[] = [];
   trackConsoleErrors(page, consoleErrors, "green");
@@ -271,19 +308,25 @@ test("GREEN smoke", async ({ page }) => {
   const timestamp = Date.now();
   const userEmail = `green.${timestamp}@example.com`;
   const userPassword = "Lev2025!";
+  const inviteeEmail =
+    process.env.GREEN_INVITEE_EMAIL ?? `green.invitee.${timestamp}@example.com`;
+  const inviteePassword = process.env.GREEN_INVITEE_PASSWORD ?? "Lev2025!";
+  const hasInviteeCreds = Boolean(
+    process.env.GREEN_INVITEE_EMAIL && process.env.GREEN_INVITEE_PASSWORD,
+  );
 
   const fallbackEmail = process.env.GREEN_EXISTING_EMAIL ?? "";
   const fallbackPassword = process.env.GREEN_EXISTING_PASSWORD ?? "";
   const hasFallbackCreds = Boolean(fallbackEmail && fallbackPassword);
 
   if (hasFallbackCreds) {
-    await page.goto("/auth/sign-in");
+    await gotoAuthWithRetry(page, "/auth/sign-in");
     await page.fill('input[type="email"]', fallbackEmail);
     await page.fill('input[type="password"]', fallbackPassword);
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL(/\/app/, { timeout: 15_000 });
   } else {
-    await page.goto("/auth/sign-up");
+    await gotoAuthWithRetry(page, "/auth/sign-up");
     await page.fill('input[type="email"]', userEmail);
     await page.fill('input[type="password"]', userPassword);
     await page.getByRole("button", { name: /continue/i }).click();
@@ -296,8 +339,8 @@ test("GREEN smoke", async ({ page }) => {
     }
 
     if (!signedIn) {
-      const error = page.locator("p.text-destructive");
-      const notice = page.locator("p.text-emerald-200");
+      const error = page.locator(".havi-notice-banner-danger");
+      const notice = page.locator(".havi-notice-banner-info");
       if (await error.isVisible()) {
         throw new Error(`Signup error: ${(await error.innerText()).trim()}`);
       }
@@ -336,6 +379,7 @@ test("GREEN smoke", async ({ page }) => {
     res: any,
     expectedMessageId: string,
     expectedRating: "up" | "down",
+    expectedFeedbackText?: string,
   ) => {
     const method = res.request().method();
     const url = res.url?.() ?? "";
@@ -345,9 +389,13 @@ test("GREEN smoke", async ({ page }) => {
     try {
       const req = res.request();
       const payload = readRequestPayload(req);
+      const feedbackText = payload?.feedback_text;
       return (
         payload?.message_id === expectedMessageId &&
-        payload?.rating === expectedRating
+        payload?.rating === expectedRating &&
+        (expectedFeedbackText === undefined
+          ? true
+          : String(feedbackText ?? "") === expectedFeedbackText)
       );
     } catch {
       return false;
@@ -356,18 +404,21 @@ test("GREEN smoke", async ({ page }) => {
   const submitFeedbackWithRetryAwareness = async ({
     messageId,
     rating,
+    feedbackText,
     trigger,
     maxAttempts = 3,
   }: {
     messageId: string;
     rating: "up" | "down";
+    feedbackText?: string;
     trigger: () => Promise<void>;
     maxAttempts?: number;
   }) => {
     const statuses: number[] = [];
     const waitForNext = () =>
       page.waitForResponse(
-        (res: any) => matchesFeedbackRequest(res, messageId, rating),
+        (res: any) =>
+          matchesFeedbackRequest(res, messageId, rating, feedbackText),
         { timeout: 25_000 },
       );
     let pendingResponse = waitForNext();
@@ -498,15 +549,19 @@ test("GREEN smoke", async ({ page }) => {
   const thumbsDownResult = await submitFeedbackWithRetryAwareness({
     messageId: mixedAssistantMessageId,
     rating: "down",
+    feedbackText: "Too generic",
     trigger: async () => {
       await thumbsDownButton.click();
       await expect(thumbsDownButton).toHaveAttribute("aria-pressed", "true");
-      await mixedAssistantWrapper
-        .getByPlaceholder("What didn’t work? (optional)")
-        .fill("Too generic");
+      const feedbackInput = mixedAssistantWrapper.getByPlaceholder(
+        "What didn’t work? (optional)",
+      );
+      await feedbackInput.fill("Too generic");
+      await feedbackInput.press("Enter");
     },
   });
   expect(thumbsDownResult.status).toBe(200);
+  expect(thumbsDownResult.payload?.feedback_text).toBe("Too generic");
   expect(thumbsDownResult.payload?.model_version).toBeTruthy();
   expect(
     thumbsDownResult.payload?.response_metadata?.route_metadata?.route_kind,
@@ -572,6 +627,60 @@ test("GREEN smoke", async ({ page }) => {
   await expect(
     page.getByTestId("task-title").filter({ hasText: taskTitle }),
   ).toBeVisible();
+
+  await page.getByTestId("nav-settings").click();
+  await page.getByTestId("open-invite").click();
+  await page.fill("#invite-email", inviteeEmail);
+  await page.getByRole("button", { name: /(send|create) invite/i }).click();
+  await expect(page.getByTestId("invite-link")).toBeVisible({ timeout: 15_000 });
+  const inviteLink = (await page.getByTestId("invite-link").innerText()).trim();
+  await page.getByRole("button", { name: /close/i }).click();
+
+  const inviteeContext = await browser.newContext();
+  const inviteePage = await inviteeContext.newPage();
+  trackConsoleErrors(inviteePage, consoleErrors, "invitee");
+  await inviteePage.goto(inviteLink);
+
+  if (inviteePage.url().includes("/auth/sign-in")) {
+    await inviteePage.fill('input[type="email"]', inviteeEmail);
+    await inviteePage.fill('input[type="password"]', inviteePassword);
+    await inviteePage.getByRole("button", { name: /sign in/i }).click();
+
+    let inviteeSignedIn = true;
+    try {
+      await inviteePage.waitForURL(/\/app/, { timeout: 12_000 });
+    } catch {
+      inviteeSignedIn = false;
+    }
+
+    if (!inviteeSignedIn && !hasInviteeCreds) {
+      await inviteePage.getByRole("link", { name: /create account/i }).click();
+      await inviteePage.fill('input[type="email"]', inviteeEmail);
+      await inviteePage.fill('input[type="password"]', inviteePassword);
+      await inviteePage.getByRole("button", { name: /continue/i }).click();
+      try {
+        await inviteePage.waitForURL(/\/app/, { timeout: 12_000 });
+      } catch {
+        const inviteeError = inviteePage.locator(".havi-notice-banner-danger");
+        const inviteeNotice = inviteePage.locator(".havi-notice-banner-info");
+        if (await inviteeError.isVisible()) {
+          throw new Error(`Invitee signup error: ${(await inviteeError.innerText()).trim()}`);
+        }
+        if (await inviteeNotice.isVisible()) {
+          throw new Error(
+            "Invitee signup requires email confirmation. Set GREEN_INVITEE_EMAIL and GREEN_INVITEE_PASSWORD.",
+          );
+        }
+        throw new Error("Invitee signup did not complete.");
+      }
+    } else if (!inviteeSignedIn && hasInviteeCreds) {
+      throw new Error("Invitee sign-in failed with configured GREEN_INVITEE credentials.");
+    }
+  }
+
+  await waitForAppCoreReady(inviteePage);
+  await expect(inviteePage.getByTestId("profile-lock-modal")).toHaveCount(0);
+  await inviteeContext.close();
 
   await page.waitForTimeout(5_000);
   expect(badKnowledgeResponses).toEqual([]);

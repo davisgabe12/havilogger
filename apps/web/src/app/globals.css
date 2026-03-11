@@ -138,11 +138,92 @@
   }
 
   .havi-app-shell {
-    @apply mx-auto flex min-h-screen w-full max-w-[390px] flex-col gap-4 px-4 py-6;
+    @apply mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6;
+  }
+
+  .havi-app-main {
+    @apply flex-1 px-3 py-4 md:px-6 md:py-6 lg:px-8;
+    background:
+      radial-gradient(
+        56rem 28rem at 84% -18%,
+        color-mix(in srgb, var(--havi-app-shell-accent) 70%, transparent),
+        transparent 68%
+      ),
+      var(--havi-app-shell-bg);
+  }
+
+  .havi-app-sidebar {
+    @apply hidden md:flex md:w-60 md:flex-col gap-4 border-r p-3;
+    background: color-mix(in srgb, var(--havi-neutral-2) 76%, var(--havi-bg));
+    border-color: var(--havi-app-panel-border);
+  }
+
+  .havi-app-mobile-topbar {
+    @apply mb-4 flex items-center gap-3 md:hidden;
+  }
+
+  .havi-panel-shell {
+    border: 1px solid var(--havi-app-panel-border);
+    background: color-mix(in srgb, var(--havi-app-panel-bg) 88%, var(--havi-neutral-2));
+    box-shadow: 0 14px 30px color-mix(in srgb, var(--havi-app-panel-shadow) 62%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+  .havi-panel-inset {
+    border: 1px solid color-mix(in srgb, var(--havi-app-panel-border) 88%, transparent);
+    background: color-mix(in srgb, var(--havi-app-inset-bg) 92%, transparent);
+  }
+
+  .havi-panel-inset-alt {
+    border: 1px solid color-mix(in srgb, var(--havi-app-panel-border) 86%, transparent);
+    background: color-mix(in srgb, var(--havi-app-inset-bg-alt) 90%, transparent);
+  }
+
+  .havi-notice-banner {
+    @apply rounded-md border px-3 py-2 text-sm;
+  }
+
+  .havi-notice-banner-info {
+    background: var(--havi-app-notice-info-bg);
+    border-color: var(--havi-app-notice-info-border);
+    color: var(--havi-text);
+  }
+
+  .havi-notice-banner-warning {
+    background: var(--havi-app-notice-warning-bg);
+    border-color: var(--havi-app-notice-warning-border);
+    color: var(--havi-fg-fog);
+  }
+
+  .havi-notice-banner-danger {
+    background: var(--havi-app-notice-danger-bg);
+    border-color: var(--havi-app-notice-danger-border);
+    color: var(--havi-fg-fog);
+  }
+
+  .havi-voice-primary {
+    @apply inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors;
+    border-color: var(--havi-voice-idle-border);
+    background: var(--havi-voice-idle-bg);
+    color: var(--havi-app-oat-chip-text);
+  }
+
+  .havi-voice-primary[data-recording="true"] {
+    border-color: var(--havi-voice-active-border);
+    background: var(--havi-voice-active-bg);
+    color: var(--havi-fg-fog);
+  }
+
+  .havi-voice-toolbar {
+    @apply flex items-center justify-between gap-2;
   }
 
   .havi-card-shell {
-    @apply bg-card/70 backdrop-blur;
+    @apply rounded-xl;
+    border-color: var(--havi-app-panel-border);
+    background: color-mix(in srgb, var(--havi-app-panel-bg-soft) 86%, var(--havi-neutral-2));
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--havi-app-panel-shadow) 54%, transparent);
+    backdrop-filter: blur(10px);
   }
 }
 
@@ -239,8 +320,9 @@
   .havi-showcase-page,
   .havi-marketing-page {
     background:
-      radial-gradient(58rem 36rem at 78% -16%, color-mix(in srgb, var(--havi-glow-soft) 34%, transparent), transparent 68%),
-      radial-gradient(46rem 28rem at 16% 20%, color-mix(in srgb, var(--havi-accent-warm-soft) 28%, transparent), transparent 70%),
+      radial-gradient(62rem 36rem at 82% -16%, color-mix(in srgb, var(--havi-accent-sky-soft) 30%, transparent), transparent 68%),
+      radial-gradient(48rem 28rem at 16% 24%, color-mix(in srgb, var(--havi-accent-warm-soft) 34%, transparent), transparent 72%),
+      radial-gradient(40rem 24rem at 50% -20%, color-mix(in srgb, var(--havi-app-shell-accent) 58%, transparent), transparent 74%),
       var(--background);
   }
 
@@ -430,20 +512,20 @@
 
   .havi-text-hero,
   .havi-marketing-hero {
-    @apply text-4xl font-semibold leading-tight text-foreground md:text-6xl;
+    @apply text-[2rem] font-medium leading-tight text-foreground md:text-[2.5rem];
     font-family: var(--havi-font-display);
     letter-spacing: -0.02em;
   }
 
   .havi-text-title,
   .havi-marketing-title {
-    @apply text-2xl font-semibold leading-tight text-foreground md:text-4xl;
+    @apply text-2xl font-medium leading-tight text-foreground md:text-[2rem];
     font-family: var(--havi-font-display);
     letter-spacing: -0.01em;
   }
 
   .havi-problem-title {
-    @apply text-4xl font-semibold leading-tight text-foreground md:text-6xl;
+    @apply text-[2rem] font-medium leading-tight text-foreground md:text-[2.5rem];
     font-family: var(--havi-font-display);
     letter-spacing: -0.022em;
     max-width: 22ch;
@@ -451,7 +533,7 @@
 
   .havi-text-subhead,
   .havi-marketing-subhead {
-    @apply text-lg font-normal leading-relaxed text-muted-foreground md:text-xl;
+    @apply text-base font-normal leading-relaxed text-muted-foreground md:text-lg;
     font-family: var(--havi-font-sans);
   }
 
@@ -463,10 +545,31 @@
 
   .havi-text-kicker,
   .havi-marketing-kicker {
-    @apply text-sm font-semibold md:text-base;
+    @apply text-sm font-medium md:text-base;
     color: color-mix(in srgb, var(--havi-accent-warm) 64%, var(--havi-text));
     font-family: var(--havi-font-sans);
     letter-spacing: 0.01em;
+  }
+
+  .havi-type-page-title {
+    @apply text-2xl font-medium leading-tight text-foreground;
+    font-family: var(--havi-font-display);
+    letter-spacing: -0.01em;
+  }
+
+  .havi-type-section-title {
+    @apply text-lg font-medium leading-tight text-foreground;
+    font-family: var(--havi-font-sans);
+  }
+
+  .havi-type-body {
+    @apply text-base font-normal leading-relaxed text-muted-foreground;
+    font-family: var(--havi-font-sans);
+  }
+
+  .havi-type-meta {
+    @apply text-xs font-normal leading-snug text-muted-foreground;
+    font-family: var(--havi-font-sans);
   }
 
   .havi-content-block,
@@ -637,23 +740,23 @@
   }
 
   .havi-marketing-proof-label {
-    @apply mt-2 text-lg font-semibold leading-snug text-foreground;
+    @apply mt-2 text-base font-medium leading-snug text-foreground;
     font-family: var(--havi-font-sans);
   }
 
   .havi-marketing-proof-detail {
-    @apply mt-2 text-base font-normal leading-relaxed text-muted-foreground;
+    @apply mt-2 text-sm font-normal leading-relaxed text-muted-foreground;
     font-family: var(--havi-font-sans);
   }
 
   .havi-marketing-card-title {
-    @apply text-2xl font-semibold leading-snug text-foreground;
+    @apply text-[1.125rem] font-medium leading-snug text-foreground md:text-[1.25rem];
     font-family: var(--havi-font-sans);
     letter-spacing: -0.01em;
   }
 
   .havi-marketing-card-body {
-    @apply mt-2 text-lg font-normal leading-relaxed text-muted-foreground;
+    @apply mt-2 text-base font-normal leading-relaxed text-muted-foreground;
     font-family: var(--havi-font-sans);
   }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { NoticeBanner } from "@/components/ui/app-shell";
 import {
   Card,
   CardContent,
@@ -117,42 +118,43 @@ export default function SelectFamilyPage() {
   }, [error, families, handleSelectFamily, loading]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12 text-foreground">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Select your family</CardTitle>
-          <CardDescription>
-            Choose the family you want to log updates for.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading families...</p>
-          ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : families.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              We couldn’t find any families yet. Ask an admin to add you.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {families.map((family) => (
-                <Button
-                  key={family.id}
-                  className="w-full justify-between"
-                  variant="outline"
-                  data-testid={`select-family-${family.id}`}
-                  onClick={() => handleSelectFamily(family.id)}
-                >
-                  <span>{family.name}</span>
-                  <span className="text-xs text-muted-foreground">Select</span>
-                </Button>
-              ))}
-            </div>
-          )}
-
-        </CardContent>
-      </Card>
+    <main className="havi-app-main min-h-screen">
+      <div className="havi-app-shell max-w-md py-10">
+        <Card className="havi-card-shell w-full">
+          <CardHeader>
+            <CardTitle className="havi-type-page-title">Select your family</CardTitle>
+            <CardDescription className="havi-type-body">
+              Choose the family you want to log updates for.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <p className="havi-type-body">Loading families...</p>
+            ) : error ? (
+              <NoticeBanner tone="danger">{error}</NoticeBanner>
+            ) : families.length === 0 ? (
+              <p className="havi-type-body">
+                We couldn’t find any families yet. Ask an admin to add you.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {families.map((family) => (
+                  <Button
+                    key={family.id}
+                    className="w-full justify-between"
+                    variant="outline"
+                    data-testid={`select-family-${family.id}`}
+                    onClick={() => handleSelectFamily(family.id)}
+                  >
+                    <span>{family.name}</span>
+                    <span className="text-xs text-muted-foreground">Select</span>
+                  </Button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

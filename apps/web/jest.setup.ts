@@ -60,3 +60,81 @@ jest.mock("next/navigation", () => ({
     toString: () => "",
   }),
 }));
+
+jest.mock("next/link", () => ({
+  __esModule: true,
+  default: ({
+    href,
+    children,
+    ...props
+  }: {
+    href: string;
+    children: React.ReactNode;
+    [key: string]: unknown;
+  }) =>
+    React.createElement("a", { href, ...props }, children),
+}));
+
+jest.mock("next/image", () => ({
+  __esModule: true,
+  default: ({
+    src,
+    alt,
+    fill,
+    priority,
+    ...props
+  }: {
+    src: string;
+    alt: string;
+    fill?: boolean;
+    priority?: boolean;
+    [key: string]: unknown;
+  }) => {
+    void fill;
+    void priority;
+    return (
+    React.createElement("img", {
+      src,
+      alt,
+      ...props,
+    })
+    );
+  },
+}));
+
+jest.mock("@radix-ui/react-scroll-area", () => {
+  const ReactLocal = require("react") as typeof React;
+  return {
+    __esModule: true,
+    Root: ReactLocal.forwardRef(
+      (
+        { children, ...props }: { children?: React.ReactNode; [key: string]: unknown },
+        ref: React.Ref<HTMLDivElement>,
+      ) => ReactLocal.createElement("div", { ref, ...props }, children),
+    ),
+    Viewport: ReactLocal.forwardRef(
+      (
+        { children, ...props }: { children?: React.ReactNode; [key: string]: unknown },
+        ref: React.Ref<HTMLDivElement>,
+      ) => ReactLocal.createElement("div", { ref, ...props }, children),
+    ),
+    ScrollAreaScrollbar: ReactLocal.forwardRef(
+      (
+        { children, ...props }: { children?: React.ReactNode; [key: string]: unknown },
+        ref: React.Ref<HTMLDivElement>,
+      ) => ReactLocal.createElement("div", { ref, ...props }, children),
+    ),
+    ScrollAreaThumb: ReactLocal.forwardRef(
+      (
+        { children, ...props }: { children?: React.ReactNode; [key: string]: unknown },
+        ref: React.Ref<HTMLDivElement>,
+      ) => ReactLocal.createElement("div", { ref, ...props }, children),
+    ),
+    Corner: ReactLocal.forwardRef(
+      (
+        { children, ...props }: { children?: React.ReactNode; [key: string]: unknown },
+        ref: React.Ref<HTMLDivElement>,
+      ) => ReactLocal.createElement("div", { ref, ...props }, children),
+    ),
+  };
+});

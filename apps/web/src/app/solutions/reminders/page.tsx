@@ -13,24 +13,24 @@ export const metadata: Metadata = {
 export default function RemindersPage() {
   return (
     <MarketingLayout>
-      <section>
-        <div className="mx-auto w-full max-w-4xl px-6 py-16">
+      <section className="havi-section-block havi-canvas-band-soft">
+        <div className="havi-container-wide max-w-4xl">
           <div className="space-y-6">
-            <h1 className="text-3xl font-semibold md:text-4xl">Remember what matters</h1>
-            <p className="text-base text-muted-foreground">
+            <h1 className="havi-text-title">Remember what matters</h1>
+            <p className="havi-text-body">
               When sleep is broken, memory and decision-making suffer. Havi remembers
               for you—so you don’t have to rely on recall when you’re exhausted.
             </p>
-            <ul className="space-y-3 text-sm text-muted-foreground">
+            <ul className="space-y-3 text-sm havi-text-body">
               <li>• Keep important moments from slipping away.</li>
               <li>• Pair reminders with the context behind them.</li>
               <li>• Stay prepared without another logging ritual.</li>
             </ul>
             <div className="flex flex-wrap gap-3">
-              <Button asChild>
+              <Button className="havi-cta-primary" asChild>
                 <Link href="/auth/sign-up">Get started</Link>
               </Button>
-              <Button variant="outline" asChild>
+              <Button className="havi-cta-secondary" variant="outline" asChild>
                 <Link href="/solutions">Back to solutions</Link>
               </Button>
             </div>
