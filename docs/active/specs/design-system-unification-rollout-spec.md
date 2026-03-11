@@ -307,3 +307,150 @@ Profile lock is the blocking state in the app shell when required caregiver/chil
 ## Decision Log
 1. Profile lock remains fully blocking for incomplete required profile data.
 2. Scope of this slice is messaging clarity and rationale improvement only (no partial read-only access mode).
+
+## Follow-Up Polish Plan (Pre-Implementation)
+
+Status: planned
+Scope: app shell and readability polish for launch-quality consistency
+
+### Summary
+This plan addresses the remaining high-priority layout/readability issues called out in live UI review: active-child control width/placement, cross-page container consistency, tray contrast, and title readability. The intent is an Apple Reminders / Google Keep level of calm clarity while preserving Havi brand language.
+
+### Goals
+1. Reduce visual jank between pages by locking one app container system.
+2. Improve scanability of navigation and page titles.
+3. Increase perceived lightness and professionalism by rebalancing dark trays/surfaces.
+4. Keep mobile and desktop behavior consistent with responsive, predictable rules.
+
+### Non-Goals
+1. Avatar visual redesign (pending parallel avatar workstream).
+2. Marketing copy/content rewrites outside homepage.
+3. Integrations copy/content expansion in this slice.
+
+### Requirements (MVP)
+1. Active child selector is not full-width on desktop.
+2. Active child selector placement is part of stable page header composition.
+3. App content container width is identical across Home, Chat, Timeline, Tasks, History, Memory, Integrations, and Settings.
+4. Sidebar/tray and page background contrast is rebalanced to a lighter, clearer token pairing.
+5. Major page and section titles meet improved readability thresholds via typography tokens (size/weight/line-height/tracking).
+
+### Proposed Solution
+
+#### Item 1: Active Child Width
+1. Desktop/tablet: clamp selector to a controlled width (`min 240px`, `ideal ~320px`, `max 420px`) instead of stretching full content width.
+2. Mobile: allow full-width for touch ergonomics.
+3. Use shared class token so the behavior is consistent everywhere this control appears.
+
+#### Item 2: Active Child Placement
+1. Place selector inside a stable "app context header" row near page top, paired with timezone/status context.
+2. Keep this row fixed in hierarchy before page card content, with consistent gap spacing.
+3. Avoid embedding selector inside variable content cards to prevent vertical drift.
+
+#### Item 3: Cross-Page Container Consistency
+1. Introduce one canonical main container class for all core app pages with fixed max width and horizontal paddings by breakpoint.
+2. Keep page-level scroll within the main content region; feature-level loading states render inside the same container bounds.
+3. Remove page-specific max-width overrides that create jarring transitions.
+
+#### Item 4: Tray And Background Contrast Rebalance
+1. Brighten tray/background pairing by moving tray surfaces from deep-forest-only stacks to mixed deep+neutral tokens.
+2. Raise tray text contrast from muted gray to stronger body-contrast token.
+3. Keep focus/active indicators clear but not high-glow.
+
+#### Item 5: Title Readability
+1. Normalize page-title and section-title scale across homepage and app/settings.
+2. Increase title contrast and weight while preserving calm tone (no oversized shouting headers).
+3. Enforce title classes (`havi-type-page-title`, `havi-type-section-title`) in priority surfaces.
+
+### File Targets
+1. `apps/web/src/app/globals.css` (container/header/tray/type utility refinements)
+2. `apps/web/src/app/app/page.tsx` (active-child placement, width class, consistent container usage)
+3. `apps/web/src/components/ui/app-shell.tsx` or equivalent shell primitive (if extraction is needed)
+4. `apps/web/src/app/page.tsx` (homepage title scale alignment)
+5. `docs/canonical/brand-theming-notes.md` (permissible tray/background contrast guidance if token mappings change)
+6. `apps/web/src/styles/havi-tokens.source.json` + generated css (if contrast/type tokens are adjusted)
+
+### Acceptance Criteria
+1. Desktop active-child selector is no longer full-width on app screens.
+2. The selector appears in the same visual/header location across core app screens.
+3. Container width no longer changes when moving between core app pages.
+4. Sidebar text and background contrast are visibly improved and token-compliant.
+5. Homepage and settings/app titles are easier to read and consistently styled.
+6. Mobile layout remains functional and unclipped.
+
+### Validation Plan
+1. `cd apps/web && npm test -- --runInBand`
+2. `cd apps/web && npm run build`
+3. `cd /Users/gabedavis/Desktop/projects/havilogger && ./scripts/prod_core_smoke.sh`
+4. `cd /Users/gabedavis/Desktop/projects/havilogger && ./scripts/prod_ui_smoke_gate.sh`
+5. Manual desktop + mobile visual pass of homepage and app core pages.
+
+### Risks And Mitigations
+1. Risk: typography updates can cascade unexpectedly.
+   - Mitigation: scope title class changes to explicit selectors first; expand only after review.
+2. Risk: global container rules can break edge-case pages.
+   - Mitigation: apply to core app routes first and verify each route before extending.
+3. Risk: brighter tray reduces brand mood.
+   - Mitigation: use neutral/oat support tokens while preserving forest accents and interaction states.
+
+## Pending Ship Scope (Other Than This Document)
+1. App shell polish implementation for active-child width/placement and cross-page container consistency.
+2. Tray/background contrast rebalance and title readability refinements across homepage and app settings.
+3. Final web compile gate cleanup and retest (`next build`, smoke reruns).
+4. API/backend pending changes currently in working tree (care-team collaboration and related route/test updates).
+5. Consolidated release commit for all currently pending tracked/untracked work plus green-proof artifacts.
+
+## Latest Brand And Component Inventory (Quality Snapshot)
+
+### Brand System Inventory
+| Area | Current quality | Notes |
+| --- | --- | --- |
+| Token source contract (`havi-tokens.source.json` + generated CSS) | High | Sync/check guard exists and is being enforced in frontend tests. |
+| Core brand mood (joyful/calm/professional) | Medium | Direction is strong but app tray darkness and title readability still reduce calm clarity. |
+| Color permissibility discipline on homepage | High | Homepage colors are tokenized through approved system classes; no ad-hoc palette use should be introduced. |
+| Neutral/oat/alt operational guidance | Medium | Mentioned in spec and partially used; still needs stronger canonical usage guidance by surface type. |
+| Typography hierarchy consistency | Medium | Shared type utilities exist, but page-to-page title readability still varies in practice. |
+
+### Component/System Inventory
+| Component or surface primitive | Current quality | Status and gap |
+| --- | --- | --- |
+| `Button`, `Card`, `Input`, `Select`, `Textarea`, `Field*` | High | Core primitives are in place and used broadly on priority flows. |
+| `NoticeBanner` | High | Added and now replacing ad-hoc warning/error blocks in key surfaces. |
+| App shell primitives (`havi-app-sidebar`, `havi-app-main`, `havi-app-shell`) | Medium | Adopted in core app route; still needs full cross-page container invariance pass. |
+| Active-child context header pattern | Low | Exists as controls but not yet standardized for width/placement consistency. |
+| Chat message surface primitives (bubble/meta/action row) | Medium | Baseline is good; still some route-level hard-coded spacing/state patterns remain. |
+| Tasks/settings form composition | Medium-High | Mostly standardized; needs final spacing/readability polish and consistent title scale. |
+| Knowledge/share/auth secondary surfaces | Medium | Rolled into system direction but still need final consistency pass as part of completion. |
+| Legacy marketing pages (non-home copy placeholder) | Medium | Structure moved toward shared primitives; still lower priority than homepage + app core polish. |
+
+## Design And Brand Completion Plan (Next Steps + Goals)
+
+### Goals
+1. Complete a launch-ready, calm-professional visual system across homepage + app core.
+2. Remove remaining layout/typography friction that breaks trust or perceived quality.
+3. Ensure all priority routes use canonical components/tokens with no one-off style drift.
+
+### Next Steps (Execution Order)
+1. Implement active-child context header standard:
+   - non-full-width selector on desktop,
+   - stable placement with timezone/context line,
+   - mobile full-width fallback.
+2. Enforce a single app container contract across core routes:
+   - identical max-width and side paddings,
+   - route-level loading/scroll behavior inside that container.
+3. Rebalance tray/background and text contrast using permissible neutral/oat/deep token combinations.
+4. Normalize title hierarchy:
+   - homepage hero/section titles,
+   - app/settings page titles and section headers,
+   - shared typographic classes only.
+5. Run gates and ship:
+   - unit tests,
+   - build,
+   - smoke gates,
+   - deploy + post-deploy smoke rerun.
+
+### Definition Of Complete (Design/Brand)
+1. Homepage + home/chat/tasks/settings have consistent container rhythm and layer system.
+2. Active-child control looks intentional (not stretched) and appears in one predictable location.
+3. Tray and primary app background are readable at a glance without muddy low-contrast text.
+4. Titles are legible and consistent across primary surfaces.
+5. Remaining non-priority pages are either aligned or explicitly tagged as follow-up.
