@@ -6,7 +6,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from ..schemas import Task, TaskStatus
-from ..supabase import AuthContext, get_auth_context, resolve_child_id, resolve_optional_uuid
+from ..supabase import (
+    AuthContext,
+    get_admin_client,
+    get_auth_context,
+    resolve_child_id,
+    resolve_optional_uuid,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
 legacy_router = APIRouter()
@@ -36,6 +42,53 @@ class UpdateTaskPayload(BaseModel):
     recurrence_rule: Optional[str] = None
     status: Optional[TaskStatus] = None
     assigned_to_user_id: Optional[str] = None
+
+
+def _display_name(member: dict) -> str:
+    first = str(member.get("first_name") or "").strip()
+    last = str(member.get("last_name") or "").strip()
+    full = " ".join(part for part in [first, last] if part)
+    if full:
+        return full
+    email = str(member.get("email") or "").strip()
+    if email:
+        return email
+    return "Care team member"
+
+
+async def _load_member_names(auth: AuthContext, user_ids: list[str]) -> dict[str, str]:
+    ids = sorted({user_id for user_id in user_ids if user_id})
+    if not ids:
+        return {}
+    member_lookup = auth.supabase
+    try:
+        member_lookup = get_admin_client()
+    except RuntimeError:
+        member_lookup = auth.supabase
+    rows = await member_lookup.select(
+        "family_members",
+        params={
+            "select": "user_id,first_name,last_name,email",
+            "family_id": f"eq.{auth.family_id}",
+            "user_id": f"in.({','.join(ids)})",
+        },
+    )
+    return {
+        str(row.get("user_id")): _display_name(row)
+        for row in rows
+        if row.get("user_id")
+    }
+
+
+def _attach_task_names(task_row: dict, names_by_user_id: dict[str, str]) -> dict:
+    row = dict(task_row)
+    created_by_user_id = row.get("created_by_user_id")
+    assigned_to_user_id = row.get("assigned_to_user_id")
+    if created_by_user_id:
+        row["created_by_name"] = names_by_user_id.get(str(created_by_user_id))
+    if assigned_to_user_id:
+        row["assigned_to_name"] = names_by_user_id.get(str(assigned_to_user_id))
+    return row
 
 
 @router.post("/tasks", response_model=Task)
@@ -74,7 +127,14 @@ async def create_task_endpoint(
         raise HTTPException(status_code=500, detail="Unable to create task")
     row = created[0]
     row["user_id"] = row.get("created_by_user_id")
-    return Task.model_validate(row)
+    names_by_user_id = await _load_member_names(
+        auth,
+        [
+            str(row.get("created_by_user_id") or ""),
+            str(row.get("assigned_to_user_id") or ""),
+        ],
+    )
+    return Task.model_validate(_attach_task_names(row, names_by_user_id))
 
 
 @router.get("/tasks", response_model=List[Task])
@@ -105,9 +165,20 @@ async def list_tasks_endpoint(
     else:
         params["status"] = f"eq.{TaskStatus.OPEN.value}"
     rows = await auth.supabase.select("tasks", params=params)
+    names_by_user_id = await _load_member_names(
+        auth,
+        [
+            str(row.get("created_by_user_id") or "")
+            for row in rows
+        ]
+        + [
+            str(row.get("assigned_to_user_id") or "")
+            for row in rows
+        ],
+    )
     for row in rows:
         row["user_id"] = row.get("created_by_user_id")
-    return [Task.model_validate(row) for row in rows]
+    return [Task.model_validate(_attach_task_names(row, names_by_user_id)) for row in rows]
 
 
 @router.patch("/tasks/{task_id}", response_model=Task)
@@ -173,7 +244,14 @@ async def update_task_endpoint(
     if not updates:
         row = tasks[0]
         row["user_id"] = row.get("created_by_user_id")
-        return Task.model_validate(row)
+        names_by_user_id = await _load_member_names(
+            auth,
+            [
+                str(row.get("created_by_user_id") or ""),
+                str(row.get("assigned_to_user_id") or ""),
+            ],
+        )
+        return Task.model_validate(_attach_task_names(row, names_by_user_id))
     updated = await auth.supabase.update(
         "tasks",
         updates,
@@ -181,7 +259,14 @@ async def update_task_endpoint(
     )
     row = (updated or tasks)[0]
     row["user_id"] = row.get("created_by_user_id")
-    return Task.model_validate(row)
+    names_by_user_id = await _load_member_names(
+        auth,
+        [
+            str(row.get("created_by_user_id") or ""),
+            str(row.get("assigned_to_user_id") or ""),
+        ],
+    )
+    return Task.model_validate(_attach_task_names(row, names_by_user_id))
 
 
 @legacy_router.post("/tasks", response_model=Task)

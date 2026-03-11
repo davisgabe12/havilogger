@@ -173,3 +173,53 @@ This document connects user‑visible flows to specific endpoints and code paths
     - Renders:
       - Title (`data.title`).
       - Message list (`data.messages`) with role‑specific styling for `"user"` vs `"assistant"` vs `"caregiver"`.
+
+## 6. Care-Team Invite, Join, and Identity
+
+- **Invite creation**
+  - API endpoint: `POST /api/v1/invites`
+  - Backend:
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py:create_invite`
+    - writes `family_invites` row with lifecycle fields (`status`, `expires_at`, `invited_by`) when available.
+    - returns `invite_url` with `token` + `email`.
+    - attempts SMTP email send; invite link remains usable even when SMTP is not configured.
+  - Frontend:
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/page.tsx`
+    - Settings modal sends invite and surfaces email send status + copyable link fallback.
+
+- **Invite accept + account join**
+  - Frontend route:
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/invite/page.tsx`
+    - preserves full invite query through auth redirect (`next=/app/invite?...`).
+    - supports logged-out invitees with required-field signup (first name, last name, email, phone, password) before join.
+  - API endpoint:
+    - `POST /api/v1/invites/accept`
+    - `POST /api/v1/invites/complete-signup`
+  - Backend:
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py:accept_invite`
+    - validates token, invite status/expiry, email-account match, then upserts `family_members`.
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py:complete_invite_signup`
+    - provisions/updates auth user via Supabase admin API, upserts `family_members`, marks invite accepted.
+
+- **Care-team profile completion**
+  - Frontend route:
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/onboarding/care-member/page.tsx`
+  - API endpoints:
+    - `GET /api/v1/care-team`
+    - `PUT /api/v1/care-team/me/profile`
+  - Backend route module:
+    - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/routes/care_team.py`
+    - list endpoint is resilient to invite-schema drift and still returns members when invite reads fail.
+    - member list is deduplicated by `user_id` to prevent duplicate assignee options.
+  - Required caregiver fields for core app access:
+    - `first_name`, `last_name`, `email`, `phone`.
+
+- **Chat and timeline identity rendering**
+  - Chat messages include sender metadata for non-assistant users:
+    - backend enrichment in `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py`
+    - frontend grouping/labels in `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/page.tsx` and `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/message-bubble.tsx`
+  - Timeline events include recorder identity when available:
+    - API enrichment in `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/routes/events.py`
+      - reads recorder names with admin-client fallback to avoid self-only RLS visibility gaps.
+      - if `timeline_events.recorded_by_user_id` is missing (legacy schema), infers recorder from `origin_message_id -> conversation_messages.user_id`.
+    - UI rendering in `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/timeline/timeline-panel.tsx`

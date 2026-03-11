@@ -8,9 +8,12 @@ import json
 import logging
 import os
 import re
+import smtplib
 import time
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Literal
+from urllib.parse import quote_plus
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -21,6 +24,7 @@ from dateparser.search import search_dates
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from .config import CONFIG
@@ -28,6 +32,7 @@ from .conversations import ConversationMessage, ConversationSession
 from .supabase import (
     AuthContext,
     get_auth_context,
+    get_admin_client,
     get_user_context,
     resolve_child_id,
     resolve_optional_uuid,
@@ -49,6 +54,7 @@ from .routes import feedback as feedback_routes
 from .routes import knowledge as knowledge_routes
 from .routes import reminders as reminder_routes
 from .routes import tasks as task_routes
+from .routes import care_team as care_team_routes
 from . import share as share_routes
 from .knowledge_utils import knowledge_pending_prompts
 from .openai_client import compose_guidance_with_openai
@@ -397,6 +403,15 @@ class InviteAcceptPayload(BaseModel):
     token: str
 
 
+class InviteCompleteSignupPayload(BaseModel):
+    token: str
+    email: str
+    password: str
+    first_name: str
+    last_name: str
+    phone: str
+
+
 class InferenceResolvePayload(BaseModel):
     action: Literal["confirm_general", "confirm_sometimes", "reject"]
 
@@ -536,6 +551,7 @@ app.include_router(reminder_routes.router)
 app.include_router(reminder_routes.legacy_router)
 app.include_router(task_routes.router)
 app.include_router(task_routes.legacy_router)
+app.include_router(care_team_routes.router)
 app.include_router(share_routes.router, prefix="/api/v1/share", tags=["share"])
 
 
@@ -2763,16 +2779,29 @@ async def create_invite(
     if not email:
         raise HTTPException(status_code=400, detail="Email is required.")
     token = uuid4().hex
-    created = await auth.supabase.insert(
-        "family_invites",
-        {
-            "family_id": auth.family_id,
-            "email": email,
-            "role": payload.role or "member",
-            "token": token,
-            "invited_by": auth.user_id,
-        },
-    )
+    expires_at = (datetime.now(tz=timezone.utc) + timedelta(days=7)).isoformat()
+    invite_payload = {
+        "family_id": auth.family_id,
+        "email": email,
+        "role": payload.role or "member",
+        "token": token,
+        "invited_by": auth.user_id,
+        "status": "pending",
+        "expires_at": expires_at,
+    }
+    try:
+        created = await auth.supabase.insert("family_invites", invite_payload)
+    except HTTPException as exc:
+        detail = str(exc.detail or "").lower()
+        unsupported = [
+            field
+            for field in ("invited_by", "status", "expires_at")
+            if field in detail and "does not exist" in detail
+        ]
+        if not unsupported:
+            raise
+        fallback_payload = {k: v for k, v in invite_payload.items() if k not in unsupported}
+        created = await auth.supabase.insert("family_invites", fallback_payload)
     if not created:
         raise HTTPException(status_code=500, detail="Unable to create invite.")
     request_origin = (request.headers.get("origin") or "").strip()
@@ -2782,11 +2811,390 @@ async def create_invite(
         or request_origin
         or "https://gethavi.com"
     )
+    invite_url = f"{base_url.rstrip('/')}/app/invite?token={token}&email={quote_plus(email)}"
+    inviter = next(
+        (
+            row
+            for row in auth.memberships
+            if row.get("family_id") == auth.family_id and row.get("user_id") == auth.user_id
+        ),
+        {},
+    )
+    inviter_name = " ".join(
+        part
+        for part in [
+            _normalize_text(inviter.get("first_name")),
+            _normalize_text(inviter.get("last_name")),
+        ]
+        if part
+    ) or "A caregiver"
+    email_status, email_error = await _send_invite_email(
+        to_email=email,
+        invite_url=invite_url,
+        inviter_name=inviter_name,
+        role=payload.role or "member",
+    )
     return {
         "token": token,
         "family_id": auth.family_id,
         "email": email,
-        "invite_url": f"{base_url.rstrip('/')}/app/invite?token={token}",
+        "invite_url": invite_url,
+        "email_status": email_status,
+        "email_error": email_error,
+    }
+
+
+def _service_role_auth_headers() -> Dict[str, str]:
+    admin_client = get_admin_client()
+    service_key = admin_client.anon_key
+    return {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+
+def _send_invite_email_sync(
+    *,
+    to_email: str,
+    invite_url: str,
+    inviter_name: str,
+    role: str,
+) -> tuple[str, Optional[str]]:
+    host = (os.getenv("HAVI_SMTP_HOST") or "").strip()
+    if not host:
+        return "skipped", "SMTP not configured"
+    from_email = (os.getenv("HAVI_SMTP_FROM_EMAIL") or "").strip()
+    username = (os.getenv("HAVI_SMTP_USERNAME") or "").strip()
+    password = (os.getenv("HAVI_SMTP_PASSWORD") or "").strip()
+    if not from_email:
+        from_email = username
+    if not from_email:
+        return "skipped", "SMTP sender not configured"
+
+    try:
+        port = int((os.getenv("HAVI_SMTP_PORT") or "587").strip())
+    except ValueError:
+        port = 587
+    use_ssl = (os.getenv("HAVI_SMTP_USE_SSL") or "").strip().lower() in {"1", "true", "yes", "on"}
+    use_starttls = (os.getenv("HAVI_SMTP_STARTTLS") or "1").strip().lower() in {"1", "true", "yes", "on"}
+
+    message = EmailMessage()
+    message["Subject"] = "You're invited to join a family on Havi"
+    message["From"] = from_email
+    message["To"] = to_email
+    safe_role = (role or "member").strip()
+    message.set_content(
+        "\n".join(
+            [
+                f"{inviter_name} invited you to join their family on Havi as {safe_role}.",
+                "",
+                "Open this link to join:",
+                invite_url,
+                "",
+                "If you do not already have an account, create one and set your password.",
+            ]
+        )
+    )
+
+    smtp_client: Optional[smtplib.SMTP] = None
+    try:
+        if use_ssl:
+            smtp_client = smtplib.SMTP_SSL(host=host, port=port, timeout=15)
+        else:
+            smtp_client = smtplib.SMTP(host=host, port=port, timeout=15)
+            smtp_client.ehlo()
+            if use_starttls:
+                smtp_client.starttls()
+                smtp_client.ehlo()
+        if username and password:
+            smtp_client.login(username, password)
+        smtp_client.send_message(message)
+        return "sent", None
+    except Exception as exc:  # noqa: BLE001 - keep invite flow resilient
+        logger.warning(
+            "invite email send failed",
+            extra={"to_email": to_email, "error": str(exc)[:200]},
+        )
+        return "failed", str(exc)[:200]
+    finally:
+        if smtp_client is not None:
+            try:
+                smtp_client.quit()
+            except Exception:
+                pass
+
+
+async def _send_invite_email(
+    *,
+    to_email: str,
+    invite_url: str,
+    inviter_name: str,
+    role: str,
+) -> tuple[str, Optional[str]]:
+    return await asyncio.to_thread(
+        _send_invite_email_sync,
+        to_email=to_email,
+        invite_url=invite_url,
+        inviter_name=inviter_name,
+        role=role,
+    )
+
+
+async def _select_invite_by_token(
+    supabase_client,
+    token: str,
+) -> tuple[Dict[str, Any], bool, bool, bool]:
+    supports_acceptance_tracking = True
+    supports_status_tracking = True
+    supports_expiry_tracking = True
+    try:
+        invites = await supabase_client.select(
+            "family_invites",
+            params={
+                "select": "id,family_id,email,role,accepted_at,status,expires_at",
+                "token": f"eq.{token}",
+                "limit": "1",
+            },
+        )
+    except HTTPException as exc:
+        detail = str(exc.detail or "").lower()
+        missing_accepted_at = "accepted_at" in detail and "does not exist" in detail
+        supports_status_tracking = not ("status" in detail and "does not exist" in detail)
+        supports_expiry_tracking = not ("expires_at" in detail and "does not exist" in detail)
+        if not missing_accepted_at and supports_status_tracking and supports_expiry_tracking:
+            raise
+        supports_acceptance_tracking = not missing_accepted_at
+        invites = await supabase_client.select(
+            "family_invites",
+            params={
+                "select": "id,family_id,email,role",
+                "token": f"eq.{token}",
+                "limit": "1",
+            },
+        )
+    if not invites:
+        raise HTTPException(status_code=404, detail="Invite not found.")
+    return (
+        invites[0],
+        supports_acceptance_tracking,
+        supports_status_tracking,
+        supports_expiry_tracking,
+    )
+
+
+async def _mark_invite_as_accepted(
+    supabase_client,
+    *,
+    invite_id: str,
+    user_id: str,
+    supports_acceptance_tracking: bool,
+    supports_status_tracking: bool,
+) -> None:
+    if not supports_acceptance_tracking:
+        return
+    accepted_payload = {
+        "accepted_at": _now_iso(),
+        "accepted_by_user_id": user_id,
+    }
+    if supports_status_tracking:
+        accepted_payload["status"] = "accepted"
+    try:
+        await supabase_client.update(
+            "family_invites",
+            accepted_payload,
+            params={"id": f"eq.{invite_id}"},
+        )
+    except HTTPException as exc:
+        detail = str(exc.detail or "").lower()
+        missing_accepted_at = "accepted_at" in detail and "does not exist" in detail
+        missing_accepted_by = "accepted_by_user_id" in detail and "does not exist" in detail
+        missing_status = "status" in detail and "does not exist" in detail
+        if not (missing_accepted_at or missing_accepted_by or missing_status):
+            raise
+        fallback_payload: Dict[str, Any] = {}
+        if not missing_accepted_at:
+            fallback_payload["accepted_at"] = accepted_payload["accepted_at"]
+        if not missing_accepted_by:
+            fallback_payload["accepted_by_user_id"] = accepted_payload["accepted_by_user_id"]
+        if not missing_status and "status" in accepted_payload:
+            fallback_payload["status"] = accepted_payload["status"]
+        if fallback_payload:
+            await supabase_client.update(
+                "family_invites",
+                fallback_payload,
+                params={"id": f"eq.{invite_id}"},
+            )
+
+
+async def _provision_invited_auth_user(
+    *,
+    email: str,
+    password: str,
+    first_name: str,
+    last_name: str,
+    phone: str,
+) -> str:
+    admin_client = get_admin_client()
+    headers = _service_role_auth_headers()
+    users_url = f"{admin_client.base_url}/auth/v1/admin/users"
+    metadata = {"first_name": first_name, "last_name": last_name, "phone": phone}
+    create_payload = {
+        "email": email,
+        "password": password,
+        "email_confirm": True,
+        "user_metadata": metadata,
+    }
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        create_resp = await client.post(users_url, json=create_payload, headers=headers)
+        if create_resp.status_code < 400:
+            created = create_resp.json() if create_resp.content else {}
+            created_id = str(created.get("id") or "")
+            if not created_id:
+                raise HTTPException(status_code=500, detail="Unable to create invited auth user.")
+            return created_id
+
+        body_text = (create_resp.text or "").lower()
+        duplicate_email = (
+            "already been registered" in body_text
+            or "already registered" in body_text
+            or "already exists" in body_text
+            or "duplicate" in body_text
+        )
+        if not duplicate_email:
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to provision invited auth user.",
+            )
+
+        existing_user_id: Optional[str] = None
+        for page in range(1, 11):
+            list_resp = await client.get(
+                users_url,
+                params={"page": page, "per_page": 200},
+                headers=headers,
+            )
+            if list_resp.status_code >= 400:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Unable to resolve existing invited auth user.",
+                )
+            payload = list_resp.json() if list_resp.content else {}
+            users = payload.get("users") if isinstance(payload, dict) else []
+            if not users:
+                break
+            for user in users:
+                user_email = str(user.get("email") or "").strip().lower()
+                if user_email == email:
+                    existing_user_id = str(user.get("id") or "")
+                    break
+            if existing_user_id or len(users) < 200:
+                break
+        if not existing_user_id:
+            raise HTTPException(status_code=500, detail="Unable to resolve invited auth user.")
+
+        update_payload = {
+            "password": password,
+            "email_confirm": True,
+            "user_metadata": metadata,
+        }
+        update_resp = await client.put(
+            f"{users_url}/{existing_user_id}",
+            json=update_payload,
+            headers=headers,
+        )
+        if update_resp.status_code >= 400:
+            raise HTTPException(status_code=500, detail="Unable to update invited auth user.")
+        return existing_user_id
+
+
+@app.post("/api/v1/invites/complete-signup")
+async def complete_invite_signup(
+    payload: InviteCompleteSignupPayload,
+) -> dict:
+    token = (payload.token or "").strip()
+    email = (payload.email or "").strip().lower()
+    password = (payload.password or "").strip()
+    first_name = _normalize_text(payload.first_name)
+    last_name = _normalize_text(payload.last_name)
+    phone = _normalize_text(payload.phone)
+
+    if not token:
+        raise HTTPException(status_code=400, detail="Invite token is required.")
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email is required.")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if not first_name:
+        raise HTTPException(status_code=400, detail="First name is required.")
+    if not last_name:
+        raise HTTPException(status_code=400, detail="Last name is required.")
+    if len(re.sub(r"\D", "", phone)) < 7:
+        raise HTTPException(status_code=400, detail="Phone is invalid.")
+
+    admin_client = get_admin_client()
+    (
+        invite,
+        supports_acceptance_tracking,
+        supports_status_tracking,
+        supports_expiry_tracking,
+    ) = await _select_invite_by_token(admin_client, token)
+
+    invite_status = (invite.get("status") or "").strip().lower()
+    if invite_status in {"revoked", "expired"}:
+        raise HTTPException(status_code=410, detail="Invite is no longer active.")
+    if supports_expiry_tracking and invite.get("expires_at"):
+        expires_at = _parse_iso_date(str(invite.get("expires_at")))
+        if expires_at and expires_at < datetime.now(tz=timezone.utc):
+            if supports_status_tracking:
+                try:
+                    await admin_client.update(
+                        "family_invites",
+                        {"status": "expired"},
+                        params={"id": f"eq.{invite.get('id')}"},
+                    )
+                except HTTPException:
+                    pass
+            raise HTTPException(status_code=410, detail="Invite has expired.")
+    invite_email = (invite.get("email") or "").strip().lower()
+    if invite_email and invite_email != email:
+        raise HTTPException(status_code=403, detail="Invite does not match this account.")
+
+    user_id = await _provision_invited_auth_user(
+        email=email,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+    )
+
+    await admin_client.upsert(
+        "family_members",
+        {
+            "family_id": invite.get("family_id"),
+            "user_id": user_id,
+            "role": invite.get("role") or "member",
+            "is_primary": False,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "phone": phone,
+        },
+        on_conflict="family_id,user_id",
+    )
+    await _mark_invite_as_accepted(
+        admin_client,
+        invite_id=str(invite.get("id") or ""),
+        user_id=user_id,
+        supports_acceptance_tracking=supports_acceptance_tracking,
+        supports_status_tracking=supports_status_tracking,
+    )
+    return {
+        "status": "accepted",
+        "family_id": invite.get("family_id"),
+        "user_id": user_id,
     }
 
 
@@ -2798,33 +3206,28 @@ async def accept_invite(
     token = (payload.token or "").strip()
     if not token:
         raise HTTPException(status_code=400, detail="Invite token is required.")
-    supports_acceptance_tracking = True
-    try:
-        invites = await user_ctx.supabase.select(
-            "family_invites",
-            params={
-                "select": "id,family_id,email,role,accepted_at",
-                "token": f"eq.{token}",
-                "limit": "1",
-            },
-        )
-    except HTTPException as exc:
-        detail = str(exc.detail or "").lower()
-        missing_accepted_at = "accepted_at" in detail and "does not exist" in detail
-        if not missing_accepted_at:
-            raise
-        supports_acceptance_tracking = False
-        invites = await user_ctx.supabase.select(
-            "family_invites",
-            params={
-                "select": "id,family_id,email,role",
-                "token": f"eq.{token}",
-                "limit": "1",
-            },
-        )
-    if not invites:
-        raise HTTPException(status_code=404, detail="Invite not found.")
-    invite = invites[0]
+    (
+        invite,
+        supports_acceptance_tracking,
+        supports_status_tracking,
+        supports_expiry_tracking,
+    ) = await _select_invite_by_token(user_ctx.supabase, token)
+    invite_status = (invite.get("status") or "").strip().lower()
+    if invite_status in {"revoked", "expired"}:
+        raise HTTPException(status_code=410, detail="Invite is no longer active.")
+    if supports_expiry_tracking and invite.get("expires_at"):
+        expires_at = _parse_iso_date(str(invite.get("expires_at")))
+        if expires_at and expires_at < datetime.now(tz=timezone.utc):
+            if supports_status_tracking:
+                try:
+                    await user_ctx.supabase.update(
+                        "family_invites",
+                        {"status": "expired"},
+                        params={"id": f"eq.{invite.get('id')}"},
+                    )
+                except HTTPException:
+                    pass
+            raise HTTPException(status_code=410, detail="Invite has expired.")
     if invite.get("accepted_at"):
         return {"status": "already_accepted", "family_id": invite.get("family_id")}
     invite_email = (invite.get("email") or "").lower()
@@ -2842,34 +3245,13 @@ async def accept_invite(
         },
         on_conflict="family_id,user_id",
     )
-    if supports_acceptance_tracking:
-        accepted_payload = {
-            "accepted_at": _now_iso(),
-            "accepted_by_user_id": user_ctx.user_id,
-        }
-        try:
-            await user_ctx.supabase.update(
-                "family_invites",
-                accepted_payload,
-                params={"id": f"eq.{invite.get('id')}"},
-            )
-        except HTTPException as exc:
-            detail = str(exc.detail or "").lower()
-            missing_accepted_at = "accepted_at" in detail and "does not exist" in detail
-            missing_accepted_by = "accepted_by_user_id" in detail and "does not exist" in detail
-            if not (missing_accepted_at or missing_accepted_by):
-                raise
-            fallback_payload: Dict[str, Any] = {}
-            if not missing_accepted_at:
-                fallback_payload["accepted_at"] = accepted_payload["accepted_at"]
-            if not missing_accepted_by:
-                fallback_payload["accepted_by_user_id"] = accepted_payload["accepted_by_user_id"]
-            if fallback_payload:
-                await user_ctx.supabase.update(
-                    "family_invites",
-                    fallback_payload,
-                    params={"id": f"eq.{invite.get('id')}"},
-                )
+    await _mark_invite_as_accepted(
+        user_ctx.supabase,
+        invite_id=str(invite.get("id") or ""),
+        user_id=user_ctx.user_id,
+        supports_acceptance_tracking=supports_acceptance_tracking,
+        supports_status_tracking=supports_status_tracking,
+    )
     return {"status": "accepted", "family_id": invite.get("family_id")}
 
 STAGE_GUIDANCE = {

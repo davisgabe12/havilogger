@@ -23,6 +23,8 @@ For end-to-end deploy/release sequencing (push -> verify -> smoke -> evidence), 
    - guidance does not add timeline event,
    - first message auto-titles conversation (`!= New chat`),
    - manual renamed title remains unchanged after follow-up.
+5. Care-team collaboration note:
+   - invite creation/acceptance and invitee app-readiness are currently validated via GREEN Playwright smoke (`apps/web/tests/smoke/green.smoke.spec.ts`), not `prod_core_smoke.sh`.
 
 ## Commands
 

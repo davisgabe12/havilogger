@@ -18,6 +18,14 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
+const resolveNextPathFromLocation = (): string | null => {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const nextRaw = params.get("next");
+  if (!nextRaw || !nextRaw.startsWith("/")) return null;
+  return nextRaw;
+};
+
 const SignupPage = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -30,6 +38,7 @@ const SignupPage = () => {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [nextPath, setNextPath] = useState("/app");
   const [signInHref, setSignInHref] = useState("/auth/sign-in");
+  const shouldAutoContinueInvite = nextPath.startsWith("/app/invite");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -56,13 +65,36 @@ const SignupPage = () => {
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSessionEmail(data.session?.user?.email ?? null);
-      setSessionChecked(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        setSessionEmail(data.session?.user?.email ?? null);
+      } catch {
+        setSessionEmail(null);
+      } finally {
+        setSessionChecked(true);
+      }
     };
 
     void checkSession();
   }, []);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSessionEmail(session?.user?.email ?? null);
+      setSessionChecked(true);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionChecked || !sessionEmail || !shouldAutoContinueInvite) return;
+    router.replace(resolveNextPathFromLocation() ?? nextPath);
+  }, [nextPath, router, sessionChecked, sessionEmail, shouldAutoContinueInvite]);
 
   const handleSessionSignOut = async () => {
     setError(null);
@@ -102,7 +134,13 @@ const SignupPage = () => {
     }
 
     if (data.session) {
-      router.replace(nextPath);
+      router.replace(resolveNextPathFromLocation() ?? nextPath);
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session) {
+      router.replace(resolveNextPathFromLocation() ?? nextPath);
       return;
     }
 
@@ -138,7 +176,11 @@ const SignupPage = () => {
                 </p>
                 {error ? <NoticeBanner tone="danger">{error}</NoticeBanner> : null}
                 <div className="grid gap-2">
-                  <Button className="w-full" type="button" onClick={() => router.replace(nextPath)}>
+                  <Button
+                    className="w-full"
+                    type="button"
+                    onClick={() => router.replace(resolveNextPathFromLocation() ?? nextPath)}
+                  >
                     Continue to app
                   </Button>
                   <Button

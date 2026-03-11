@@ -5,17 +5,18 @@ This document lists the test and lint commands that are defined in the repo and 
 ## Backend (FastAPI, Python)
 
 - **Test command**
-  - Tests are run directly with `pytest`:
+  - Tests are run via the app virtualenv:
     - `cd apps/api`
-    - `pytest`
+    - `./.venv/bin/python -m pytest`
 - **Installing backend test dependencies**
-  - If you see `pytest: command not found`, it means your Python environment for the backend is not set up yet.
+  - If you see `No module named pytest`, your backend virtualenv is not set up yet.
   - From the repo root you can create a virtualenv and install dependencies:
+    - `cd apps/api`
     - `python3 -m venv .venv`
     - `source .venv/bin/activate`
-    - `pip install -r apps/api/requirements.txt`
+    - `pip install -r requirements.txt pytest`
   - Then run tests:
-    - `cd apps/api && pytest`
+    - `cd apps/api && ./.venv/bin/python -m pytest`
 - **Test suites**
   - Location: `apps/api/tests/`
   - Highlights:
@@ -35,11 +36,16 @@ This document lists the test and lint commands that are defined in the repo and 
       - `test_knowledge_review.py`, `test_knowledge_commands.py`, `test_knowledge_response.py` – `/api/v1/knowledge/*` endpoints and summaries.
     - Timeline & events:
       - `test_events.py` – `GET /events` behavior and timezone normalization.
+      - `test_events_route_supabase.py` – `/api/v1/events` recorder identity enrichment + legacy fallback (including inference via `origin_message_id` when `recorded_by_user_id` column is missing).
       - `test_insight_engine.py` – `summaries_from_actions` and `expected_ranges`.
     - Tasks & router:
       - `test_task_helpers.py` – `extract_task_title` and `extract_task_due_at`.
       - `test_reminders.py` – due reminder selection and snooze acknowledgement.
+      - `test_tasks_route_supabase.py` – assignee/creator display-name enrichment on task responses (admin-client fallback for member names under strict RLS).
       - `test_router.py` – `app.router.classify_intent` behavior.
+    - Care-team + invites:
+      - `test_invites.py` – invite create/accept lifecycle, complete-signup provisioning, and legacy schema fallbacks.
+      - `test_care_team_route.py` – `/api/v1/care-team` list resilience (legacy invite schema + invite-read failure isolation + member dedupe) and profile update validation.
     - Sharing:
       - `test_share.py` – share link creation/retrieval via `/api/v1/share/*`.
 
@@ -49,6 +55,10 @@ This document lists the test and lint commands that are defined in the repo and 
   - Defined in `apps/web/package.json`:
     - `npm test`
       - Runs token drift gate (`npm run tokens:check`) and then Jest (`jest.config.js`, `jest.setup.ts`).
+    - `npm run test:green`
+      - Full Playwright GREEN smoke (`tests/smoke/green.smoke.spec.ts`).
+    - `npm run test:green:invite`
+      - Invite-only Playwright smoke (`tests/smoke/invite-join.smoke.spec.ts`) covering invite link join, shared-thread visibility, timeline recorder attribution, and cross-caregiver task assignment.
     - `npm run lint`
       - Runs `eslint` per `eslint.config.mjs`.
        - At the time of writing, `npm run lint` fails because `apps/web/scripts/dev-safe.js` uses CommonJS `require()` imports, which violates the `@typescript-eslint/no-require-imports` rule. This is known tech debt and intentionally not addressed in this docs‑only change.
@@ -69,8 +79,8 @@ This document lists the test and lint commands that are defined in the repo and 
     - FastAPI `TestClient` for endpoint‑level tests.
     - Reusing existing fixtures (e.g. `reset_state`, `seed_profile` from `test_conversation_cases.py`) to avoid duplicating DB setup logic.
   - Golden harness command:
-    - `cd apps/api && pytest tests/test_golden_phase0_harness.py -q`
-    - `cd apps/api && pytest tests/test_golden_phase1_v2_harness.py -q`
+    - `cd apps/api && ./.venv/bin/python -m pytest tests/test_golden_phase0_harness.py -q`
+    - `cd apps/api && ./.venv/bin/python -m pytest tests/test_golden_phase1_v2_harness.py -q`
 - **Frontend**
   - Add new Jest tests under `apps/web/src/**/__tests__`.
   - Use Testing Library patterns shown in `timeline-panel.test.tsx` (render, user interactions, assertions).

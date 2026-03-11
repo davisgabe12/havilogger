@@ -185,3 +185,5 @@ class Task(BaseModel):
     created_at: datetime
     created_by_user_id: Optional[str] = None
     assigned_to_user_id: Optional[str] = None
+    created_by_name: Optional[str] = None
+    assigned_to_name: Optional[str] = None

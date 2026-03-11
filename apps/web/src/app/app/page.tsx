@@ -1896,6 +1896,12 @@ export default function Home() {
   }, [guardReady, loadCareTeam]);
 
   useEffect(() => {
+    if (!guardReady) return;
+    if (activePanel !== "tasks" && activePanel !== "settings") return;
+    void loadCareTeam();
+  }, [activePanel, guardReady, loadCareTeam]);
+
+  useEffect(() => {
     if (!newTaskAssigneeId && currentUserId) {
       setNewTaskAssigneeId(currentUserId);
     }

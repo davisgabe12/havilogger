@@ -25,6 +25,13 @@ Required:
 Optional but recommended:
 
 - `HAVI_SITE_URL=http://127.0.0.1:3001` for local invite/share links
+- SMTP invite delivery (optional; invite link still returned if unset):
+  - `HAVI_SMTP_HOST`
+  - `HAVI_SMTP_PORT`
+  - `HAVI_SMTP_USERNAME`
+  - `HAVI_SMTP_PASSWORD`
+  - `HAVI_SMTP_FROM_EMAIL`
+  - `HAVI_SMTP_USE_SSL` / `HAVI_SMTP_STARTTLS`
 
 ## 2. Web env (`apps/web/.env.local`)
 
@@ -81,5 +88,6 @@ If you use Codex sandboxed commands and see `operation not permitted`/`EPERM` on
 
 ```bash
 cd apps/web && npm run build
-cd apps/api && ../../.venv/bin/pytest tests/test_question_detection.py -q
+cd apps/api && ./.venv/bin/python -m pytest tests/test_question_detection.py -q
+cd apps/api && ./.venv/bin/python -m pytest tests/test_invites.py tests/test_care_team_route.py -q
 ```

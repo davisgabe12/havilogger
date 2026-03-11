@@ -12,6 +12,7 @@ Apply migrations in this exact order using the Supabase SQL editor:
 8) `docs/canonical/supabase/010_green_schema_fixes.sql`
 9) `docs/canonical/supabase/011_family_invites_policies.sql`
 10) `docs/canonical/supabase/012_chat_route_telemetry.sql`
+11) `docs/canonical/supabase/013_care_team_collab.sql`
 
 ## How to apply (Supabase SQL editor)
 1) Open your Supabase project → **SQL Editor**.
@@ -25,5 +26,6 @@ Apply migrations in this exact order using the Supabase SQL editor:
 9) Paste the contents of the eighth file (`010_green_schema_fixes.sql`) and run it.
 10) Paste the contents of the ninth file (`011_family_invites_policies.sql`) and run it.
 11) Paste the contents of the tenth file (`012_chat_route_telemetry.sql`) and run it.
+12) Paste the contents of the eleventh file (`013_care_team_collab.sql`) and run it.
 
 These migrations are idempotent (`create if not exists`) and safe to re-run.

@@ -3,6 +3,7 @@ import path from "path";
 import dotenv from "dotenv";
 
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
+dotenv.config({ path: path.resolve(__dirname, "../api/.env.local") });
 
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3001";

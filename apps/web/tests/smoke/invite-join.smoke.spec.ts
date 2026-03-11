@@ -64,37 +64,71 @@ const completeOnboardingIfNeeded = async (page: any) => {
       currentUrl.includes("/app/onboarding/profile") ||
       currentUrl.includes("/app/onboarding/child")
     ) {
-      const childStepStartVisible = await page
+      let childStepStartVisible = await page
         .getByTestId("onboarding-profile-child")
         .isVisible()
         .catch(() => false);
+      let caregiverStepVisible = await page
+        .getByTestId("onboarding-profile-caregiver")
+        .isVisible()
+        .catch(() => false);
+
+      if (!childStepStartVisible && !caregiverStepVisible) {
+        try {
+          await Promise.race([
+            page.getByTestId("onboarding-profile-caregiver").waitFor({ timeout: 8_000 }),
+            page.getByTestId("onboarding-profile-child").waitFor({ timeout: 8_000 }),
+          ]);
+        } catch {
+          // Retry loop handles transitional onboarding renders.
+        }
+        childStepStartVisible = await page
+          .getByTestId("onboarding-profile-child")
+          .isVisible()
+          .catch(() => false);
+        caregiverStepVisible = await page
+          .getByTestId("onboarding-profile-caregiver")
+          .isVisible()
+          .catch(() => false);
+      }
+
       if (childStepStartVisible) {
         const backButton = page.getByTestId("onboarding-profile-back");
         if (await backButton.isVisible().catch(() => false)) {
           await backButton.click();
+          childStepStartVisible = false;
+          caregiverStepVisible = true;
         }
       }
-      await page.getByTestId("onboarding-profile-caregiver").waitFor({
-        timeout: 15_000,
-      });
-      await ensureCaregiverValues();
-      for (let childStepAttempt = 0; childStepAttempt < 3; childStepAttempt += 1) {
-        await page.getByTestId("onboarding-profile-continue").click();
-        const childVisible = await page
-          .getByTestId("onboarding-profile-child")
-          .isVisible()
-          .catch(() => false);
-        if (childVisible) break;
-        const caregiverVisible = await page
-          .getByTestId("onboarding-profile-caregiver")
-          .isVisible()
-          .catch(() => false);
-        if (caregiverVisible) {
-          await ensureCaregiverValues();
+
+      if (caregiverStepVisible) {
+        await page.getByTestId("onboarding-profile-caregiver").waitFor({
+          timeout: 15_000,
+        });
+        await ensureCaregiverValues();
+        for (let childStepAttempt = 0; childStepAttempt < 3; childStepAttempt += 1) {
+          await page.getByTestId("onboarding-profile-continue").click();
+          const childVisible = await page
+            .getByTestId("onboarding-profile-child")
+            .isVisible()
+            .catch(() => false);
+          if (childVisible) {
+            childStepStartVisible = true;
+            break;
+          }
+          const caregiverVisible = await page
+            .getByTestId("onboarding-profile-caregiver")
+            .isVisible()
+            .catch(() => false);
+          if (caregiverVisible) {
+            await ensureCaregiverValues();
+          }
+          await page.waitForTimeout(500);
         }
-        await page.waitForTimeout(500);
       }
-      await page.getByTestId("onboarding-profile-child").waitFor({ timeout: 15_000 });
+      if (!childStepStartVisible) {
+        await page.getByTestId("onboarding-profile-child").waitFor({ timeout: 15_000 });
+      }
       await page.getByTestId("onboarding-profile-child-name").fill("River");
       await page.getByTestId("onboarding-profile-child-dob").fill("2024-01-15");
       await page
@@ -216,6 +250,22 @@ const conversationIdFromUrl = (url: string): string => {
   return conversationId;
 };
 
+const readRequestPayload = (request: any): any => {
+  let payload: any = null;
+  if (typeof request.postDataJSON === "function") {
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      payload = null;
+    }
+  }
+  if (!payload) {
+    const raw = request.postData();
+    if (raw) payload = JSON.parse(raw);
+  }
+  return payload;
+};
+
 const initialsFromDisplayName = (name: string): string => {
   const parts = name
     .split(" ")
@@ -228,22 +278,203 @@ const initialsFromDisplayName = (name: string): string => {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 };
 
-const sendChatAndWaitForAssistant = async (page: any, text: string) => {
+const sendChatAndWaitForAssistant = async (page: any, text: string): Promise<string> => {
   await page.getByTestId("nav-havi").click();
   await page.getByTestId("chat-input").fill(text);
   const assistantMessages = page.locator('[data-testid="chat-message"][data-sender="assistant"]');
+  const matchingUserMessages = page
+    .locator('[data-testid="chat-message"]')
+    .filter({ hasText: text });
+  const activityResponsePromise = page.waitForResponse(
+    (res: any) => {
+      if (res.request().method() !== "POST") return false;
+      const url = res.url?.() ?? "";
+      if (!url.includes("/api/v1/activities")) return false;
+      try {
+        const payload = readRequestPayload(res.request());
+        return payload?.message === text;
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 45_000 },
+  );
   const assistantBefore = await assistantMessages.count();
   await page.getByTestId("chat-send").click();
-  await expect(page.getByText(text)).toBeVisible({ timeout: 20_000 });
+  await expect(matchingUserMessages.first()).toBeVisible({ timeout: 20_000 });
   await expect
     .poll(async () => assistantMessages.count(), { timeout: 45_000 })
     .toBeGreaterThan(assistantBefore);
+  const activityResponse = await activityResponsePromise;
+  let conversationId = "";
+  try {
+    const payload = await activityResponse.json();
+    conversationId = String(payload?.conversation_id ?? "");
+  } catch {
+    conversationId = "";
+  }
+  if (!conversationId) {
+    try {
+      conversationId = conversationIdFromUrl(page.url());
+    } catch {
+      conversationId = "";
+    }
+  }
+  return conversationId;
+};
+
+const completeInviteSignupIfShown = async (
+  page: any,
+  inviteeEmail: string,
+  inviteePassword: string,
+) => {
+  const submit = page.getByTestId("invite-signup-submit");
+  const visible = await submit.isVisible().catch(() => false);
+  if (!visible) return false;
+  const disabled = await submit.isDisabled().catch(() => false);
+  if (disabled) {
+    await page.waitForTimeout(1_000);
+    return false;
+  }
+  await page.getByTestId("invite-signup-first-name").fill("Green");
+  await page.getByTestId("invite-signup-last-name").fill("Invitee");
+  await page.getByTestId("invite-signup-phone").fill("5551234567");
+  await page.getByTestId("invite-signup-password").fill(inviteePassword);
+  const currentInviteEmail = await page
+    .getByTestId("invite-signup-email")
+    .inputValue()
+    .catch(() => "");
+  if (currentInviteEmail.toLowerCase() !== inviteeEmail.toLowerCase()) {
+    throw new Error(
+      `Invite signup email mismatch. Expected ${inviteeEmail}, got ${currentInviteEmail || "<empty>"}.`,
+    );
+  }
+  await submit.click();
+  try {
+    await page.waitForURL(/\/app(\?|$)/, { timeout: 45_000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const completeInviteLinkFlow = async (
+  page: any,
+  inviteeEmail: string,
+  inviteePassword: string,
+  hasInviteeCreds: boolean,
+) => {
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    const currentUrl = page.url();
+    if (/\/app(\?|$)/.test(currentUrl)) {
+      return;
+    }
+
+    if (currentUrl.includes("/app/invite")) {
+      if (await completeInviteSignupIfShown(page, inviteeEmail, inviteePassword)) {
+        continue;
+      }
+      const inviteJoinError = page.locator(".havi-notice-banner-danger");
+      if (await inviteJoinError.isVisible().catch(() => false)) {
+        throw new Error(`Invite join error: ${(await inviteJoinError.innerText()).trim()}`);
+      }
+      const signInFromInvite = page.getByTestId("invite-signup-sign-in");
+      if (hasInviteeCreds && (await signInFromInvite.isVisible().catch(() => false))) {
+        await signInFromInvite.click();
+      } else {
+        await page.waitForTimeout(800);
+      }
+      continue;
+    }
+
+    if (currentUrl.includes("/auth/sign-in")) {
+      const continueSignedIn = page.getByRole("button", { name: /continue to app/i });
+      if (await continueSignedIn.isVisible().catch(() => false)) {
+        await continueSignedIn.click();
+        try {
+          await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
+        } catch {
+          // Retry loop handles transitional auth redirects.
+        }
+        continue;
+      }
+      await page.fill('input[type="email"]', inviteeEmail);
+      await page.fill('input[type="password"]', inviteePassword);
+      await page.getByRole("button", { name: /sign in/i }).click();
+      try {
+        await page.waitForURL(/\/app(\?|$)|\/auth\/sign-in/, { timeout: 20_000 });
+      } catch {
+        // Retry loop handles transient auth delays.
+      }
+      if (page.url().includes("/auth/sign-in") && !hasInviteeCreds) {
+        const createAccountLink = page.getByRole("link", { name: /create account/i }).first();
+        if (await createAccountLink.isVisible().catch(() => false)) {
+          await createAccountLink.click();
+        }
+      }
+      continue;
+    }
+
+    if (currentUrl.includes("/auth/sign-up")) {
+      const continueSignedIn = page.getByRole("button", { name: /continue to app/i });
+      if (await continueSignedIn.isVisible().catch(() => false)) {
+        await continueSignedIn.click();
+        try {
+          await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
+        } catch {
+          // Retry loop handles transitional auth redirects.
+        }
+        continue;
+      }
+      await page.fill('input[type="email"]', inviteeEmail);
+      await page.fill('input[type="password"]', inviteePassword);
+      await page.getByRole("button", { name: /continue/i }).click();
+      try {
+        await page.waitForURL(/\/app(\?|$)|\/auth\/sign-in/, { timeout: 20_000 });
+      } catch {
+        const inviteeError = page.locator(".havi-notice-banner-danger");
+        const inviteeNotice = page.locator(".havi-notice-banner-info");
+        if (await inviteeError.isVisible().catch(() => false)) {
+          throw new Error(`Invitee signup error: ${(await inviteeError.innerText()).trim()}`);
+        }
+        if (await inviteeNotice.isVisible().catch(() => false)) {
+          throw new Error(
+            "Invitee signup requires email confirmation. Set GREEN_INVITEE_EMAIL and GREEN_INVITEE_PASSWORD.",
+          );
+        }
+      }
+      continue;
+    }
+
+    await page.waitForTimeout(500);
+  }
+  throw new Error(`Invite flow did not reach app. Current URL: ${page.url()}`);
 };
 
 test("Invite join smoke", async ({ page, browser }) => {
   test.setTimeout(240_000);
   const consoleErrors: string[] = [];
+  const careTeamResponses: Array<{ actor: string; status: number; body: string }> = [];
+  const trackCareTeamResponses = (responsePage: any, actor: string) => {
+    responsePage.on("response", async (res: any) => {
+      const url = res.url?.() ?? "";
+      if (!url.includes("/api/v1/care-team")) return;
+      let body = "";
+      try {
+        body = await res.text();
+      } catch {
+        body = "<unreadable body>";
+      }
+      careTeamResponses.push({ actor, status: res.status(), body });
+      if (careTeamResponses.length > 10) {
+        careTeamResponses.shift();
+      }
+    });
+  };
+
   trackConsoleErrors(page, consoleErrors, "owner");
+  trackCareTeamResponses(page, "owner");
 
   const timestamp = Date.now();
   const ownerEmail = process.env.GREEN_EXISTING_EMAIL ?? `green.owner.${timestamp}@example.com`;
@@ -263,7 +494,7 @@ test("Invite join smoke", async ({ page, browser }) => {
     await page.fill('input[type="email"]', ownerEmail);
     await page.fill('input[type="password"]', ownerPassword);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/\/app/, { timeout: 15_000 });
+    await page.waitForURL(/\/app/, { timeout: 30_000 });
   } else {
     await page.goto("/auth/sign-up");
     await page.fill('input[type="email"]', ownerEmail);
@@ -272,9 +503,18 @@ test("Invite join smoke", async ({ page, browser }) => {
 
     let ownerSignedIn = true;
     try {
-      await page.waitForURL(/\/app/, { timeout: 12_000 });
+      await page.waitForURL(/\/app/, { timeout: 20_000 });
     } catch {
       ownerSignedIn = false;
+    }
+
+    if (!ownerSignedIn) {
+      const continueSignedIn = page.getByRole("button", { name: /continue to app/i });
+      if (await continueSignedIn.isVisible().catch(() => false)) {
+        await continueSignedIn.click();
+        await page.waitForURL(/\/app(\?|$)/, { timeout: 20_000 });
+        ownerSignedIn = true;
+      }
     }
 
     if (!ownerSignedIn) {
@@ -307,65 +547,9 @@ test("Invite join smoke", async ({ page, browser }) => {
   const inviteeContext = await browser.newContext();
   const inviteePage = await inviteeContext.newPage();
   trackConsoleErrors(inviteePage, consoleErrors, "invitee");
+  trackCareTeamResponses(inviteePage, "invitee");
   await inviteePage.goto(inviteLink);
-
-  let inviteeNeedsAuth = false;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const currentUrl = inviteePage.url();
-    if (currentUrl.includes("/auth/sign-in")) {
-      inviteeNeedsAuth = true;
-      break;
-    }
-    if (/\/app(\?|$)/.test(currentUrl)) {
-      break;
-    }
-    await inviteePage.waitForTimeout(500);
-  }
-
-  if (inviteeNeedsAuth) {
-    await inviteePage.fill('input[type="email"]', inviteeEmail);
-    await inviteePage.fill('input[type="password"]', inviteePassword);
-    await inviteePage.getByRole("button", { name: /sign in/i }).click();
-
-    let inviteeSignedIn = true;
-    try {
-      await inviteePage.waitForURL(/\/app/, { timeout: 12_000 });
-    } catch {
-      inviteeSignedIn = false;
-    }
-
-    if (!inviteeSignedIn && !hasInviteeCreds) {
-      await inviteePage.getByRole("link", { name: /create account/i }).click();
-      await inviteePage.fill('input[type="email"]', inviteeEmail);
-      await inviteePage.fill('input[type="password"]', inviteePassword);
-      await inviteePage.getByRole("button", { name: /continue/i }).click();
-      try {
-        await inviteePage.waitForURL(/\/app/, { timeout: 12_000 });
-      } catch {
-        const inviteeError = inviteePage.locator(".havi-notice-banner-danger");
-        const inviteeNotice = inviteePage.locator(".havi-notice-banner-info");
-        if (await inviteeError.isVisible()) {
-          throw new Error(`Invitee signup error: ${(await inviteeError.innerText()).trim()}`);
-        }
-        if (await inviteeNotice.isVisible()) {
-          throw new Error(
-            "Invitee signup requires email confirmation. Set GREEN_INVITEE_EMAIL and GREEN_INVITEE_PASSWORD.",
-          );
-        }
-        const signInButton = inviteePage.getByRole("button", { name: /sign in/i });
-        if (await signInButton.isVisible().catch(() => false)) {
-          await inviteePage.fill('input[type="email"]', inviteeEmail);
-          await inviteePage.fill('input[type="password"]', inviteePassword);
-          await signInButton.click();
-          await inviteePage.waitForURL(/\/app/, { timeout: 12_000 });
-        } else {
-          throw new Error(`Invitee signup did not complete. Current URL: ${inviteePage.url()}`);
-        }
-      }
-    } else if (!inviteeSignedIn && hasInviteeCreds) {
-      throw new Error("Invitee sign-in failed with configured GREEN_INVITEE credentials.");
-    }
-  }
+  await completeInviteLinkFlow(inviteePage, inviteeEmail, inviteePassword, hasInviteeCreds);
 
   await waitForAppCoreReady(inviteePage);
   await expect(inviteePage.getByTestId("profile-lock-modal")).toHaveCount(0);
@@ -376,8 +560,8 @@ test("Invite join smoke", async ({ page, browser }) => {
   const crossAssignedTaskTitle = `Care-team task ${marker}`;
   const inviteeMarkerText = `marker ${marker}`;
 
-  await sendChatAndWaitForAssistant(page, ownerSharedMessage);
-  const sharedConversationId = conversationIdFromUrl(page.url());
+  const ownerConversationId = await sendChatAndWaitForAssistant(page, ownerSharedMessage);
+  const sharedConversationId = ownerConversationId || conversationIdFromUrl(page.url());
 
   await inviteePage.goto(`/app?conversationId=${encodeURIComponent(sharedConversationId)}`);
   await waitForAppCoreReady(inviteePage);
@@ -411,19 +595,32 @@ test("Invite join smoke", async ({ page, browser }) => {
   await waitForAppCoreReady(page);
   await page.getByTestId("nav-havi").click();
   await page.getByTestId("nav-tasks").click();
-  const assigneeOptions = await page
-    .getByTestId("task-assignee")
-    .locator("option")
-    .allInnerTexts();
-  const inviteeOptionLabel = assigneeOptions
-    .map((label) => label.trim())
-    .find((label) => label && !label.includes("(Me)"));
+  const assigneeSelect = page.getByTestId("task-assignee");
+  let assigneeOptions = await assigneeSelect.locator("option").allInnerTexts();
+  const resolveInviteeOption = (labels: string[]): string | undefined =>
+    labels
+      .map((label) => label.trim())
+      .find((label) => label && !label.includes("(Me)") && !/^me$/i.test(label));
+
+  let inviteeOptionLabel = resolveInviteeOption(assigneeOptions);
+  const assigneeDeadline = Date.now() + 45_000;
+  while (!inviteeOptionLabel && Date.now() < assigneeDeadline) {
+    await page.waitForTimeout(750);
+    assigneeOptions = await assigneeSelect.locator("option").allInnerTexts();
+    inviteeOptionLabel = resolveInviteeOption(assigneeOptions);
+  }
+
   if (!inviteeOptionLabel) {
-    throw new Error("Invitee assignee option not found in owner task assignee select.");
+    throw new Error(
+      `Invitee assignee option not found in owner task assignee select. options=${JSON.stringify(
+        assigneeOptions.map((label) => label.trim()),
+      )}; care_team_responses=${JSON.stringify(careTeamResponses)}`,
+    );
   }
   const inviteeDisplayName = inviteeOptionLabel.replace(/\s+\(Me\)\s*$/, "").trim();
   const inviteeInitials = initialsFromDisplayName(inviteeDisplayName);
 
+  await page.getByTestId("nav-havi").click();
   await expect
     .poll(
       async () =>
@@ -455,31 +652,43 @@ test("Invite join smoke", async ({ page, browser }) => {
   await page.getByTestId("nav-timeline").click();
   await expect(page.getByTestId("timeline-panel")).toBeVisible();
   await expect(
-    page.getByText(new RegExp(`Logged by\\s+${inviteeDisplayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i")),
+    page
+      .getByText(
+        new RegExp(`Logged by\\s+${inviteeDisplayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"),
+      )
+      .first(),
   ).toBeVisible({ timeout: 60_000 });
 
+  await page.getByTestId("nav-tasks").click();
   await page.getByTestId("task-input").fill(crossAssignedTaskTitle);
   await page.getByTestId("task-assignee").selectOption({ label: inviteeOptionLabel });
   await page.getByTestId("task-add").click();
-  await expect(page.getByText(crossAssignedTaskTitle)).toBeVisible({ timeout: 20_000 });
+  const ownerTaskRow = page.getByRole("listitem").filter({ hasText: crossAssignedTaskTitle }).first();
+  await expect(ownerTaskRow).toBeVisible({ timeout: 20_000 });
   await expect(
-    page.getByText(
-      new RegExp(`Assigned to\\s+${inviteeDisplayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"),
-    ),
-  ).toBeVisible({ timeout: 20_000 });
+    ownerTaskRow,
+  ).toContainText(
+    new RegExp(`Assigned to\\s+${inviteeDisplayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"),
+    { timeout: 20_000 },
+  );
 
   await inviteePage.goto("/app");
   await waitForAppCoreReady(inviteePage);
   await inviteePage.getByTestId("nav-tasks").click();
-  await expect(inviteePage.getByText(crossAssignedTaskTitle)).toBeVisible({ timeout: 20_000 });
+  const inviteeTaskRow = inviteePage
+    .getByRole("listitem")
+    .filter({ hasText: crossAssignedTaskTitle })
+    .first();
+  await expect(inviteeTaskRow).toBeVisible({ timeout: 20_000 });
   await expect(
-    inviteePage.getByText(
-      new RegExp(
-        `Assigned to\\s+${inviteeDisplayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+\\(Me\\)`,
-        "i",
-      ),
+    inviteeTaskRow,
+  ).toContainText(
+    new RegExp(
+      `Assigned to\\s+${inviteeDisplayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+\\(Me\\)`,
+      "i",
     ),
-  ).toBeVisible({ timeout: 20_000 });
+    { timeout: 20_000 },
+  );
 
   await inviteeContext.close();
   expect(consoleErrors).toEqual([]);

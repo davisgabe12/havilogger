@@ -46,8 +46,13 @@ npm run dev -- --port 3001
 # Optional: automated GREEN flow + screenshots
 cd apps/web
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001 npm run test:green
+
+# Optional: invite-only GREEN smoke (care-team join path)
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001 npm run test:green:invite
 ```
-Smoke test source: `apps/web/tests/smoke/green.spec.ts`
+Smoke test sources:
+- `apps/web/tests/smoke/green.smoke.spec.ts` (full)
+- `apps/web/tests/smoke/invite-join.smoke.spec.ts` (invite-only)
 
 ## Deterministic Reset/Seed Harness
 
@@ -69,9 +74,14 @@ Current status (March 4, 2026):
 - Sign-up UI works in both instant and email-confirmation-required modes.
 - Sign-in, sign-out, and forgot-password success state.
 - Family onboarding (create family + required profile) with Supabase persistence.
+- Care-team invite path:
+  - owner creates invite from Settings,
+  - invitee receives link flow (`/app/invite?token=...&email=...`),
+  - invitee account joins the same family,
+  - invitee reaches app core-ready state with no profile lock.
 - Multi-child creation and active-child switching with scoped tasks/timeline/chat.
-- Invite flow (create invite link, accept as second user, access verified).
 - Timeline events are stored with timezone-aware timestamps and render with timezone context.
+- Timeline recorder identity metadata is returned and rendered when present.
 - Memory lifecycle (suggested → confirm/reject → saved) and explicit memory save.
 - Share links for conversation + memory render in a logged-out context.
 - No console errors on the GREEN path (test fails if any console error).
