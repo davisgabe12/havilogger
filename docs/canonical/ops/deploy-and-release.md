@@ -21,6 +21,13 @@ git status -sb
 git log --oneline -n 5
 ```
 
+Release preflight requirement before any manual API deploy:
+1. `git branch --show-current` must be `main`.
+2. `git status -sb` must not show uncommitted changes under `apps/api/`.
+3. If `apps/api/` is dirty, stop and either:
+  - commit/push only intended API changes first, or
+  - run deploy from a clean clone pinned to the target commit.
+
 2. Push release commits to `main`
 
 ```bash
@@ -126,3 +133,4 @@ Immediate response:
 2. Do not use raw iterative artifacts as release evidence; use curated bundle format.
 3. Avoid repeated overlapping Railway deploy attempts; confirm one deployment reaches `SUCCESS` before starting another.
 4. If feedback save regression appears with Postgres `42P10` on `message_feedback` upsert, treat it as schema drift and ensure the latest API compatibility fix is deployed before re-running gates.
+5. If release gate UI fails with `App core not ready. Current URL: https://gethavi.com/auth/sign-in` at invitee readiness, triage invite acceptance/auth-return flow before re-running gates (see invite acceptance issues under SID-58 program).

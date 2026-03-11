@@ -95,3 +95,23 @@ Targeted production-facing UX fixes for settings, auth/invite flow, chat compose
   - Result: PASS
   - Release proof bundle:
     - `docs/active/green-proof/releases/2026-03-10-feedback-reliability-compat-fix/`
+
+## Closeout gate rerun and current blocker (March 10, 2026)
+- Commands run:
+  - `./scripts/prod_api_deploy_wait.sh`
+  - `HAVI_RELEASE_LABEL=closeout-feedback-e2e-20260310 ./scripts/prod_release_gate.sh`
+- Deploy guard result:
+  - PASS on deployment `66362cc5-e553-49b0-b4e7-377a89e63e9a`
+  - metadata: `provider=python`, `config=railway.toml`
+- Release gate result:
+  - Core smoke: PASS
+    - `docs/active/green-proof/prod-core-smoke-closeout-feedback-e2e-20260310.json`
+  - UI gate: FAIL (both attempts)
+    - `docs/active/green-proof/prod-ui-smoke-closeout-feedback-e2e-20260310-ui-gate-1.json`
+    - `docs/active/green-proof/prod-ui-smoke-closeout-feedback-e2e-20260310-ui-gate-2.json`
+  - Failure signature:
+    - `App core not ready. Current URL: https://gethavi.com/auth/sign-in`
+    - thrown at invitee readiness step in `apps/web/tests/smoke/green.smoke.spec.ts` after invite flow.
+- Conclusion:
+  - Feedback save reliability is not the active blocker in this rerun.
+  - Invite acceptance/auth-return readiness is the blocking production UI gate issue.
