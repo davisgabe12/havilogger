@@ -52,6 +52,76 @@ const collectInviteFlowDiagnostics = async (page: any): Promise<string> => {
   ].join(" ");
 };
 
+const setInviteEmailInputValue = async (input: any, value: string) => {
+  await input.click({ timeout: 5_000 });
+  await input.fill("");
+  await input.type(value, { delay: 15 });
+  let currentValue = (await input.inputValue().catch(() => "")).trim();
+  if (currentValue.toLowerCase() === value.toLowerCase()) {
+    return currentValue;
+  }
+  await input.evaluate((node: HTMLInputElement, nextValue: string) => {
+    node.focus();
+    node.value = nextValue;
+    node.dispatchEvent(new Event("input", { bubbles: true }));
+    node.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
+  currentValue = (await input.inputValue().catch(() => "")).trim();
+  return currentValue;
+};
+
+export const createInviteLinkFromSettings = async (
+  page: any,
+  inviteeEmail: string,
+): Promise<string> => {
+  await page.getByTestId("open-invite").click();
+  const inviteEmailInput = page.locator("#invite-email");
+  const sendInviteButton = page.getByRole("button", { name: /(send|create) invite/i });
+  const inviteLinkLocator = page.getByTestId("invite-link");
+  await inviteEmailInput.waitFor({ state: "visible", timeout: 15_000 });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const currentValue = await setInviteEmailInputValue(inviteEmailInput, inviteeEmail);
+    if (currentValue.toLowerCase() !== inviteeEmail.toLowerCase()) {
+      await page.waitForTimeout(250);
+      continue;
+    }
+    const inviteResponsePromise = page
+      .waitForResponse(
+        (res: any) =>
+          res.request().method() === "POST" && res.url?.().includes("/api/v1/invites"),
+        { timeout: 8_000 },
+      )
+      .catch(() => null);
+    await sendInviteButton.click();
+    const inviteResponse = await inviteResponsePromise;
+    if (inviteResponse && inviteResponse.status() === 200) {
+      const inviteResponseJson = await inviteResponse.json().catch(() => ({}));
+      if (typeof inviteResponseJson?.invite_url === "string") {
+        const fromResponse = inviteResponseJson.invite_url.trim();
+        if (fromResponse) {
+          return fromResponse;
+        }
+      }
+    }
+    const visible = await inviteLinkLocator.isVisible().catch(() => false);
+    if (visible) {
+      const fromUi = (await inviteLinkLocator.innerText().catch(() => "")).trim();
+      if (fromUi) {
+        return fromUi;
+      }
+    }
+    await page.waitForTimeout(400);
+  }
+
+  const currentValue = await inviteEmailInput.inputValue().catch(() => "");
+  const inviteNotice = await page.locator(".havi-notice-banner-info").innerText().catch(() => "");
+  const inviteError = await page.locator(".havi-notice-banner-danger").innerText().catch(() => "");
+  throw new Error(
+    `Failed to create invite link. emailField="${currentValue}" info="${inviteNotice}" error="${inviteError}"`,
+  );
+};
+
 export const completeInviteSignupIfShown = async (
   page: any,
   inviteeEmail: string,

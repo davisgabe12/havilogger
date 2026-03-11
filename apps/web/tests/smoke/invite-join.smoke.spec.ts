@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { completeInviteLinkFlow } from "./helpers/invite-flow";
+import { completeInviteLinkFlow, createInviteLinkFromSettings } from "./helpers/invite-flow";
 
 const trackConsoleErrors = (page: any, bucket: string[], label: string) => {
   page.on("pageerror", (err: Error) => {
@@ -324,6 +324,11 @@ const sendChatAndWaitForAssistant = async (page: any, text: string): Promise<str
   return conversationId;
 };
 
+const readEnv = (name: string): string => {
+  const value = process.env[name];
+  return typeof value === "string" ? value.trim() : "";
+};
+
 test("Invite join smoke", async ({ page, browser }) => {
   test.setTimeout(240_000);
   const consoleErrors: string[] = [];
@@ -349,17 +354,16 @@ test("Invite join smoke", async ({ page, browser }) => {
   trackCareTeamResponses(page, "owner");
 
   const timestamp = Date.now();
-  const ownerEmail = process.env.GREEN_EXISTING_EMAIL ?? `green.owner.${timestamp}@example.com`;
-  const ownerPassword = process.env.GREEN_EXISTING_PASSWORD ?? "Lev2025!";
-  const ownerHasExistingCreds = Boolean(
-    process.env.GREEN_EXISTING_EMAIL && process.env.GREEN_EXISTING_PASSWORD,
-  );
-  const inviteeEmail =
-    process.env.GREEN_INVITEE_EMAIL ?? `green.invitee.${timestamp}@example.com`;
-  const inviteePassword = process.env.GREEN_INVITEE_PASSWORD ?? "Lev2025!";
-  const hasInviteeCreds = Boolean(
-    process.env.GREEN_INVITEE_EMAIL && process.env.GREEN_INVITEE_PASSWORD,
-  );
+  const ownerEmailSeed = readEnv("GREEN_EXISTING_EMAIL");
+  const ownerPasswordSeed = readEnv("GREEN_EXISTING_PASSWORD");
+  const ownerEmail = ownerEmailSeed || `green.owner.${timestamp}@example.com`;
+  const ownerPassword = ownerPasswordSeed || "Lev2025!";
+  const ownerHasExistingCreds = Boolean(ownerEmailSeed && ownerPasswordSeed);
+  const inviteeEmailSeed = readEnv("GREEN_INVITEE_EMAIL");
+  const inviteePasswordSeed = readEnv("GREEN_INVITEE_PASSWORD");
+  const inviteeEmail = inviteeEmailSeed || `green.invitee.${timestamp}@example.com`;
+  const inviteePassword = inviteePasswordSeed || "Lev2025!";
+  const hasInviteeCreds = Boolean(inviteeEmailSeed && inviteePasswordSeed);
 
   if (ownerHasExistingCreds) {
     await page.goto("/auth/sign-in");
@@ -409,11 +413,7 @@ test("Invite join smoke", async ({ page, browser }) => {
   await expect(page.getByTestId("profile-lock-modal")).toHaveCount(0);
 
   await page.getByTestId("nav-settings").click();
-  await page.getByTestId("open-invite").click();
-  await page.fill("#invite-email", inviteeEmail);
-  await page.getByRole("button", { name: /(send|create) invite/i }).click();
-  await expect(page.getByTestId("invite-link")).toBeVisible({ timeout: 20_000 });
-  const inviteLink = (await page.getByTestId("invite-link").innerText()).trim();
+  const inviteLink = await createInviteLinkFromSettings(page, inviteeEmail);
   await page.getByRole("button", { name: /close/i }).click();
 
   const inviteeContext = await browser.newContext();

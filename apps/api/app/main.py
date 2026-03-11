@@ -591,6 +591,9 @@ def _message_from_row(row: Dict[str, Any]) -> ConversationMessage:
         "content": row.get("content"),
         "intent": row.get("intent"),
         "created_at": row.get("created_at") or now_iso,
+        "sender_first_name": row.get("sender_first_name"),
+        "sender_last_name": row.get("sender_last_name"),
+        "sender_email": row.get("sender_email"),
     }
     return ConversationMessage.model_validate(data)
 
@@ -1399,7 +1402,70 @@ async def _list_conversation_messages(
             "limit": str(limit),
         },
     )
-    return [_message_from_row(row) for row in rows]
+    sender_user_ids = {
+        str(row.get("user_id") or "")
+        for row in rows
+        if (row.get("role") or "").lower() != "assistant" and row.get("user_id")
+    }
+
+    sender_lookup: Dict[str, Dict[str, Optional[str]]] = {}
+    if sender_user_ids:
+        member_rows: List[Dict[str, Any]] = []
+        try:
+            member_rows = await auth.supabase.select(
+                "family_members",
+                params={
+                    "select": "user_id,first_name,last_name,email",
+                    "family_id": f"eq.{auth.family_id}",
+                },
+            )
+        except HTTPException:
+            member_rows = []
+
+        if not member_rows:
+            try:
+                admin_client = get_admin_client()
+                member_rows = await admin_client.select(
+                    "family_members",
+                    params={
+                        "select": "user_id,first_name,last_name,email",
+                        "family_id": f"eq.{auth.family_id}",
+                    },
+                )
+            except Exception:  # noqa: BLE001 - sender identity enrichment must never break chat load
+                member_rows = []
+
+        for member in member_rows:
+            user_id = str(member.get("user_id") or "")
+            if not user_id:
+                continue
+            sender_lookup[user_id] = {
+                "first_name": _normalize_text(member.get("first_name")) or None,
+                "last_name": _normalize_text(member.get("last_name")) or None,
+                "email": _normalize_text(member.get("email")) or None,
+            }
+
+    enriched_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        role = (row.get("role") or "").lower()
+        if role == "assistant":
+            enriched_rows.append(row)
+            continue
+        user_id = str(row.get("user_id") or "")
+        sender = sender_lookup.get(user_id)
+        if sender:
+            enriched_rows.append(
+                {
+                    **row,
+                    "sender_first_name": sender.get("first_name"),
+                    "sender_last_name": sender.get("last_name"),
+                    "sender_email": sender.get("email"),
+                }
+            )
+        else:
+            enriched_rows.append(row)
+
+    return [_message_from_row(row) for row in enriched_rows]
 
 
 async def _insert_timeline_event(

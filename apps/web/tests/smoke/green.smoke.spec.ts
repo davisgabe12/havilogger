@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { completeInviteLinkFlow } from "./helpers/invite-flow";
+import { completeInviteLinkFlow, createInviteLinkFromSettings } from "./helpers/invite-flow";
 
 const trackConsoleErrors = (
   page: any,
@@ -295,6 +295,11 @@ const gotoAuthWithRetry = async (page: any, path: "/auth/sign-in" | "/auth/sign-
   }
 };
 
+const readEnv = (name: string): string => {
+  const value = process.env[name];
+  return typeof value === "string" ? value.trim() : "";
+};
+
 test("GREEN smoke", async ({ page, browser }) => {
   test.setTimeout(180_000);
   const consoleErrors: string[] = [];
@@ -313,15 +318,14 @@ test("GREEN smoke", async ({ page, browser }) => {
   const timestamp = Date.now();
   const userEmail = `green.${timestamp}@example.com`;
   const userPassword = "Lev2025!";
-  const inviteeEmail =
-    process.env.GREEN_INVITEE_EMAIL ?? `green.invitee.${timestamp}@example.com`;
-  const inviteePassword = process.env.GREEN_INVITEE_PASSWORD ?? "Lev2025!";
-  const hasInviteeCreds = Boolean(
-    process.env.GREEN_INVITEE_EMAIL && process.env.GREEN_INVITEE_PASSWORD,
-  );
+  const inviteeEmailSeed = readEnv("GREEN_INVITEE_EMAIL");
+  const inviteePasswordSeed = readEnv("GREEN_INVITEE_PASSWORD");
+  const inviteeEmail = inviteeEmailSeed || `green.invitee.${timestamp}@example.com`;
+  const inviteePassword = inviteePasswordSeed || "Lev2025!";
+  const hasInviteeCreds = Boolean(inviteeEmailSeed && inviteePasswordSeed);
 
-  const fallbackEmail = process.env.GREEN_EXISTING_EMAIL ?? "";
-  const fallbackPassword = process.env.GREEN_EXISTING_PASSWORD ?? "";
+  const fallbackEmail = readEnv("GREEN_EXISTING_EMAIL");
+  const fallbackPassword = readEnv("GREEN_EXISTING_PASSWORD");
   const hasFallbackCreds = Boolean(fallbackEmail && fallbackPassword);
 
   if (hasFallbackCreds) {
@@ -637,55 +641,7 @@ test("GREEN smoke", async ({ page, browser }) => {
   ).toBeVisible();
 
   await page.getByTestId("nav-settings").click();
-  await page.getByTestId("open-invite").click();
-  const inviteEmailInput = page.locator("#invite-email");
-  const sendInviteButton = page.getByRole("button", { name: /(send|create) invite/i });
-  const inviteLinkLocator = page.getByTestId("invite-link");
-  await inviteEmailInput.waitFor({ state: "visible", timeout: 15_000 });
-  let inviteLinkVisible = false;
-  let inviteLinkFromResponse = "";
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await inviteEmailInput.fill(inviteeEmail);
-    await page.waitForTimeout(120);
-    const currentValue = await inviteEmailInput.inputValue().catch(() => "");
-    if (currentValue.trim().toLowerCase() !== inviteeEmail.toLowerCase()) {
-      continue;
-    }
-    const inviteResponsePromise = page
-      .waitForResponse(
-        (res: any) =>
-          res.request().method() === "POST" &&
-          res.url?.().includes("/api/v1/invites"),
-        { timeout: 5_000 },
-      )
-      .catch(() => null);
-    await sendInviteButton.click();
-    const inviteResponse = await inviteResponsePromise;
-    if (inviteResponse) {
-      expect(inviteResponse.status()).toBe(200);
-      const inviteResponseJson = await inviteResponse.json().catch(() => ({}));
-      if (typeof inviteResponseJson?.invite_url === "string") {
-        inviteLinkFromResponse = inviteResponseJson.invite_url.trim();
-      }
-    }
-    inviteLinkVisible = await inviteLinkLocator.isVisible().catch(() => false);
-    if (inviteLinkVisible || inviteLinkFromResponse) break;
-    await page.waitForTimeout(500);
-  }
-  if (!inviteLinkVisible && !inviteLinkFromResponse) {
-    const currentValue = await inviteEmailInput.inputValue().catch(() => "");
-    const inviteNotice = await page.locator(".havi-notice-banner-info").innerText().catch(() => "");
-    const inviteError = await page.locator(".havi-notice-banner-danger").innerText().catch(() => "");
-    throw new Error(
-      `Failed to create invite link. emailField="${currentValue}" info="${inviteNotice}" error="${inviteError}"`,
-    );
-  }
-  if (inviteLinkVisible) {
-    await expect(inviteLinkLocator).toBeVisible({ timeout: 15_000 });
-  }
-  const inviteLink = inviteLinkVisible
-    ? (await inviteLinkLocator.innerText()).trim()
-    : inviteLinkFromResponse;
+  const inviteLink = await createInviteLinkFromSettings(page, inviteeEmail);
   await page.getByRole("button", { name: /close/i }).click();
 
   const inviteeContext = await browser.newContext();
