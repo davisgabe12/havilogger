@@ -69,6 +69,8 @@ Havi is a parent/caregiver copilot that:
 2. Local `main` is used as a clean integration branch and should stay releasable.
 3. Integrate feature work back to `main` only after tests and docs are updated and passing.
 4. Keep each worktree scoped to one feature slice to reduce merge conflicts and rollback risk.
+5. Use orchestrator script for deterministic setup:
+   - `./scripts/havi_session_orchestrator.sh --feature "<feature-name>"`
 
 ## Spec And Docs Lifecycle
 
@@ -163,6 +165,12 @@ cd /Users/gabedavis/Desktop/projects/havilogger
 ```
 
 This command deploys from `apps/api`, waits for completion, and validates the latest deployment metadata (`provider=python`, `config=railway.toml`) before continuing to smoke gates.
+
+6. Deterministic feature QA gate (recommended before ship):
+
+```bash
+./scripts/qa_gate.sh --label <slice-name> --areas <csv> --playwright-cmd "<playwright-command>"
+```
 
 ## Context And Tool Readiness (Session Start)
 

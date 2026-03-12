@@ -29,3 +29,4 @@ tmp/
 apps/api/data/havilogger.db
 apps/api/data/havilogger.db
 .env.local
+.worktrees/

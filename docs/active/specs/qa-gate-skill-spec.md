@@ -1,4 +1,4 @@
-Status: proposed
+Status: current
 Last updated: March 12, 2026
 
 # Havi QA Gate Skill Spec
@@ -84,3 +84,9 @@ Create a dedicated QA gate skill that stress-checks newly shipped feature slices
 1. Dry run skill on a no-op slice to validate reporting format.
 2. Run against one known failing scenario and verify failure diagnosis quality.
 3. Run against one stable slice and verify pass artifact + release proof wiring.
+
+## Progress Updates
+
+- March 12, 2026: Implemented repo orchestrator script at `scripts/qa_gate.sh`.
+- March 12, 2026: Added skill wrapper under `~/.codex/skills/havi-qa-gate`.
+- March 12, 2026: Implemented required output artifacts (`qa-gate-summary.json`, `README.md`, step logs) and fail-on-required-step behavior.

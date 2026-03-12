@@ -504,3 +504,65 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - Documentation/skill workflow update only; no runtime code paths changed.
 - Risks/follow-ups:
   - Bootstrap skill now depends on the presence of the canonical project profile path for best results.
+
+## 2026-03-12
+
+- Objective: Bootstrap a new execution session with current product/ops context and readiness evidence.
+- Scope completed:
+  - Read canonical session context docs:
+    - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/product/havi-project-profile.md`
+    - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-session-bootstrap.md`
+    - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-autonomous-run-checklist.md`
+  - Confirmed repo/worktree baseline: `main` at `8dbe8e1`, clean working tree.
+  - Verified active spec inventory exists under `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/`.
+  - Verified tool readiness:
+    - Linear MCP accessible (`Side Projects` team available).
+    - Playwright MCP accessible (browser tab control reachable).
+  - Ran local startup/readiness diagnostics:
+    - `./restart.sh` starts then exits immediately in sandbox due bind restrictions.
+    - Foreground elevated probes confirmed backend/frontend can start and respond (`/health` and `/auth/sign-in` returned `200`).
+  - Ran production sanity probes (elevated network):
+    - `https://gethavi.com` returned `200`.
+    - `https://www.gethavi.com` returned `308` redirect to apex.
+    - `https://api-production-0a5d.up.railway.app/health` returned `200`.
+  - Identified top active P1 slice for next execution: `SID-53` (invite token/auth redirect continuity).
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `git status --short --branch`
+  - `./restart.sh`
+  - `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/health`
+  - `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/auth/sign-in`
+  - `curl -I https://gethavi.com`
+  - `curl -I https://www.gethavi.com`
+  - `curl -s -o /dev/null -w '%{http_code}\n' https://api-production-0a5d.up.railway.app/health`
+- Risks/follow-ups:
+  - Sandbox runtime cannot keep local web/api bound on loopback without elevated foreground execution; do not treat non-elevated local startup as a product failure signal.
+  - Next code-edit slice should run from a dedicated feature worktree/branch (`codex/<slice-name>`) instead of `main`.
+
+## 2026-03-12
+
+- Objective: Implement runnable session orchestrator + QA gate skills and scripts.
+- Scope completed:
+  - Added deterministic worktree/spec bootstrap script: `scripts/havi_session_orchestrator.sh`.
+  - Added deterministic QA gate orchestrator script: `scripts/qa_gate.sh` with required-step pass/fail semantics and summary artifacts.
+  - Added active orchestrator spec and updated QA gate spec status/progress.
+  - Updated canonical bootstrap runbook to reference orchestrator + QA gate commands.
+  - Added `.worktrees/` to `.gitignore` to keep local `main` clean from worktree folders.
+  - Added local Codex skill wrappers:
+    - `/Users/gabedavis/.codex/skills/havi-session-orchestrator/`
+    - `/Users/gabedavis/.codex/skills/havi-qa-gate/`
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.gitignore`
+  - `/Users/gabedavis/Desktop/projects/havilogger/scripts/havi_session_orchestrator.sh`
+  - `/Users/gabedavis/Desktop/projects/havilogger/scripts/qa_gate.sh`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/session-orchestrator-skill-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/qa-gate-skill-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-session-bootstrap.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `bash -n scripts/havi_session_orchestrator.sh scripts/qa_gate.sh`
+  - `./scripts/havi_session_orchestrator.sh --feature "session-orchestrator-smoke" --dry-run`
+  - `./scripts/qa_gate.sh --label qa-gate-smoke --areas chat --test-cmd "echo targeted-tests-pass" --playwright-cmd "echo playwright-pass" --skip-green --skip-release-gate --artifact-root /tmp/havi-qa-gate --dry-run`
+- Risks/follow-ups:
+  - Full non-dry-run QA gate should be validated in a feature worktree with real Playwright command and touched test suites before mandatory enforcement.
