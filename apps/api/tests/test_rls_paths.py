@@ -10,6 +10,7 @@ os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 
 from app.main import (  # noqa: E402
+    _build_context_pack,
     _build_context_bundle,
     _build_session_title_from_first_message,
     _insert_conversation_message,
@@ -145,6 +146,115 @@ def test_context_bundle_rejects_mismatched_child():
         )
 
     assert exc.value.status_code == 404
+
+
+def test_context_pack_includes_child_and_memory_context() -> None:
+    session_id = str(uuid4())
+    child_id = str(uuid4())
+    now_iso = "2026-03-12T00:00:00Z"
+    fake = FakeSupabase(
+        select_queue={
+            "conversation_sessions": [
+                [
+                    {
+                        "id": session_id,
+                        "user_id": "user-1",
+                        "child_id": child_id,
+                        "title": "New chat",
+                        "last_message_at": now_iso,
+                        "created_at": now_iso,
+                        "updated_at": now_iso,
+                        "catch_up_mode": False,
+                        "catch_up_started_at": None,
+                        "catch_up_last_message_at": None,
+                    }
+                ]
+            ],
+            "conversation_messages": [
+                [
+                    {
+                        "id": str(uuid4()),
+                        "session_id": session_id,
+                        "user_id": "user-1",
+                        "role": "user",
+                        "content": "he likes white noise before naps",
+                        "intent": "memory",
+                        "created_at": now_iso,
+                    }
+                ]
+            ],
+            "children": [
+                [
+                    {
+                        "id": child_id,
+                        "first_name": "Lev",
+                        "name": "Lev",
+                        "timezone": "America/Los_Angeles",
+                        "birth_date": "2025-12-01",
+                        "due_date": None,
+                    }
+                ]
+            ],
+            "knowledge_items": [
+                [
+                    {
+                        "id": str(uuid4()),
+                        "family_id": str(uuid4()),
+                        "user_id": "user-1",
+                        "subject_id": child_id,
+                        "key": "manual_memory",
+                        "type": "explicit",
+                        "status": "active",
+                        "payload": {"summary": "Loves white noise"},
+                        "confidence": "medium",
+                        "qualifier": None,
+                        "age_range_weeks": "8-12",
+                        "activated_at": now_iso,
+                        "expires_at": None,
+                        "created_at": now_iso,
+                        "updated_at": now_iso,
+                        "last_prompted_at": None,
+                        "last_prompted_session_id": None,
+                    }
+                ],
+                [
+                    {
+                        "id": str(uuid4()),
+                        "family_id": str(uuid4()),
+                        "user_id": "user-1",
+                        "subject_id": child_id,
+                        "key": "routine_note",
+                        "type": "inferred",
+                        "status": "pending",
+                        "payload": {"summary": "Bedtime routine helps"},
+                        "confidence": "low",
+                        "qualifier": None,
+                        "age_range_weeks": "8-12",
+                        "activated_at": None,
+                        "expires_at": None,
+                        "created_at": now_iso,
+                        "updated_at": now_iso,
+                        "last_prompted_at": None,
+                        "last_prompted_session_id": None,
+                    }
+                ],
+            ],
+        }
+    )
+    auth = _auth_with_supabase(fake)
+
+    context_pack = asyncio.run(
+        _build_context_pack(
+            auth,
+            child_id=child_id,
+            session_id=session_id,
+        )
+    )
+
+    assert context_pack.has_prior_messages is True
+    assert context_pack.child_profile.get("first_name") == "Lev"
+    assert len(context_pack.active_knowledge) == 1
+    assert len(context_pack.pending_knowledge) == 1
 
 
 def test_list_knowledge_empty_returns_list():

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.main import (
+    ContextPack,
     _action_from_segment,
     _compose_assistant_reply_for_route,
     _extract_logging_segments_for_mixed,
@@ -10,6 +11,20 @@ from app.main import (
 )
 from app.router import classify_intent
 from app.schemas import CoreActionType
+
+
+def _empty_context_pack() -> ContextPack:
+    return ContextPack(
+        family_id="family-test",
+        child_id="child-test",
+        session_id="session-test",
+        messages=[],
+        has_prior_messages=False,
+        child_profile={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        age_weeks=18,
+        active_knowledge=[],
+        pending_knowledge=[],
+    )
 
 
 def test_split_message_into_events_splits_sentence_boundaries() -> None:
@@ -107,6 +122,7 @@ def test_compose_assistant_reply_for_route_returns_mixed_intent_and_logged_prefi
         actions=actions,
         message=message,
         child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        context_pack=_empty_context_pack(),
         symptom_tags=[],
         question_category="sleep",
     )
@@ -136,6 +152,7 @@ def test_compose_assistant_reply_for_route_uses_openai_guidance_for_ask(monkeypa
         actions=[],
         message="my child is hitting, what should i do?",
         child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        context_pack=_empty_context_pack(),
         symptom_tags=["hitting"],
         question_category="behavior",
     )
@@ -152,6 +169,7 @@ def test_compose_assistant_reply_for_route_falls_back_when_openai_guidance_disab
         actions=[],
         message="my child is hitting, what should i do?",
         child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        context_pack=_empty_context_pack(),
         symptom_tags=["hitting"],
         question_category="behavior",
     )
@@ -184,6 +202,7 @@ def test_compose_assistant_reply_for_route_uses_openai_guidance_for_mixed(monkey
         actions=actions,
         message="baby pooped at 3pm, what should i do if he keeps waking at night?",
         child_row={"first_name": "Lev", "timezone": "America/Los_Angeles"},
+        context_pack=_empty_context_pack(),
         symptom_tags=[],
         question_category="sleep",
     )

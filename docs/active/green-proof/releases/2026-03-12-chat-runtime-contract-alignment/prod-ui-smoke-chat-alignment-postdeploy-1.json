@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-03-12T16:19:31Z",
+  "label": "chat-alignment-postdeploy-1",
+  "base_url": "https://gethavi.com",
+  "required_consecutive_passes": 2,
+  "gate_pass": true,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "pass",
+      "started_at": "2026-03-12T16:16:57Z",
+      "ended_at": "2026-03-12T16:18:15Z",
+      "exit_code": 0,
+      "log_file": "/tmp/havi-chat-ship/docs/active/green-proof/prod-ui-smoke-chat-alignment-postdeploy-1/run-1.log",
+      "report_file": "/tmp/havi-chat-ship/docs/active/green-proof/prod-ui-smoke-chat-alignment-postdeploy-1/run-1-report.json"
+    },
+    {
+      "attempt": 2,
+      "status": "pass",
+      "started_at": "2026-03-12T16:18:15Z",
+      "ended_at": "2026-03-12T16:19:31Z",
+      "exit_code": 0,
+      "log_file": "/tmp/havi-chat-ship/docs/active/green-proof/prod-ui-smoke-chat-alignment-postdeploy-1/run-2.log",
+      "report_file": "/tmp/havi-chat-ship/docs/active/green-proof/prod-ui-smoke-chat-alignment-postdeploy-1/run-2-report.json"
+    }
+  ]
+}

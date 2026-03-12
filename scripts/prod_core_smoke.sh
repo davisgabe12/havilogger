@@ -271,9 +271,7 @@ run_core_flow() {
     --arg timezone "America/Los_Angeles" \
     --arg child_id "$child_id" \
     --arg conversation_id "$conversation_id" \
-    --arg child_name "$child_first_name" \
-    --arg child_dob "$dob" \
-    '{message:$message,timezone:$timezone,source:"chat",child_id:$child_id,conversation_id:$conversation_id,model_request:{user_message:$message,user_preferences:null,child:{name:$child_name,dob:$child_dob,dueDate:null},feedback_summary:null}}')"
+    '{message:$message,timezone:$timezone,source:"chat",child_id:$child_id,conversation_id:$conversation_id}')"
 
   api_call "POST" "/api/v1/activities" "$token" "$family_id" "$child_id" "$tracking_payload"
   assert_status_200 "Tracking message"
@@ -378,9 +376,7 @@ PY
     --arg timezone "America/Los_Angeles" \
     --arg child_id "$child_id" \
     --arg conversation_id "$conversation_id" \
-    --arg child_name "$child_first_name" \
-    --arg child_dob "$dob" \
-    '{message:$message,timezone:$timezone,source:"chat",child_id:$child_id,conversation_id:$conversation_id,model_request:{user_message:$message,user_preferences:null,child:{name:$child_name,dob:$child_dob,dueDate:null},feedback_summary:null}}')"
+    '{message:$message,timezone:$timezone,source:"chat",child_id:$child_id,conversation_id:$conversation_id}')"
 
   api_call "POST" "/api/v1/activities" "$token" "$family_id" "$child_id" "$guidance_payload"
   assert_status_200 "Guidance message"

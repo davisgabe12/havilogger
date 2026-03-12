@@ -115,7 +115,6 @@ class ChatResponse(BaseModel):
     user_message_id: Optional[str] = None
     assistant_message_id: Optional[str] = None
     intent: Optional[str] = Field(default=None, description="Router-derived primary intent")
-    ui_nudges: Optional[List[str]] = Field(default=None, description="Optional UI nudges for surfacing outside the main message")
     route_metadata: Optional[ChatRouteMetadata] = Field(
         default=None,
         description="Structured route decision metadata for observability and evals.",

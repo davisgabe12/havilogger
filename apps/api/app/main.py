@@ -599,12 +599,32 @@ def _message_from_row(row: Dict[str, Any]) -> ConversationMessage:
 
 
 @dataclass
-class ContextBundle:
+class ContextPack:
     family_id: str
     child_id: str
     session_id: str
     messages: List[ConversationMessage]
     has_prior_messages: bool
+    child_profile: Dict[str, Any]
+    age_weeks: Optional[int]
+    active_knowledge: List[KnowledgeItem]
+    pending_knowledge: List[KnowledgeItem]
+
+
+ROUTE_KIND_LOG = "log"
+ROUTE_KIND_ASK = "ask"
+ROUTE_KIND_MIXED = "mixed"
+ROUTE_KIND_TASK = "task"
+ROUTE_KIND_MEMORY_EXPLICIT = "MEMORY_EXPLICIT"
+ROUTE_KIND_MEMORY_INFERRED = "MEMORY_INFERRED"
+
+_ACTIVITY_WRITE_ROUTE_KINDS = {ROUTE_KIND_LOG, ROUTE_KIND_MIXED}
+_INFERENCE_WRITE_ROUTE_KINDS = {
+    ROUTE_KIND_LOG,
+    ROUTE_KIND_MIXED,
+    ROUTE_KIND_MEMORY_INFERRED,
+}
+_GUIDANCE_ROUTE_KINDS = {ROUTE_KIND_ASK, ROUTE_KIND_MIXED}
 
 
 @dataclass
@@ -614,6 +634,7 @@ class RouteDecision:
     route_to_guidance: bool
     mixed_logging_segments: List[str]
     is_question: bool
+    memory_candidate: Optional[tuple[str, Dict[str, Any], float]] = None
     decision_source: str = "rule"
     confidence: float = 0.0
     classifier_intent: str = ""
@@ -645,7 +666,6 @@ class RouteWritePolicy:
 @dataclass
 class ComposeResult:
     assistant_text: str
-    ui_nudges: List[str]
     intent: str
     composer_source: str
     composer_fallback_reason: Optional[str] = None
@@ -709,7 +729,7 @@ def _extract_reason_value(reasons: List[str], prefix: str) -> Optional[str]:
 
 
 def _should_persist_activity_actions(route_kind: str) -> bool:
-    return route_kind in {"log", "mixed"}
+    return route_kind in _ACTIVITY_WRITE_ROUTE_KINDS
 
 
 def _build_route_execution_plan(message: str) -> RouteExecutionPlan:
@@ -719,7 +739,7 @@ def _build_route_execution_plan(message: str) -> RouteExecutionPlan:
         route_decision=route_decision,
         route_metadata=route_metadata,
         route_to_guidance=route_decision.route_to_guidance,
-        mixed_route=route_decision.route_kind == "mixed",
+        mixed_route=route_decision.route_kind == ROUTE_KIND_MIXED,
         user_intent=route_decision.user_intent,
         allow_activity_writes=_should_persist_activity_actions(route_decision.route_kind),
     )
@@ -728,9 +748,11 @@ def _build_route_execution_plan(message: str) -> RouteExecutionPlan:
 def _build_route_write_policy(*, route_kind: str, classifier_intent: str, has_memory_target: bool) -> RouteWritePolicy:
     return RouteWritePolicy(
         allow_timeline_activity_writes=_should_persist_activity_actions(route_kind),
-        allow_task_writes=classifier_intent == "task_request",
-        allow_explicit_memory_writes=has_memory_target,
-        allow_inference_memory_writes=_should_persist_activity_actions(route_kind),
+        allow_task_writes=route_kind == ROUTE_KIND_TASK or classifier_intent == "task_request",
+        allow_explicit_memory_writes=(
+            route_kind == ROUTE_KIND_MEMORY_EXPLICIT and has_memory_target
+        ),
+        allow_inference_memory_writes=route_kind in _INFERENCE_WRITE_ROUTE_KINDS,
     )
 
 
@@ -798,7 +820,6 @@ async def _build_terminal_chat_response(
     route_metadata: ChatRouteMetadata,
     start: float,
     actions: Optional[List[Action]] = None,
-    ui_nudges: Optional[List[str]] = None,
     child_id: Optional[str] = None,
     classifier_reasons: Optional[List[str]] = None,
     ambiguous_eligible: bool = False,
@@ -834,7 +855,6 @@ async def _build_terminal_chat_response(
         user_message_id=user_message_id,
         assistant_message_id=assistant_message.id,
         intent=intent,
-        ui_nudges=ui_nudges or None,
         route_metadata=route_metadata,
     )
 
@@ -880,6 +900,8 @@ async def _handle_explicit_memory_turn(
     )
     if not created:
         raise HTTPException(status_code=500, detail="Unable to save memory.")
+    route_metadata.route_kind = ROUTE_KIND_MEMORY_EXPLICIT
+    route_metadata.user_intent = "memory"
     return await _build_terminal_chat_response(
         auth=auth,
         conversation_id=conversation_id,
@@ -970,56 +992,56 @@ async def _persist_route_actions(
     timezone_value: Optional[str],
     child_id: str,
     user_message_id: str,
+    inferred_memory_candidate: Optional[tuple[str, Dict[str, Any], float]] = None,
 ) -> List[Action]:
-    if not route_write_policy.allow_timeline_activity_writes:
-        return []
-
-    segments = mixed_logging_segments if mixed_route else _split_message_into_events(payload.message)
-    actions = [
-        _action_from_segment(segment, timezone_value)
-        for segment in segments
-        if segment
-    ]
-    for action in actions:
-        event_type = _timeline_type_for_action(action)
-        if not event_type:
-            continue
-        event_start = action.timestamp
-        if event_start.tzinfo is None:
-            event_start = event_start.replace(tzinfo=timezone.utc)
-        start_iso = event_start.astimezone(timezone.utc).isoformat()
-        end_iso = None
-        if action.action_type == CoreActionType.SLEEP and action.metadata.duration_minutes:
-            end_iso = (
-                event_start
-                + timedelta(minutes=action.metadata.duration_minutes)
-            ).astimezone(timezone.utc).isoformat()
-        await _insert_timeline_event(
-            auth,
-            child_id=child_id,
-            event_type=event_type,
-            title=_timeline_title_for_action(action),
-            detail=_timeline_detail_for_action(action),
-            amount_label=_timeline_amount_label(action),
-            start_iso=start_iso,
-            end_iso=end_iso,
-            source=payload.source or "chat",
-            origin_message_id=user_message_id,
-            has_note=bool(action.note),
-            is_custom=not action.is_core_action,
-        )
-    if actions:
-        await auth.supabase.insert(
-            "activity_logs",
-            {
-                "family_id": auth.family_id,
-                "child_id": child_id,
-                "user_id": auth.user_id,
-                "actions_json": [action.model_dump(mode="json") for action in actions],
-                "source": payload.source or "chat",
-            },
-        )
-    inference = _detect_memory_inference(payload.message)
+    actions: List[Action] = []
+    if route_write_policy.allow_timeline_activity_writes:
+        segments = mixed_logging_segments if mixed_route else _split_message_into_events(payload.message)
+        actions = [
+            _action_from_segment(segment, timezone_value)
+            for segment in segments
+            if segment
+        ]
+        for action in actions:
+            event_type = _timeline_type_for_action(action)
+            if not event_type:
+                continue
+            event_start = action.timestamp
+            if event_start.tzinfo is None:
+                event_start = event_start.replace(tzinfo=timezone.utc)
+            start_iso = event_start.astimezone(timezone.utc).isoformat()
+            end_iso = None
+            if action.action_type == CoreActionType.SLEEP and action.metadata.duration_minutes:
+                end_iso = (
+                    event_start
+                    + timedelta(minutes=action.metadata.duration_minutes)
+                ).astimezone(timezone.utc).isoformat()
+            await _insert_timeline_event(
+                auth,
+                child_id=child_id,
+                event_type=event_type,
+                title=_timeline_title_for_action(action),
+                detail=_timeline_detail_for_action(action),
+                amount_label=_timeline_amount_label(action),
+                start_iso=start_iso,
+                end_iso=end_iso,
+                source=payload.source or "chat",
+                origin_message_id=user_message_id,
+                has_note=bool(action.note),
+                is_custom=not action.is_core_action,
+            )
+        if actions:
+            await auth.supabase.insert(
+                "activity_logs",
+                {
+                    "family_id": auth.family_id,
+                    "child_id": child_id,
+                    "user_id": auth.user_id,
+                    "actions_json": [action.model_dump(mode="json") for action in actions],
+                    "source": payload.source or "chat",
+                },
+            )
+    inference = inferred_memory_candidate or _detect_memory_inference(payload.message)
     if inference and route_write_policy.allow_inference_memory_writes:
         inference_type, inference_payload, confidence = inference
         await _maybe_create_inference(
@@ -1040,21 +1062,53 @@ def _compose_assistant_reply_for_route(
     actions: List[Action],
     message: str,
     child_row: Dict[str, Any],
+    context_pack: ContextPack,
     symptom_tags: List[str],
     question_category: str,
 ) -> ComposeResult:
+    def memory_summary(item: KnowledgeItem) -> Optional[str]:
+        payload = item.payload or {}
+        if not isinstance(payload, dict):
+            return None
+        for key in ("summary", "text", "note"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
+    active_memory = [
+        summary
+        for item in context_pack.active_knowledge
+        for summary in [memory_summary(item)]
+        if summary
+    ][:3]
+    pending_memory = [
+        summary
+        for item in context_pack.pending_knowledge
+        for summary in [memory_summary(item)]
+        if summary
+    ][:2]
     child_context = {
         "first_name": child_row.get("first_name") or child_row.get("name"),
         "birth_date": child_row.get("birth_date"),
         "due_date": child_row.get("due_date"),
         "timezone": child_row.get("timezone"),
+        "age_weeks": context_pack.age_weeks,
+        "active_memory": active_memory,
+        "pending_memory": pending_memory,
+    }
+    base_context = {
+        "symptom_tags": symptom_tags,
+        "question_category": question_category,
+        "knowledge": context_pack.active_knowledge,
+        "pending_knowledge": context_pack.pending_knowledge,
     }
     should_try_model_guidance, model_skip_reason = _should_try_model_guidance(
         route_kind=route_kind,
         message=message,
     )
 
-    if route_kind == "ask":
+    if route_kind == ROUTE_KIND_ASK:
         if should_try_model_guidance:
             model_guidance = compose_guidance_with_openai(
                 message,
@@ -1065,7 +1119,6 @@ def _compose_assistant_reply_for_route(
             if model_guidance and _guidance_contract_is_valid(model_guidance):
                 return ComposeResult(
                     assistant_text=model_guidance,
-                    ui_nudges=[],
                     intent="question",
                     composer_source="model",
                 )
@@ -1074,52 +1127,47 @@ def _compose_assistant_reply_for_route(
             if model_skip_reason
             else "model_unavailable_or_contract_invalid"
         )
-        assistant_text, ui_nudges = build_assistant_message(
+        assistant_text, _ = build_assistant_message(
             [],
             message,
             child_data=child_row,
             context={
+                **base_context,
                 "intent": classifier_intent,
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
                 "recent_actions": [],
             },
         )
         return ComposeResult(
             assistant_text=assistant_text,
-            ui_nudges=ui_nudges,
             intent="question",
             composer_source="rule",
             composer_fallback_reason=fallback_reason,
         )
 
-    if route_kind == "log":
+    if route_kind == ROUTE_KIND_LOG:
         assistant_text, _ = build_assistant_message(
             actions,
             message,
             child_data=child_row,
             context={
+                **base_context,
                 "intent": "logging",
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
                 "recent_actions": actions,
             },
         )
         return ComposeResult(
             assistant_text=assistant_text,
-            ui_nudges=[],
             intent="logging",
             composer_source="rule",
         )
-    if route_kind == "mixed":
+    if route_kind == ROUTE_KIND_MIXED:
         log_confirmation, _ = build_assistant_message(
             actions,
             message,
             child_data=child_row,
             context={
+                **base_context,
                 "intent": "logging",
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
                 "recent_actions": actions,
             },
         )
@@ -1134,45 +1182,46 @@ def _compose_assistant_reply_for_route(
                 merged = f"{log_confirmation}\n\n{model_guidance}".strip()
                 return ComposeResult(
                     assistant_text=merged,
-                    ui_nudges=[],
                     intent="mixed",
                     composer_source="model",
                 )
 
-        assistant_text, ui_nudges = build_assistant_message(
+        assistant_text, _ = build_assistant_message(
             actions,
             message,
             child_data=child_row,
             context={
+                **base_context,
                 "intent": "mixed",
-                "symptom_tags": symptom_tags,
-                "question_category": question_category,
                 "recent_actions": actions,
             },
         )
         return ComposeResult(
             assistant_text=assistant_text,
-            ui_nudges=ui_nudges,
             intent="mixed",
             composer_source="rule",
             composer_fallback_reason=(
                 model_skip_reason if model_skip_reason else "model_unavailable_or_contract_invalid"
             ),
         )
-    assistant_text, ui_nudges = build_assistant_message(
+    if route_kind == ROUTE_KIND_MEMORY_INFERRED:
+        return ComposeResult(
+            assistant_text="Thanks, I’ll keep that in mind for future guidance.",
+            intent="memory",
+            composer_source="rule",
+        )
+    assistant_text, _ = build_assistant_message(
         [],
         message,
         child_data=child_row,
         context={
+            **base_context,
             "intent": classifier_intent,
-            "symptom_tags": symptom_tags,
-            "question_category": question_category,
             "recent_actions": [],
         },
     )
     return ComposeResult(
         assistant_text=assistant_text,
-        ui_nudges=ui_nudges,
         intent="question",
         composer_source="rule",
         composer_fallback_reason="route_not_model_enabled",
@@ -1199,7 +1248,7 @@ def _is_rollout_enabled_for_message(message: str, rollout_pct: float) -> bool:
 
 
 def _should_try_model_guidance(*, route_kind: str, message: str) -> tuple[bool, Optional[str]]:
-    if route_kind not in {"ask", "mixed"}:
+    if route_kind not in _GUIDANCE_ROUTE_KINDS:
         return False, "route_not_guidance"
     enabled = os.getenv("ENABLE_OPENAI_GUIDANCE_COMPOSER", "").strip().lower() in {
         "1",
@@ -1256,32 +1305,109 @@ def _guidance_contract_is_valid(text: str) -> bool:
     )
 
 
+def _knowledge_item_from_row(row: Dict[str, Any]) -> Optional[KnowledgeItem]:
+    try:
+        return KnowledgeItem.model_validate(row)
+    except ValidationError:
+        return None
+
+
+async def _build_context_pack(
+    auth: AuthContext,
+    *,
+    child_id: str,
+    session_id: str,
+    message_limit: int = 50,
+    memory_limit: int = 10,
+) -> ContextPack:
+    session = await _get_conversation_session(auth, session_id)
+    if session.child_id != child_id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    message_rows = await auth.supabase.select(
+        "conversation_messages",
+        params={
+            "select": "id,session_id,user_id,role,content,intent,created_at",
+            "session_id": f"eq.{session_id}",
+            "order": "created_at.asc",
+            "limit": str(message_limit),
+        },
+    )
+    messages = [_message_from_row(row) for row in message_rows]
+    child_rows = await auth.supabase.select(
+        "children",
+        params={
+            "select": "id,first_name,name,timezone,birth_date,due_date",
+            "id": f"eq.{child_id}",
+            "family_id": f"eq.{auth.family_id}",
+            "limit": "1",
+        },
+    )
+    child_row = child_rows[0] if child_rows else {}
+    active_rows = await auth.supabase.select(
+        "knowledge_items",
+        params={
+            "select": (
+                "id,family_id,user_id,subject_id,key,type,status,payload,confidence,qualifier,"
+                "age_range_weeks,activated_at,expires_at,created_at,updated_at,last_prompted_at,last_prompted_session_id"
+            ),
+            "family_id": f"eq.{auth.family_id}",
+            "subject_id": f"eq.{child_id}",
+            "status": f"eq.{KnowledgeItemStatus.ACTIVE.value}",
+            "order": "updated_at.desc",
+            "limit": str(memory_limit),
+        },
+    )
+    pending_rows = await auth.supabase.select(
+        "knowledge_items",
+        params={
+            "select": (
+                "id,family_id,user_id,subject_id,key,type,status,payload,confidence,qualifier,"
+                "age_range_weeks,activated_at,expires_at,created_at,updated_at,last_prompted_at,last_prompted_session_id"
+            ),
+            "family_id": f"eq.{auth.family_id}",
+            "subject_id": f"eq.{child_id}",
+            "status": f"eq.{KnowledgeItemStatus.PENDING.value}",
+            "order": "updated_at.desc",
+            "limit": str(memory_limit),
+        },
+    )
+    active_knowledge = [
+        item
+        for row in active_rows
+        for item in [_knowledge_item_from_row(row)]
+        if item is not None
+    ]
+    pending_knowledge = [
+        item
+        for row in pending_rows
+        for item in [_knowledge_item_from_row(row)]
+        if item is not None
+    ]
+    return ContextPack(
+        family_id=auth.family_id,
+        child_id=child_id,
+        session_id=session_id,
+        messages=messages,
+        has_prior_messages=bool(messages),
+        child_profile=child_row,
+        age_weeks=_child_age_weeks(child_row) if child_row else None,
+        active_knowledge=active_knowledge,
+        pending_knowledge=pending_knowledge,
+    )
+
+
 async def _build_context_bundle(
     auth: AuthContext,
     *,
     child_id: str,
     session_id: str,
     limit: int = 50,
-) -> ContextBundle:
-    session = await _get_conversation_session(auth, session_id)
-    if session.child_id != child_id:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    rows = await auth.supabase.select(
-        "conversation_messages",
-        params={
-            "select": "id,session_id,user_id,role,content,intent,created_at",
-            "session_id": f"eq.{session_id}",
-            "order": "created_at.asc",
-            "limit": str(limit),
-        },
-    )
-    messages = [_message_from_row(row) for row in rows]
-    return ContextBundle(
-        family_id=auth.family_id,
+) -> ContextPack:
+    return await _build_context_pack(
+        auth,
         child_id=child_id,
         session_id=session_id,
-        messages=messages,
-        has_prior_messages=bool(messages),
+        message_limit=limit,
     )
 
 
@@ -1529,7 +1655,7 @@ async def capture_activity(
         conversation = await _create_conversation_session(auth, child_id=child_id)
         conversation_id = conversation.id
 
-    context_bundle = await _build_context_bundle(
+    context_pack = await _build_context_pack(
         auth,
         child_id=child_id,
         session_id=conversation_id,
@@ -1541,20 +1667,12 @@ async def capture_activity(
             "path": "/api/v1/activities",
             "child_id": child_id,
             "session_id": conversation_id,
-            "has_prior_messages": context_bundle.has_prior_messages,
+            "has_prior_messages": context_pack.has_prior_messages,
+            "active_memory_count": len(context_pack.active_knowledge),
+            "pending_memory_count": len(context_pack.pending_knowledge),
         },
     )
-
-    child_rows = await auth.supabase.select(
-        "children",
-        params={
-            "select": "id,first_name,name,timezone,birth_date,due_date",
-            "id": f"eq.{child_id}",
-            "family_id": f"eq.{auth.family_id}",
-            "limit": "1",
-        },
-    )
-    child_row = child_rows[0] if child_rows else {}
+    child_row = context_pack.child_profile or {}
     timezone_value = child_row.get("timezone") or payload.timezone
     symptom_tags = message_symptom_tags(payload.message)
     question_category = classify_question_category(payload.message, symptom_tags)
@@ -1614,7 +1732,7 @@ async def capture_activity(
         child_id=child_id,
         message=payload.message,
         timezone_name=autotitle_timezone,
-        has_prior_messages=context_bundle.has_prior_messages,
+        has_prior_messages=context_pack.has_prior_messages,
     )
     memory_target = detect_memory_save_target(payload.message)
     route_write_policy = _build_route_write_policy(
@@ -1668,19 +1786,19 @@ async def capture_activity(
         timezone_value=timezone_value,
         child_id=child_id,
         user_message_id=user_message.id,
+        inferred_memory_candidate=route_decision.memory_candidate,
     )
-    ui_nudges: List[str] = []
     compose_result = _compose_assistant_reply_for_route(
         route_kind=route_decision.route_kind,
         classifier_intent=intent_result.intent,
         actions=actions,
         message=payload.message,
         child_row=child_row,
+        context_pack=context_pack,
         symptom_tags=symptom_tags,
         question_category=question_category,
     )
     assistant_text = compose_result.assistant_text
-    ui_nudges = compose_result.ui_nudges
     intent = compose_result.intent
     route_metadata.composer_source = compose_result.composer_source
     route_metadata.composer_fallback_reason = compose_result.composer_fallback_reason
@@ -1709,7 +1827,6 @@ async def capture_activity(
         route_metadata=route_metadata,
         start=start,
         actions=actions,
-        ui_nudges=ui_nudges,
         child_id=child_id,
         classifier_reasons=list(intent_result.reasons),
         ambiguous_eligible=ambiguous_eligible,
@@ -2413,11 +2530,42 @@ def _should_route_to_guidance(*, is_question: bool, intent_name: str) -> bool:
 
 def _route_decision_for_message(message: str, intent_name: str) -> RouteDecision:
     normalized_intent = (intent_name or "").strip()
+    explicit_memory_target = detect_memory_save_target(message)
+    if explicit_memory_target:
+        return RouteDecision(
+            route_kind=ROUTE_KIND_MEMORY_EXPLICIT,
+            user_intent="memory",
+            route_to_guidance=False,
+            mixed_logging_segments=[],
+            is_question=False,
+            decision_source="rule",
+            confidence=0.0,
+            classifier_intent=normalized_intent,
+        )
+
     is_question = _is_question(message)
     route_to_guidance = _should_route_to_guidance(
         is_question=is_question,
         intent_name=normalized_intent,
     )
+    inferred_memory_candidate = _detect_memory_inference(message)
+    if (
+        inferred_memory_candidate
+        and not is_question
+        and normalized_intent not in {"task_request", "saving"}
+        and not has_logging_signals(message)
+    ):
+        return RouteDecision(
+            route_kind=ROUTE_KIND_MEMORY_INFERRED,
+            user_intent="memory",
+            route_to_guidance=False,
+            mixed_logging_segments=[],
+            is_question=False,
+            memory_candidate=inferred_memory_candidate,
+            decision_source="rule",
+            confidence=0.0,
+            classifier_intent=normalized_intent,
+        )
     mixed_logging_segments = (
         _extract_logging_segments_for_mixed(message)
         if route_to_guidance
@@ -2429,16 +2577,16 @@ def _route_decision_for_message(message: str, intent_name: str) -> RouteDecision
         and normalized_intent not in {"task_request", "saving"}
     )
     if normalized_intent == "task_request":
-        route_kind = "task"
+        route_kind = ROUTE_KIND_TASK
         user_intent = "task"
     elif mixed_route:
-        route_kind = "mixed"
+        route_kind = ROUTE_KIND_MIXED
         user_intent = "mixed"
     elif route_to_guidance:
-        route_kind = "ask"
+        route_kind = ROUTE_KIND_ASK
         user_intent = "question"
     else:
-        route_kind = "log"
+        route_kind = ROUTE_KIND_LOG
         user_intent = "logging"
     return RouteDecision(
         route_kind=route_kind,

@@ -27,8 +27,6 @@ BANNED_MEMORY_PHRASES = [
     "captured what you shared",
 ]
 
-BANNED_UI_PHRASES = ["?", "gender", "due date", "remember"]
-
 GUIDANCE_MARKERS = ["hitting", "gentle hands", "stay calm"]
 
 
@@ -55,14 +53,7 @@ def assert_no_gating(data: dict) -> None:
         assert phrase not in lower
     for phrase in BANNED_MEMORY_PHRASES:
         assert phrase not in lower
-    nudges = data.get("ui_nudges")
-    if nudges is not None:
-        assert isinstance(nudges, list)
-        for nudge in nudges:
-            assert isinstance(nudge, str)
-            lower_nudge = nudge.lower()
-            for forbidden in BANNED_UI_PHRASES:
-                assert forbidden not in lower_nudge
+    assert "ui_nudges" not in data
 
 
 def test_non_logging_advice_is_not_gated() -> None:
@@ -116,5 +107,3 @@ def test_logging_reply_stays_minimal() -> None:
     assert data["assistant_message"].startswith("Logged:")
     assert "\n" not in data["assistant_message"]
     assert_no_gating(data)
-    ui = data.get("ui_nudges")
-    assert not ui
