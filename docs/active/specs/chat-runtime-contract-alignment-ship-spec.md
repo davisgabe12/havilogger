@@ -58,3 +58,6 @@ Ship the scoped chat alignment changes to production with passing quality gates 
 
 ## Progress Updates
 - [March 12, 2026] Spec created and locked before implementation.
+- [March 12, 2026] Runtime implemented: ContextPackBuilder v1 wired in canonical `/api/v1/activities` path with typed child/age/knowledge context.
+- [March 12, 2026] Contract updates implemented: memory route kinds (`MEMORY_EXPLICIT`, `MEMORY_INFERRED`) emitted; `ui_nudges` removed from `ChatResponse`; core smoke payload no longer sends `model_request`.
+- [March 12, 2026] Validation completed: targeted API test suite passed (`36 passed`), pre/post deploy production core smoke passed, pre/post deploy production UI smoke gate passed (2 consecutive runs each), and API deploy `194a02ba-6e96-43b7-88d2-9a29fae02622` reached `SUCCESS`.
