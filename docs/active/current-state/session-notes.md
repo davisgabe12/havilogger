@@ -414,3 +414,53 @@ Use this log for every coding session, regardless of whether Linear was updated.
 - Risks/follow-ups:
   - Typography/forms/spacing system work is now complete on launch-priority surfaces; remaining blocker is invitee auth/session continuity in production green flow.
 - Linear issue(s): pending
+
+## 2026-03-12
+
+- Objective: Ship chat runtime contract alignment slice end-to-end with docs/tests sync and clean deploy gates.
+- Scope completed:
+  - Added persistent ship spec for this slice: `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/chat-runtime-contract-alignment-ship-spec.md`.
+  - Implemented ContextPackBuilder v1 in canonical `/api/v1/activities` path (child profile, age weeks, active/pending knowledge, message history).
+  - Added explicit memory route contract handling (`MEMORY_EXPLICIT`, `MEMORY_INFERRED`) in route metadata path.
+  - Removed `ui_nudges` from API response contract (`ChatResponse`) while keeping internal compose hint behavior private.
+  - Removed `model_request` from production core smoke chat payloads.
+  - Synced chat master and phase-1 execution docs with current runtime behavior.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/main.py`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/app/schemas.py`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_chat_routing_logic.py`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_chat_composition_hardening.py`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_rls_paths.py`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/api/tests/test_activities_regressions.py`
+  - `/Users/gabedavis/Desktop/projects/havilogger/scripts/prod_core_smoke.sh`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-platform-master-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/plan/chat-phase-1-execution-plan.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/chat-runtime-contract-alignment-ship-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `OPENAI_API_KEY=test-key SUPABASE_URL=http://localhost:54321 SUPABASE_ANON_KEY=test-anon-key python3 -m pytest -q apps/api/tests/test_chat_routing_logic.py apps/api/tests/test_chat_composition_hardening.py apps/api/tests/test_rls_paths.py`
+  - Result: `36 passed`.
+- Additional validation notes:
+  - `test_activities_regressions.py` collection/runtime in this clean `/tmp` worktree is blocked by local SQLite bootstrap state (`users`/`children` schema mismatch), so that suite was not used as a release gate in this environment.
+- Risks/follow-ups:
+  - Run full release gate pre/post deploy from production-linked tree and archive fresh proof artifacts before final merge/deploy.
+
+## 2026-03-12
+
+- Objective: Complete deploy + post-deploy validation for chat runtime contract alignment slice.
+- Scope completed:
+  - Pre-deploy core smoke gate passed.
+  - Pre-deploy UI smoke gate passed (2 consecutive runs).
+  - API deployed to Railway production and reached `SUCCESS` (`194a02ba-6e96-43b7-88d2-9a29fae02622`).
+  - Post-deploy core smoke gate passed.
+  - Post-deploy UI smoke gate passed (2 consecutive runs).
+  - Curated release proof bundle + release note created.
+- Artifacts:
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-core-smoke-chat-alignment-predeploy-1.json`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-ui-smoke-chat-alignment-predeploy-1.json`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-core-smoke-chat-alignment-postdeploy-1.json`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-ui-smoke-chat-alignment-postdeploy-1.json`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/README.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/releases/2026-03-12-chat-runtime-contract-alignment.md`
+- Risks/follow-ups:
+  - Local primary repo still contains out-of-scope conflict markers; keep this slice isolated to clean chat-alignment commits only.

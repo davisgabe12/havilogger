@@ -5,6 +5,16 @@ Phase 1 delivers a stable canonical chat runtime with OpenAI integrated for ambi
 
 This plan is intentionally scoped to message/chat behavior only.
 
+## Current Ship Slice (March 12, 2026)
+Goal: ship chat runtime/contract alignment for a stable end-to-end parent chat experience.
+
+Scope in this slice:
+1. ContextPackBuilder v1 active in `/api/v1/activities` runtime.
+2. Memory route contract alignment (`MEMORY_EXPLICIT`, `MEMORY_INFERRED`) in route metadata path.
+3. `ui_nudges` removed from `ChatResponse` API contract.
+4. `model_request` removed from `scripts/prod_core_smoke.sh` payloads.
+5. Chat docs + targeted tests updated in lockstep.
+
 ## Execution Status (Current Sprint)
 1. Completed:
 - `P1-A1` contract scaffolding landed:
@@ -62,6 +72,12 @@ This plan is intentionally scoped to message/chat behavior only.
 - `P1-D2` guidance contract hardening landed:
   - model guidance output is now validated for structure before use
   - deterministic fallback is enforced when model guidance is unavailable or contract-invalid
+- `P1-A3` runtime/contract alignment landed:
+  - `ContextPackBuilder` now provides typed child/profile/age/knowledge context in canonical turn flow
+  - explicit memory route kinds are emitted in route metadata (`MEMORY_EXPLICIT`, `MEMORY_INFERRED`)
+  - `ui_nudges` removed from `ChatResponse` contract surface
+  - core smoke payload no longer sends `model_request`
+  - targeted tests updated for route policy, context pack behavior, and response contract
 
 2. In progress:
 - release evidence pass for the latest slice (deploy + production core smoke + production UI smoke gate + proof bundle curation).
@@ -510,7 +526,7 @@ Scope candidates:
 1. Retrieval ranking layer for active and pending memory in compose path.
 2. Cross-session context recall policies with guardrails.
 3. Memory review UX hooks tied to inferred-memory confidence.
-4. Session title and `ui_nudges` contract cleanup in UI.
+4. Session title UX hardening and memory-review UX surfacing.
 
 Out of scope for Phase 2:
 1. Public browse/citation response mode.
@@ -520,3 +536,32 @@ Exit criteria:
 1. Cross-session personalization quality improves against a Phase 2 golden set.
 2. Memory precision/recall metrics meet agreed thresholds.
 3. No regression on Phase 1 gates.
+
+## Progress Update (March 12, 2026, chat runtime contract alignment ship slice)
+1. Completed implementation scope:
+- ContextPackBuilder v1 is active in `/api/v1/activities` with typed child/age/knowledge context.
+- Route contract now emits memory route kinds where applicable:
+  - `MEMORY_EXPLICIT` for explicit memory-save commands.
+  - `MEMORY_INFERRED` for inferred-memory turns.
+- `ChatResponse` no longer includes `ui_nudges`.
+- `scripts/prod_core_smoke.sh` payload no longer includes `model_request`.
+
+2. Code + test sync:
+- Targeted API tests passed:
+  - `OPENAI_API_KEY=test-key SUPABASE_URL=http://localhost:54321 SUPABASE_ANON_KEY=test-anon-key python3 -m pytest -q apps/api/tests/test_chat_routing_logic.py apps/api/tests/test_chat_composition_hardening.py apps/api/tests/test_rls_paths.py`
+  - Result: `36 passed`.
+
+3. Release validation:
+- Pre-deploy core smoke: pass
+  - [prod-core-smoke-chat-alignment-predeploy-1.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-core-smoke-chat-alignment-predeploy-1.json)
+- Pre-deploy UI smoke gate (2 consecutive): pass
+  - [prod-ui-smoke-chat-alignment-predeploy-1.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-ui-smoke-chat-alignment-predeploy-1.json)
+- API deploy: Railway `SUCCESS` (`194a02ba-6e96-43b7-88d2-9a29fae02622`)
+- Post-deploy core smoke: pass
+  - [prod-core-smoke-chat-alignment-postdeploy-1.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-core-smoke-chat-alignment-postdeploy-1.json)
+- Post-deploy UI smoke gate (2 consecutive): pass
+  - [prod-ui-smoke-chat-alignment-postdeploy-1.json](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/prod-ui-smoke-chat-alignment-postdeploy-1.json)
+
+4. Proof bundle + release note:
+- [README.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/README.md)
+- [2026-03-12-chat-runtime-contract-alignment.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/releases/2026-03-12-chat-runtime-contract-alignment.md)

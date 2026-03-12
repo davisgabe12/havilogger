@@ -52,7 +52,7 @@ What is constrained or incomplete:
 | Routing | Heuristic ask/log/mixed/task | Fix | Introduce typed route contract with confidence and arbitration | Reduce misroutes and wrong writes |
 | Writes | Mixed parsing/time can misbehave | Fix | Deterministic write guardrails; model never writes directly | Data integrity |
 | Context usage | Context exists but is uneven in composition | Fix | Mandatory context pack in interpretation/composition | Consistent personalization |
-| Prompt ownership | Frontend `model_request` + backend prompts coexist | Refactor | Single backend prompt/model adapter owner | Stop drift and confusion |
+| Prompt ownership | Legacy smoke payload carried `model_request` though API ignores it | Fix | Remove `model_request` from core smoke payloads; backend remains single prompt/model owner | Stop drift and confusion |
 | Legacy/partial code paths | Dead/partial paths still present | Refactor | Deprecate and remove after parity gates | Lower operational complexity |
 | Feedback | Endpoint/UI contract is partially brittle | Fix | Align payload/UUID/auth/tests and add telemetry tags | Trustworthy quality signal |
 
@@ -63,7 +63,7 @@ What is constrained or incomplete:
 2. Canonical `ChatOrchestrator` owns turn lifecycle for `/api/v1/activities`.
 3. `ContextPackBuilder` runs every turn and provides typed context to router/composer.
 4. `IntentRouter` returns strict output schema:
-   - `route_kind`: `ASK | LOG | MIXED | TASK | MEMORY_EXPLICIT | MEMORY_INFERRED`
+   - `route_kind`: `ask | log | mixed | task | MEMORY_EXPLICIT | MEMORY_INFERRED`
    - `confidence`: `0..1`
    - `decision_source`: `rule | model | arbitration`
    - `log_segments[]`, `question_segments[]`, `memory_candidate`
@@ -123,6 +123,10 @@ Sync rule:
 21. Quality snapshot now uses the shared telemetry rollup contract (`apps/api/app/telemetry_rollup.py`) so production thresholds and alarm semantics stay consistent across reporting scripts.
 22. Telemetry table migration path is tracked at `docs/canonical/supabase/012_chat_route_telemetry.sql` (applied source of truth for full turn-level production telemetry).
 23. As of March 9, 2026, production telemetry rollups are reading from `chat_route_telemetry` (live turn-level source). Remaining rollout blocker is fallback-rate reduction after OpenAI flag activation redeploy.
+24. `ContextPackBuilder` v1 is now active in `/api/v1/activities` and supplies typed turn context: message history, child profile/timezone, age weeks, active knowledge, and pending knowledge.
+25. Memory route contract is now explicit in runtime metadata: `MEMORY_EXPLICIT` for explicit save commands and `MEMORY_INFERRED` for inferred-memory turns.
+26. `ChatResponse` contract no longer includes `ui_nudges`; nudges remain internal-only composition hints and are not part of API output.
+27. Core production smoke payloads no longer include `model_request`.
 
 ## Execution Progress (March 5, 2026)
 1. Landed commits:
@@ -291,8 +295,8 @@ Safety/quality requirements:
 
 ## Data, API, and UX Notes
 1. API should return route metadata in `ChatResponse` for eval/debug visibility.
-2. Frontend should stop owning effective prompt behavior (`model_request` currently not authoritative).
-3. `ui_nudges` contract must be either consumed in web UI or removed from response contract.
+2. Prompt/runtime ownership is backend-only for chat behavior; core smoke payload no longer sends `model_request`.
+3. `ui_nudges` has been removed from the API response contract to eliminate dead contract surface.
 4. Session naming behavior should be explicitly defined and tested in canonical path.
 5. Feedback write path should include stable route/model/version metadata for analysis.
 
@@ -326,7 +330,26 @@ Safety/quality requirements:
 6. Require GREEN e2e pass and production smoke pass alongside golden eval gates before rollout expansion.
 
 ## Open Questions
-1. Should inferred memory confirmations be visible inline every time, or bundled via UI nudges?
-2. What is the minimum required context pack for a valid ask reply?
-3. Which model/version is default for classifier vs composer, and are they split?
-4. Should session titles include date by default, or be content-only?
+Resolved in this slice:
+1. `ui_nudges` is removed from API output contract.
+2. Core smoke payload no longer includes `model_request`.
+
+Remaining:
+1. What is the minimum required context pack for a valid ask reply?
+2. Which model/version is default for classifier vs composer, and are they split?
+3. Should session titles include date by default, or be content-only?
+
+## Progress Update (March 12, 2026, chat runtime contract alignment)
+1. Runtime contract alignment completed in canonical path:
+- `ContextPackBuilder` v1 now runs per turn and injects typed child/age/knowledge context.
+- Memory routes are explicit in runtime metadata: `MEMORY_EXPLICIT`, `MEMORY_INFERRED`.
+- `ui_nudges` removed from `ChatResponse` output contract.
+- Core smoke payload no longer includes `model_request`.
+
+2. Validation outcome:
+- Targeted API tests passed (`36 passed`).
+- Pre-deploy core + UI gates passed.
+- API deployed to production (`194a02ba-6e96-43b7-88d2-9a29fae02622`, `SUCCESS`).
+- Post-deploy core + UI gates passed.
+- Curated proof bundle published at:
+  - [README.md](/Users/gabedavis/Desktop/projects/havilogger/docs/active/green-proof/releases/2026-03-12-chat-runtime-contract-alignment/README.md)
