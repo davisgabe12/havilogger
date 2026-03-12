@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 5, 2026
+Last updated: March 12, 2026
 
 # Active Docs
 
@@ -21,3 +21,5 @@ This folder contains in-progress planning and dated execution state.
    - archive if no longer relevant.
 4. Use `specs/` for requirement-level docs (goals, non-goals, contracts, acceptance criteria).
 5. Use `plan/` for execution sequencing docs (phases, rollout checklists, milestone choreography).
+6. Before coding starts, ensure a matching active spec exists for the feature slice.
+7. After ship, move finalized feature specs from `docs/active/specs/` to `docs/canonical/completed-specs/` so active specs only represent in-flight work.

@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 10, 2026
+Last updated: March 12, 2026
 
 # Havi Autonomous Run Checklist
 
@@ -15,12 +15,20 @@ Ship meaningful progress safely with minimal user interruption, while keeping is
 2. Pull latest context from:
 `docs/canonical/ops/havi-session-bootstrap.md`
 `docs/active/current-state/triage-migration-2026-03-04.md`
-3. Select one thin fix slice.
-4. Implement root-cause fix (avoid broad unrelated refactors).
-5. Run targeted tests for touched logic.
-6. Run build/runtime smoke as needed.
-7. Document outcome and residual risks.
-8. Commit and push when the slice is stable.
+3. Confirm there is an active spec under `docs/active/specs/` for the current feature.
+4. Select one thin fix slice.
+5. Implement root-cause fix (avoid broad unrelated refactors).
+6. Run targeted tests for touched logic.
+7. Run build/runtime smoke as needed.
+8. Document outcome and residual risks.
+9. Commit and push when the slice is stable.
+
+## Feature Work Location (Required)
+
+1. Keep local `main` as a clean integration branch, not a feature-coding branch.
+2. Do feature work in a dedicated git worktree and feature branch (`codex/<feature-name>`).
+3. Keep one feature slice per worktree to reduce merge conflicts.
+4. Integrate back to `main` only after tests/docs are green.
 
 ## Quality Gates (Hard)
 
@@ -35,7 +43,22 @@ if production behavior changes, run production smoke before closeout.
 and keep both release gate summaries under `docs/active/green-proof/`.
 5. If Railway deploy via `npx @railway/cli` fails in sandbox with DNS errors, switch to cached Railway CLI binary and rerun with elevated permissions before retrying smoke gates.
 6. If API deploy is required, use `./scripts/prod_api_deploy_wait.sh` to prevent mixed root-context deployments and ensure latest deployment is Python + `railway.toml` before running smoke gates.
-6. Keep docs in sync when behavior changes.
+7. Keep code, tests, and docs in sync in the same feature slice.
+8. Keep docs in sync when behavior changes.
+
+## Spec Lifecycle (Required)
+
+1. Before first code edit, create or update a feature spec in `docs/active/specs/`.
+2. During execution, append a `Progress Updates` section in `docs/active/current-state/session-notes.md` as work happens.
+3. At ship time, move completed spec snapshots to `docs/canonical/completed-specs/` and leave active docs focused on unfinished work.
+4. If scope is unfinished, keep the spec in `docs/active/specs/` with explicit remaining work and risks.
+
+## QA Gate For User-Facing Features (Required)
+
+1. Run targeted unit/integration tests for touched backend/frontend behavior.
+2. Run deterministic app smoke for core user journey (`./scripts/e2e_green.sh` with seed reset when needed).
+3. Run production release gate for deploy slices (`./scripts/prod_release_gate.sh` before/after labels).
+4. If guidance quality or UX behavior fails, block release, file issue with repro + recommended fix, then rerun gate.
 
 ## Issue Discovery While Doing Other Work
 

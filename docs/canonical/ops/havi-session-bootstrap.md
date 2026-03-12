@@ -1,11 +1,14 @@
 Status: current
-Last updated: March 10, 2026
+Last updated: March 12, 2026
 
 # Havi Session Bootstrap
 
 ## User Job To Be Done (JTBD)
 
 Parents and caregivers need one calm place to quickly capture what happened with their child, get trustworthy next-step guidance, and keep everyone aligned without carrying the full mental load alone.
+
+Project profile source:
+`/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/product/havi-project-profile.md`
 
 ## What Havi Does (High Level)
 
@@ -59,6 +62,20 @@ Havi is a parent/caregiver copilot that:
 2. API: FastAPI on Railway (`api-production-0a5d.up.railway.app`).
 3. Data/Auth: Supabase (shared dev/prod project for now).
 4. Supabase is remote/shared in current setup; local runs do not use a local SQL database.
+
+## Where Feature Work Happens
+
+1. Feature coding happens in a dedicated git worktree on a feature branch (`codex/<feature-name>`).
+2. Local `main` is used as a clean integration branch and should stay releasable.
+3. Integrate feature work back to `main` only after tests and docs are updated and passing.
+4. Keep each worktree scoped to one feature slice to reduce merge conflicts and rollback risk.
+
+## Spec And Docs Lifecycle
+
+1. Every feature starts with an active spec in `docs/active/specs/` with goal, acceptance criteria, and non-goals.
+2. As implementation progresses, append `Progress Updates` to `docs/active/current-state/session-notes.md`.
+3. When shipped, move the final spec snapshot to `docs/canonical/completed-specs/`.
+4. Keep `docs/active/specs/` for in-flight work only, so open specs are not confused with shipped behavior.
 
 ## Fast Local Start
 
@@ -147,6 +164,17 @@ cd /Users/gabedavis/Desktop/projects/havilogger
 
 This command deploys from `apps/api`, waits for completion, and validates the latest deployment metadata (`provider=python`, `config=railway.toml`) before continuing to smoke gates.
 
+## Context And Tool Readiness (Session Start)
+
+1. Context familiarization:
+   - scan relevant code/docs for current slice (`rg`, targeted file reads).
+2. Linear readiness:
+   - verify MCP access before triage/ticket updates; if unavailable, mark `Linear issue: pending` in session notes.
+3. Playwright readiness:
+   - verify Playwright path before UI-flow validation so browser checks do not block late.
+4. Approval priming:
+   - request narrowly scoped reusable approvals early for expected commands/tools to reduce mid-flow interruptions.
+
 ## Production Smoke Minimum
 
 1. `https://gethavi.com` returns 200.
@@ -172,6 +200,7 @@ This command deploys from `apps/api`, waits for completion, and validates the la
 1. Read this file and `docs/active/current-state/triage-migration-2026-03-04.md`.
 2. Read `docs/canonical/ops/havi-autonomous-run-checklist.md` when running autonomously.
 3. Check git status + latest commit context.
-4. Run local or production smoke depending on task scope.
-5. Confirm top P0/P1 items and pick first fix slice.
-6. Implement -> test -> deploy (if needed) -> smoke -> document outcome.
+4. Confirm active feature spec exists under `docs/active/specs/` (or create it).
+5. Run local or production smoke depending on task scope.
+6. Confirm top P0/P1 items and pick first fix slice.
+7. Implement -> test -> deploy (if needed) -> smoke -> document outcome.

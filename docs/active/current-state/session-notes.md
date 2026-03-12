@@ -464,3 +464,43 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/releases/2026-03-12-chat-runtime-contract-alignment.md`
 - Risks/follow-ups:
   - Local primary repo still contains out-of-scope conflict markers; keep this slice isolated to clean chat-alignment commits only.
+
+## 2026-03-12
+
+- Objective: Align execution process for parallel worktrees, spec lifecycle hygiene, and QA gate discipline.
+- Scope completed:
+  - Updated canonical autonomous checklist to require feature work in dedicated worktrees, active spec presence before coding, and explicit QA gate steps.
+  - Updated session bootstrap runbook with clear `where feature work happens` and `spec/docs lifecycle` guidance.
+  - Updated active/canonical README files to standardize spec promotion from `docs/active/specs/` to `docs/canonical/completed-specs/` after ship.
+  - Added proposed QA gate skill spec to make pre-release resilience checks repeatable.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-autonomous-run-checklist.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-session-bootstrap.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/README.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/README.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/README.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/_feature-spec-template.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/qa-gate-skill-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - Documentation/process update only; no runtime code paths changed.
+- Risks/follow-ups:
+  - QA gate skill remains `Status: proposed` until implemented as a real Codex skill and script.
+
+## 2026-03-12
+
+- Objective: Add canonical project-profile context and strengthen bootstrap readiness workflow.
+- Scope completed:
+  - Added canonical project profile doc with JTBD, users, invariants, quality gates, and reusable profile contract.
+  - Updated canonical bootstrap runbook to reference project profile and require context/tool readiness.
+  - Updated bootstrap skill to require context familiarization, Linear/Playwright readiness checks, and early approval priming.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/product/havi-project-profile.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/README.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-session-bootstrap.md`
+  - `/Users/gabedavis/.codex/skills/havi-session-bootstrap/SKILL.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - Documentation/skill workflow update only; no runtime code paths changed.
+- Risks/follow-ups:
+  - Bootstrap skill now depends on the presence of the canonical project profile path for best results.

@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 5, 2026
+Last updated: March 12, 2026
 
 # Canonical Docs
 
@@ -14,6 +14,7 @@ This folder contains the current source of truth for Havi behavior.
 5. Production verification runbooks (for example, `ops/production-core-smoke.md`).
 6. Deployment/release runbooks (for example, `ops/deploy-and-release.md`).
 7. Completed shipped spec snapshots in `completed-specs/` (point-in-time implementation record).
+8. Canonical project profile docs under `product/` (for example, `product/havi-project-profile.md`).
 
 ## What does not belong here
 
@@ -28,6 +29,8 @@ If a canonical doc is no longer accurate, move it to `docs/archive/` or update i
    - `design/`, `ops/`, `product/`, testing and architecture docs.
 2. Completed shipped spec snapshots:
    - `completed-specs/` for "what we shipped at the time" records.
+3. Promotion rule:
+   - shipped feature specs move from `docs/active/specs/` to `docs/canonical/completed-specs/` in the same closeout slice.
 
 ## Design System Canonical Sources
 
