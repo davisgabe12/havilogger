@@ -279,7 +279,7 @@ def test_list_knowledge_empty_returns_list():
     assert result == []
 
 
-def test_task_create_and_list_scope_family_child():
+def test_task_create_and_list_scope_family_child(monkeypatch):
     child_id = str(uuid4())
     created_id = str(uuid4())
     created_at = "2025-01-01T00:00:00Z"
@@ -310,6 +310,7 @@ def test_task_create_and_list_scope_family_child():
         select_queue={"tasks": [[]]},
     )
     auth = _auth_with_supabase(fake)
+    monkeypatch.setattr("app.routes.tasks.get_admin_client", lambda: fake)
 
     payload = CreateTaskPayload(title="Call pediatrician", child_id=child_id)
     task = asyncio.run(
