@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 12, 2026
+Last updated: March 18, 2026
 
 # Havi Session Bootstrap
 
@@ -170,6 +170,12 @@ This command deploys from `apps/api`, waits for completion, and validates the la
 
 ```bash
 ./scripts/qa_gate.sh --label <slice-name> --areas <csv> --playwright-cmd "<playwright-command>"
+```
+
+For `--deploy-scope web` or `--deploy-scope both`, QA gate also requires mobile Chrome side-tray proof and will run:
+
+```bash
+cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav
 ```
 
 ## Context And Tool Readiness (Session Start)

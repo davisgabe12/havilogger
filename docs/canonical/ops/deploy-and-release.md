@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 10, 2026
+Last updated: March 18, 2026
 
 # HAVI Deploy And Release Runbook
 
@@ -103,8 +103,15 @@ Create:
 Include:
 1. core smoke JSON report
 2. GREEN pass artifact (txt/json/log)
-3. 3-8 key screenshots
+3. 3-8 key screenshots (for web slices include mobile side-tray open + post-navigation screenshots)
 4. `README.md` with commit, commands, and pass/fail summary
+
+For web deploy slices, include explicit mobile nav proof run:
+
+```bash
+cd apps/web
+PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav
+```
 
 7. Write release note
 

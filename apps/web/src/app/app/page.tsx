@@ -5529,7 +5529,7 @@ export default function Home() {
             className="absolute inset-0 bg-[color:var(--havi-app-overlay-bg)]"
             onClick={() => setNavOpen(false)}
           />
-          <aside className="havi-app-sidebar relative z-10 h-full w-72 p-4 md:flex">
+          <aside className="havi-app-sidebar relative z-10 flex h-full w-72 flex-col p-4 md:flex">
             <div className="flex items-center justify-between pb-4">
               <span className="text-sm font-semibold">HAVI</span>
               <Button

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DEFAULT="/Users/gabedavis/Desktop/projects/havilogger"
-ROOT_DIR="$ROOT_DEFAULT"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PWD_GIT_ROOT="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+ROOT_DEFAULT="${PWD_GIT_ROOT:-$SCRIPT_REPO_ROOT}"
+ROOT_DIR="${ROOT_DEFAULT}"
 LABEL="manual-$(date +%Y%m%d%H%M%S)"
 CHANGED_AREAS=""
 DEPLOY_SCOPE="none"
@@ -11,6 +14,7 @@ RUN_GREEN=1
 RUN_PLAYWRIGHT=1
 RUN_RELEASE_GATE=1
 PLAYWRIGHT_CMD=""
+MOBILE_PLAYWRIGHT_CMD=""
 DRY_RUN=0
 ARTIFACT_ROOT=""
 declare -a TEST_CMDS
@@ -25,12 +29,13 @@ Options:
   --deploy-scope SCOPE           one of: none|api|web|both (default: none)
   --test-cmd "COMMAND"           Repeatable. Targeted test command(s) to execute.
   --playwright-cmd "COMMAND"     Playwright validation command for changed UX flow.
+  --mobile-playwright-cmd "..."  Optional override for required mobile nav proof (web|both deploy scope).
   --skip-tests                   Skip targeted tests step.
   --skip-green                   Skip deterministic GREEN step.
   --skip-playwright              Skip Playwright flow step.
   --skip-release-gate            Skip production release gate step.
   --artifact-root PATH           Output folder root (default: docs/active/green-proof/releases)
-  --repo-root PATH               Havi repo root (default: /Users/gabedavis/Desktop/projects/havilogger)
+  --repo-root PATH               Havi repo root (default: detected git toplevel or script repo root)
   --dry-run                      Print commands and create summary without executing commands.
   --help                         Show help.
 
@@ -40,7 +45,8 @@ Examples:
     --playwright-cmd "cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green"
 
   ./scripts/qa_gate.sh --label invite-flow --areas auth,onboarding --deploy-scope both \
-    --test-cmd "cd apps/api && ../../.venv/bin/pytest tests/test_invites.py -q"
+    --test-cmd "cd apps/api && ../../.venv/bin/pytest tests/test_invites.py -q" \
+    --mobile-playwright-cmd "cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav"
 USAGE
 }
 
@@ -78,6 +84,11 @@ while [[ $# -gt 0 ]]; do
     --playwright-cmd)
       require_arg "$1" "${2:-}"
       PLAYWRIGHT_CMD="$2"
+      shift 2
+      ;;
+    --mobile-playwright-cmd)
+      require_arg "$1" "${2:-}"
+      MOBILE_PLAYWRIGHT_CMD="$2"
       shift 2
       ;;
     --skip-tests)
@@ -137,6 +148,11 @@ if [[ ! -d "$ROOT_DIR" ]]; then
 fi
 
 cd "$ROOT_DIR"
+
+if [[ ! -f "$ROOT_DIR/scripts/qa_gate.sh" ]]; then
+  echo "Repo root missing scripts/qa_gate.sh: $ROOT_DIR" >&2
+  exit 1
+fi
 
 if [[ ${#TEST_CMDS[@]} -eq 0 && "$RUN_TESTS" -eq 1 ]]; then
   case ",$CHANGED_AREAS," in
@@ -211,7 +227,7 @@ run_step() {
 add_failure_note() {
   local step="$1"
   case "$step" in
-    tests)
+    tests|tests_*)
       echo "- tests: update/fix touched tests or code path; re-run targeted suite before release."
       ;;
     green)
@@ -219,6 +235,9 @@ add_failure_note() {
       ;;
     playwright)
       echo "- playwright: update flow assertions or fix UX regression in changed feature path."
+      ;;
+    mobile_playwright)
+      echo "- mobile_playwright: mobile Chrome nav proof failed; verify side tray open/navigation/close behavior and screenshot evidence."
       ;;
     release_gate_before|release_gate_after)
       echo "- release gate: investigate deploy/runtime mismatch; do not ship until gate passes."
@@ -252,6 +271,15 @@ if [[ "$RUN_PLAYWRIGHT" -eq 1 ]]; then
   fi
 else
   record_step "playwright" "optional" "skipped" "0" "$LOG_DIR/playwright.log"
+fi
+
+if [[ "$DEPLOY_SCOPE" == "web" || "$DEPLOY_SCOPE" == "both" ]]; then
+  if [[ -z "$MOBILE_PLAYWRIGHT_CMD" ]]; then
+    MOBILE_PLAYWRIGHT_CMD="cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav"
+  fi
+  run_step "mobile_playwright" "required" "$MOBILE_PLAYWRIGHT_CMD"
+else
+  record_step "mobile_playwright" "optional" "skipped" "0" "$LOG_DIR/mobile_playwright.log"
 fi
 
 if [[ "$RUN_RELEASE_GATE" -eq 1 && "$DEPLOY_SCOPE" != "none" ]]; then

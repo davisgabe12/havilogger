@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 12, 2026
+Last updated: March 18, 2026
 
 # Havi Autonomous Run Checklist
 
@@ -57,8 +57,9 @@ and keep both release gate summaries under `docs/active/green-proof/`.
 
 1. Run targeted unit/integration tests for touched backend/frontend behavior.
 2. Run deterministic app smoke for core user journey (`./scripts/e2e_green.sh` with seed reset when needed).
-3. Run production release gate for deploy slices (`./scripts/prod_release_gate.sh` before/after labels).
-4. If guidance quality or UX behavior fails, block release, file issue with repro + recommended fix, then rerun gate.
+3. For web deploy slices (`--deploy-scope web|both`), run required mobile Chrome side-tray proof (`npm run test:green:mobile-nav`) with screenshot artifacts.
+4. Run production release gate for deploy slices (`./scripts/prod_release_gate.sh` before/after labels).
+5. If guidance quality or UX behavior fails, block release, file issue with repro + recommended fix, then rerun gate.
 
 ## Issue Discovery While Doing Other Work
 

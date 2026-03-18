@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 import dotenv from "dotenv";
 
@@ -26,6 +26,24 @@ export default defineConfig({
     screenshot: "off",
     trace: traceMode,
   },
+  projects: [
+    {
+      name: "desktop-chromium",
+      testIgnore: /tests\/smoke\/mobile-nav\.smoke\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+      },
+    },
+    {
+      name: "mobile-chrome",
+      testMatch: /tests\/smoke\/mobile-nav\.smoke\.spec\.ts/,
+      use: {
+        ...devices["Pixel 7"],
+        browserName: "chromium",
+        channel: "chrome",
+      },
+    },
+  ],
   webServer: shouldStartServers
     ? [
         {

@@ -191,6 +191,22 @@ describe("App layout – mobile overlay behaviour", () => {
     fireEvent.click(menuButtons[0]);
     expect(screen.getByTestId("mobile-side-sign-out")).toBeInTheDocument();
   });
+
+
+  it("renders mobile side tray as visible flex column container", async () => {
+    await renderHome();
+    const menuButtons = screen.getAllByRole("button", { name: "Menu" });
+    fireEvent.click(menuButtons[0]);
+
+    const traySignOut = screen.getByTestId("mobile-side-sign-out");
+    const tray = traySignOut.closest("aside");
+    expect(tray).not.toBeNull();
+
+    const className = tray?.className ?? "";
+    expect(className).toContain("flex");
+    expect(className).toContain("flex-col");
+    expect(className.split(/\s+/)).not.toContain("hidden");
+  });
 });
 
 describe("Home zones – V1 foundations", () => {

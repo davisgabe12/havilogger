@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 12, 2026
+Last updated: March 18, 2026
 
 # Havi QA Gate Skill Spec
 
@@ -90,3 +90,5 @@ Create a dedicated QA gate skill that stress-checks newly shipped feature slices
 - March 12, 2026: Implemented repo orchestrator script at `scripts/qa_gate.sh`.
 - March 12, 2026: Added skill wrapper under `~/.codex/skills/havi-qa-gate`.
 - March 12, 2026: Implemented required output artifacts (`qa-gate-summary.json`, `README.md`, step logs) and fail-on-required-step behavior.
+- March 18, 2026: Added required `mobile_playwright` step for `--deploy-scope web|both` with default command `npm run test:green:mobile-nav`.
+- March 18, 2026: Added worktree-safe repo-root detection in `scripts/qa_gate.sh` and in skill wrapper (`~/.codex/skills/havi-qa-gate/scripts/run.sh`).
