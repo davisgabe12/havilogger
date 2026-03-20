@@ -272,10 +272,32 @@
     backdrop-filter: none;
   }
 
-  .havi-chat-theme .havi-chat-scroll {
-    background: var(--havi-chat-canvas);
+  .havi-chat-theme .havi-card-shell {
     border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .havi-chat-theme .havi-chat-scroll {
+    background: var(--havi-chat-canvas) !important;
+    border-color: transparent !important;
     color: var(--havi-chat-text);
+    box-shadow: none;
+  }
+
+  .havi-chat-theme .havi-chat-scroll [data-slot="scroll-area-viewport"] {
+    background: var(--havi-chat-canvas);
+  }
+
+  .havi-chat-theme .havi-chat-context-row .havi-select {
+    background: var(--havi-chat-surface);
+    border-color: var(--havi-chat-border);
+    color: var(--havi-chat-text);
+  }
+
+  .havi-chat-theme .havi-chat-context-row .havi-select:hover:enabled {
+    border-color: color-mix(in srgb, var(--havi-chat-border) 84%, #000);
   }
 
   .havi-chat-theme .havi-chat-composer {
