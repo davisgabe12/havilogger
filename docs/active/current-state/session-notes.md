@@ -33,6 +33,8 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/canonical/running-locally.md`
   - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/active/specs/full-viewport-app-shell-spec.md`
   - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/active/current-state/session-notes.md`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/active/green-proof/prod-release-gate-before-full-viewport-app-shell-20260320.json`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/active/green-proof/prod-release-gate-after-full-viewport-app-shell-20260320.json`
 - Tests/smoke checks run:
   - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/worktree_bootstrap.sh --check-only` (initially failed: missing Jest)
   - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/worktree_bootstrap.sh` (passes; installs web deps)
@@ -40,9 +42,13 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx --runInBand` (passes)
   - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web && NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test_anon NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run build` (passes)
   - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/havi_session_orchestrator.sh --feature "permission-prime-smoke" --repo-root "/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell" --worktrees-root "/Users/gabedavis/Desktop/projects/havi-worktrees" --no-fetch --dry-run` (passes)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && HAVI_RELEASE_LABEL=before-full-viewport-app-shell-20260320 ./scripts/prod_release_gate.sh` (passes)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web && npx vercel --prod --yes` (passes, aliased to `https://gethavi.com`)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && HAVI_RELEASE_LABEL=after-full-viewport-app-shell-20260320 ./scripts/prod_release_gate.sh` (passes)
 - Results:
   - 1A/1B structural refactor implemented in code and validated with targeted layout tests + production build.
   - Worktree bootstrap/readiness gap is closed with script + orchestrator + doc/skill updates.
+  - Production deploy completed and both before/after release gates passed.
 - Risks/follow-ups:
   - Large monolithic app page remains a maintainability risk; future slices should continue extracting shell/panel primitives.
   - Build currently requires explicit env vars in this session context; ensure local `.env.local` is present for fully representative local builds.

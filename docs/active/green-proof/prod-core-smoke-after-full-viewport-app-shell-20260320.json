@@ -1,0 +1,103 @@
+{
+  "run_label": "after-full-viewport-app-shell-20260320",
+  "timestamp_utc": "2026-03-20T21:16:06Z",
+  "site_base_url": "https://gethavi.com",
+  "api_base_url": "https://api-production-0a5d.up.railway.app",
+  "existing_email": "gdavis12+smoke0303a@gmail.com",
+  "new_email": "gdavis12+prodsmoke20260320141511@gmail.com",
+  "http_checks": {
+    "site_root": "200",
+    "sign_in": "200",
+    "sign_up": "200",
+    "api_health": "200"
+  },
+  "flow_count": 2,
+  "flows": [
+    {
+      "label": "existing-account",
+      "mode": "login",
+      "email": "gdavis12+smoke0303a@gmail.com",
+      "family_id": "fb4449b5-3837-4c23-99db-21090355b06a",
+      "child_id": "0892df81-4b08-470b-9a36-d729ca8d6360",
+      "conversation_id": "a177bf0c-783d-450a-bc4e-404b1fbf7205",
+      "task_id": "ab76a820-823b-4472-a2fb-5f62f21ca249",
+      "auto_title": "Baby pooped 3pm existing-account · Mar 20, 2026",
+      "renamed_title": "Smoke title existing-account 20260320141511",
+      "title_after_follow_up": "Smoke title existing-account 20260320141511",
+      "tracking_intent": "logging",
+      "guidance_intent": "question",
+      "tracking_actions": 1,
+      "guidance_actions": 0,
+      "events_before": 0,
+      "events_after_tracking": 1,
+      "events_after_guidance": 1,
+      "turn_telemetry": [
+        {
+          "turn": "tracking",
+          "expected_route_kind": "log",
+          "route_kind": "log",
+          "decision_source": "rule",
+          "classifier_intent": "logging",
+          "confidence": 0.82,
+          "classifier_fallback_reason": "deterministic_logging",
+          "composer_source": "rule",
+          "composer_fallback_reason": ""
+        },
+        {
+          "turn": "guidance",
+          "expected_route_kind": "ask",
+          "route_kind": "ask",
+          "decision_source": "model",
+          "classifier_intent": "health_sleep_question",
+          "confidence": 0.95,
+          "classifier_fallback_reason": "",
+          "composer_source": "rule",
+          "composer_fallback_reason": "model_unavailable_or_contract_invalid"
+        }
+      ]
+    },
+    {
+      "label": "new-signup",
+      "mode": "signup",
+      "email": "gdavis12+prodsmoke20260320141511@gmail.com",
+      "family_id": "bcbfe479-a97c-4aae-9ed0-80a7ad37d8f9",
+      "child_id": "9bb9ff86-4b99-4859-a1c2-c97af7918800",
+      "conversation_id": "ea6b86c9-79e1-48f4-88de-7a621c7458c0",
+      "task_id": "386c3b3d-c9e4-40b4-81fd-12fed03abf3f",
+      "auto_title": "Baby pooped 3pm new-signup · Mar 20, 2026",
+      "renamed_title": "Smoke title new-signup 20260320141511",
+      "title_after_follow_up": "Smoke title new-signup 20260320141511",
+      "tracking_intent": "logging",
+      "guidance_intent": "question",
+      "tracking_actions": 1,
+      "guidance_actions": 0,
+      "events_before": 0,
+      "events_after_tracking": 1,
+      "events_after_guidance": 1,
+      "turn_telemetry": [
+        {
+          "turn": "tracking",
+          "expected_route_kind": "log",
+          "route_kind": "log",
+          "decision_source": "rule",
+          "classifier_intent": "logging",
+          "confidence": 0.82,
+          "classifier_fallback_reason": "deterministic_logging",
+          "composer_source": "rule",
+          "composer_fallback_reason": ""
+        },
+        {
+          "turn": "guidance",
+          "expected_route_kind": "ask",
+          "route_kind": "ask",
+          "decision_source": "model",
+          "classifier_intent": "health_sleep_question",
+          "confidence": 0.95,
+          "classifier_fallback_reason": "",
+          "composer_source": "rule",
+          "composer_fallback_reason": "model_unavailable_or_contract_invalid"
+        }
+      ]
+    }
+  ]
+}

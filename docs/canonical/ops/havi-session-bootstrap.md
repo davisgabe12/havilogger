@@ -74,6 +74,7 @@ Havi is a parent/caregiver copilot that:
 6. Do not start coding until worktree dependency readiness passes:
    - `./scripts/worktree_bootstrap.sh --check-only`
    - If not ready, run `./scripts/worktree_bootstrap.sh` and re-check.
+   - Bootstrap also syncs missing `apps/web/.env.local` and `apps/api/.env.local` from `/Users/gabedavis/Desktop/projects/havilogger`.
 
 ## Spec And Docs Lifecycle
 

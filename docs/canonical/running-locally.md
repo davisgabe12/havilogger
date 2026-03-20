@@ -20,6 +20,8 @@ cd /path/to/worktree
 ./scripts/worktree_bootstrap.sh
 ```
 
+`worktree_bootstrap.sh` also syncs `apps/web/.env.local` and `apps/api/.env.local` from `/Users/gabedavis/Desktop/projects/havilogger` when missing, so Supabase keys are available for smoke/build commands in new worktrees.
+
 Readiness check only:
 
 ```bash

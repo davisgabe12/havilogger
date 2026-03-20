@@ -4,6 +4,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKTREE_PATH=""
 CHECK_ONLY=0
+SYNC_ENV=1
+ENV_SOURCE_ROOT="/Users/gabedavis/Desktop/projects/havilogger"
 
 usage() {
   cat <<'USAGE'
@@ -12,13 +14,17 @@ Usage: worktree_bootstrap.sh [options]
 Options:
   --worktree PATH   Target worktree path (default: current directory)
   --check-only      Verify readiness only; do not install missing deps
+  --no-sync-env     Do not copy env files from source repo when missing
+  --sync-env-from PATH
+                   Source repo path for env files (default: /Users/gabedavis/Desktop/projects/havilogger)
   --help            Show help
 
 Behavior:
   1) Verifies apps/web exists in the target worktree.
   2) Checks for apps/web/node_modules/.bin/jest.
   3) If missing and not check-only, runs npm ci in apps/web.
-  4) Fails fast if Jest is still unavailable.
+  4) Optionally copies apps/web/.env.local and apps/api/.env.local when missing.
+  5) Fails fast if Jest is still unavailable.
 USAGE
 }
 
@@ -42,6 +48,15 @@ while [[ $# -gt 0 ]]; do
       CHECK_ONLY=1
       shift
       ;;
+    --no-sync-env)
+      SYNC_ENV=0
+      shift
+      ;;
+    --sync-env-from)
+      require_arg "$1" "${2:-}"
+      ENV_SOURCE_ROOT="$2"
+      shift 2
+      ;;
     --help)
       usage
       exit 0
@@ -64,6 +79,30 @@ JEST_BIN="$WEB_DIR/node_modules/.bin/jest"
 if [[ ! -d "$WEB_DIR" ]]; then
   echo "Invalid worktree. Missing web app directory: $WEB_DIR" >&2
   exit 1
+fi
+
+sync_env_file() {
+  local rel_path="$1"
+  local src="$ENV_SOURCE_ROOT/$rel_path"
+  local dst="$WORKTREE_PATH/$rel_path"
+
+  if [[ -f "$dst" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$src" ]]; then
+    echo "[warn] Missing source env file: $src" >&2
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$dst")"
+  cp "$src" "$dst"
+  echo "[info] Synced env file: $rel_path"
+}
+
+if [[ "$SYNC_ENV" -eq 1 ]]; then
+  sync_env_file "apps/web/.env.local"
+  sync_env_file "apps/api/.env.local"
 fi
 
 if [[ -x "$JEST_BIN" ]]; then
