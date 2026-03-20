@@ -15,6 +15,32 @@ Use this log for every coding session, regardless of whether Linear was updated.
 
 ---
 
+## 2026-03-20
+
+- Objective: Ship chat-first oat palette inversion (dark-on-light) with walnut sidebar and matte bubble depth, keeping behavior/contracts stable.
+- Scope completed:
+  - Added chat-scoped theme activation on app frame when `activePanel === "havi"`.
+  - Implemented chat-only palette tokens and surface overrides (canvas, sidebar, header/scroll/composer/input/send).
+  - Updated message bubble visuals to use matte assistant/user tones plus subtle border/shadow depth.
+  - Added active slice spec for chat-first palette rollout.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havilogger/apps/web/src/components/chat/message-bubble.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/specs/chat-oat-palette-chat-slice-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/session-notes.md`
+- Tests/smoke checks run:
+  - `cd apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx src/components/chat/__tests__/message-bubble.test.tsx`
+  - `cd apps/web && npm run build`
+- Results:
+  - Targeted suites pass (`2/2`, `24` tests).
+  - Production build passes.
+  - Chat palette direction is implemented in code and ready for deploy verification screenshots.
+- Risks/follow-ups:
+  - Local dev server health checks intermittently fail in this sandbox session; production screenshot verification is used as final visual gate.
+  - Remaining surfaces (tasks/settings/auth/marketing) still pending their dedicated rollout checkpoints.
+- Linear issue(s): pending
+
 ## 2026-03-11
 
 - Objective: Unblock production deploy by resolving auth sign-in merge conflict and verify live health after deploy.

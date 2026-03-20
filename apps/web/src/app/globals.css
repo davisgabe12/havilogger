@@ -225,6 +225,82 @@
     box-shadow: 0 12px 28px color-mix(in srgb, var(--havi-app-panel-shadow) 54%, transparent);
     backdrop-filter: blur(10px);
   }
+
+  .havi-chat-theme {
+    --havi-chat-canvas: #ede8de;
+    --havi-chat-bubble-assistant: #e3ddd3;
+    --havi-chat-bubble-user: #d6d0c5;
+    --havi-chat-surface: #e6e0d5;
+    --havi-chat-border: #c9c0b4;
+    --havi-chat-shadow: rgba(42, 34, 26, 0.09);
+    --havi-chat-text: #2a251f;
+    --havi-chat-muted: #62584b;
+    --havi-chat-sidebar: #2e2720;
+  }
+
+  .havi-chat-theme .havi-app-main {
+    background: var(--havi-chat-canvas);
+  }
+
+  .havi-chat-theme .havi-app-sidebar {
+    background: var(--havi-chat-sidebar);
+    border-color: color-mix(in srgb, #000 10%, var(--havi-chat-sidebar));
+  }
+
+  .havi-chat-theme .havi-app-sidebar .text-muted-foreground {
+    color: color-mix(in srgb, #fff 64%, transparent);
+  }
+
+  .havi-chat-theme .havi-app-sidebar .text-foreground {
+    color: color-mix(in srgb, #fff 88%, transparent);
+  }
+
+  .havi-chat-theme .havi-chat-context-row {
+    color: var(--havi-chat-muted);
+  }
+
+  .havi-chat-theme .havi-chat-shell {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: 100%;
+  }
+
+  .havi-chat-theme .havi-chat-header {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .havi-chat-theme .havi-chat-scroll {
+    background: var(--havi-chat-canvas);
+    border-color: transparent;
+    color: var(--havi-chat-text);
+  }
+
+  .havi-chat-theme .havi-chat-composer {
+    background: var(--havi-chat-surface);
+    border-color: var(--havi-chat-border);
+    box-shadow: 0 1px 4px var(--havi-chat-shadow);
+  }
+
+  .havi-chat-theme .havi-chat-input {
+    color: var(--havi-chat-text);
+  }
+
+  .havi-chat-theme .havi-chat-input::placeholder {
+    color: color-mix(in srgb, var(--havi-chat-muted) 72%, transparent);
+  }
+
+  .havi-chat-theme .havi-chat-send {
+    background: var(--havi-moss);
+    color: var(--havi-fg-fog);
+    border: 1px solid color-mix(in srgb, #000 12%, var(--havi-moss));
+  }
+
+  .havi-chat-theme .havi-chat-send:hover:enabled {
+    filter: brightness(0.95);
+  }
 }
 
 @layer utilities {

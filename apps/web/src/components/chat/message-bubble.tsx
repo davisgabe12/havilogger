@@ -190,12 +190,12 @@ export function MessageBubble({
   };
 
   const bubbleClasses = cn(
-    "relative rounded-lg px-3 py-2 ring-offset-2 group",
+    "relative rounded-lg px-3 py-2 ring-offset-2 group border shadow-[0_2px_8px_rgba(42,34,26,0.08)]",
     isSelf
-      ? "bg-primary text-primary-foreground"
+      ? "bg-[var(--havi-chat-bubble-user,var(--color-primary))] text-[var(--havi-chat-text,var(--color-primary-foreground))] border-[color:var(--havi-chat-border,var(--color-border))]"
       : isAssistant
-        ? "bg-muted/40 text-muted-foreground"
-        : "bg-background/80 text-foreground border border-border/40",
+        ? "bg-[var(--havi-chat-bubble-assistant,var(--color-muted))] text-[var(--havi-chat-text,var(--color-foreground))] border-[color:var(--havi-chat-border,var(--color-border))]"
+        : "bg-[var(--havi-chat-surface,var(--color-background))] text-[var(--havi-chat-text,var(--color-foreground))] border-[color:var(--havi-chat-border,var(--color-border))]",
     isHighlighted && "ring-2 ring-primary/40",
   );
 
@@ -204,12 +204,12 @@ export function MessageBubble({
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
       {isAssistant ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted/80 text-[11px] font-semibold text-foreground">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--havi-chat-bubble-assistant,var(--color-muted))] text-[11px] font-semibold text-[var(--havi-chat-muted,var(--color-foreground))]">
           HAVI
         </span>
       ) : isCaregiver ? (
         showSenderLabel ? (
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--havi-chat-surface,var(--color-primary))] text-[11px] font-semibold text-[var(--havi-chat-muted,var(--color-primary))]">
             {getInitials(entry.senderName ?? "Caregiver")}
           </span>
         ) : (
@@ -244,7 +244,7 @@ export function MessageBubble({
             {entry.text}
           </p>
           {showTimestamp ? (
-            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-[var(--havi-chat-muted,var(--color-muted-foreground))]">
               <button
                 type="button"
                 className="rounded px-1"
@@ -268,7 +268,7 @@ export function MessageBubble({
         data-testid="message-bubble-wrapper"
       >
         {isCaregiver && showSenderLabel && entry.senderName ? (
-          <p className="mb-1 ml-1 text-xs font-medium text-muted-foreground">
+          <p className="mb-1 ml-1 text-xs font-medium text-[var(--havi-chat-muted,var(--color-muted-foreground))]">
             {entry.senderName}
           </p>
         ) : null}
@@ -291,7 +291,7 @@ export function MessageBubble({
             </p>
           )}
           {showTimestamp ? (
-            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-[var(--havi-chat-muted,var(--color-muted-foreground))]">
               <button
                 type="button"
                 className="rounded px-1"
@@ -300,7 +300,7 @@ export function MessageBubble({
                 {isPinned ? "Hide time" : formatTimestamp(createdAt, timezone ?? undefined)}
               </button>
               {entry.senderName ? (
-                <span className="inline-flex items-center gap-1 rounded bg-background/60 px-2 py-1 text-[10px] uppercase">
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--havi-chat-surface,var(--color-background))] px-2 py-1 text-[10px] uppercase">
                   {getInitials(entry.senderName)}
                 </span>
               ) : null}

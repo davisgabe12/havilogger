@@ -3442,7 +3442,10 @@ export default function Home() {
         data-settings-ready={settingsHydrated ? "1" : "0"}
         data-active-child-ready={hasResolvedCoreChild ? "1" : "0"}
         data-core-ready={appCoreReady ? "1" : "0"}
-        className="flex min-h-screen w-full"
+        className={cn(
+          "flex min-h-screen w-full",
+          activePanel === "havi" && "havi-chat-theme",
+        )}
       >
         <aside className="havi-app-sidebar">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -3506,7 +3509,7 @@ export default function Home() {
               {guard.error}
             </NoticeBanner>
           ) : null}
-          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="havi-chat-context-row mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>Active child</span>
             <Select
               id="active-child-select"
@@ -3530,7 +3533,7 @@ export default function Home() {
             <span data-testid="timezone-label">Times shown in {timezoneLabel}</span>
           </div>
           <section>
-            <div className="havi-app-shell">
+            <div className={cn("havi-app-shell", activePanel === "havi" && "havi-chat-shell")}>
           {conversationState === "network_offline" ? (
             <NoticeBanner tone="warning">
               <p>You're offline. Check your connection and try again.</p>
@@ -5184,8 +5187,8 @@ export default function Home() {
 
       {activePanel === "havi" ? (
         <>
-          <Card className="flex-1 havi-card-shell">
-            <CardHeader className="flex items-center justify-between gap-2 pb-2">
+          <Card className="flex-1 havi-card-shell havi-chat-header">
+            <CardHeader className="flex items-center justify-between gap-2 pb-2 havi-chat-header">
               <div className="min-w-0">
                 {chatTitle ? (
                   <CardTitle className="text-sm font-semibold truncate">
@@ -5226,7 +5229,7 @@ export default function Home() {
             <CardContent>
               <ScrollArea
                 ref={handleScrollViewportRef}
-                className="h-[360px] space-y-3 rounded-md border border-[color:var(--havi-app-panel-border)] bg-[color:var(--havi-app-inset-bg)] p-3"
+                className="havi-chat-scroll h-[360px] space-y-3 rounded-md border border-[color:var(--havi-app-panel-border)] bg-[color:var(--havi-app-inset-bg)] p-3"
               >
                 {chatEntries.map((entry, index) => {
                   const currentSender =
@@ -5338,7 +5341,7 @@ export default function Home() {
                   Voice and typing are always available.
                 </span>
               </div>
-              <div className="havi-panel-inset-alt flex items-end gap-2 rounded-2xl px-2 py-2">
+              <div className="havi-panel-inset-alt havi-chat-composer flex items-end gap-2 rounded-2xl px-2 py-2">
                 <div className="flex-1 min-w-0">
                   {voiceState === "recording" ? (
                     <div className="flex items-center gap-2 rounded-xl bg-background/60 px-3 py-2 text-sm text-muted-foreground">
@@ -5364,7 +5367,7 @@ export default function Home() {
                       onChange={(event) => setMessage(event.target.value)}
                       onKeyDown={handleKeyDown}
                       disabled={profileAccessLocked || voiceState !== "idle"}
-                      className="flex-1 bg-transparent"
+                      className="havi-chat-input flex-1 bg-transparent"
                       inputRef={composerRef}
                     />
                   )}
@@ -5382,7 +5385,7 @@ export default function Home() {
                     isComposerLocked ||
                     voiceState !== "idle"
                   }
-                  className="mb-0.5 flex h-10 w-10 self-end items-center justify-center rounded-xl"
+                  className="havi-chat-send mb-0.5 flex h-10 w-10 self-end items-center justify-center rounded-xl"
                 >
                   <ArrowUpRight className="h-4 w-4" />
                 </Button>
