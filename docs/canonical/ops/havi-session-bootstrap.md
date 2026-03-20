@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 18, 2026
+Last updated: March 20, 2026
 
 # Havi Session Bootstrap
 
@@ -71,6 +71,9 @@ Havi is a parent/caregiver copilot that:
 4. Keep each worktree scoped to one feature slice to reduce merge conflicts and rollback risk.
 5. Use orchestrator script for deterministic setup:
    - `./scripts/havi_session_orchestrator.sh --feature "<feature-name>"`
+6. Do not start coding until worktree dependency readiness passes:
+   - `./scripts/worktree_bootstrap.sh --check-only`
+   - If not ready, run `./scripts/worktree_bootstrap.sh` and re-check.
 
 ## Spec And Docs Lifecycle
 
@@ -182,11 +185,14 @@ cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav
 
 1. Context familiarization:
    - scan relevant code/docs for current slice (`rg`, targeted file reads).
-2. Linear readiness:
+2. Worktree dependency readiness:
+   - run `./scripts/worktree_bootstrap.sh --check-only` from the feature worktree before running tests/build.
+   - if Jest is missing under `apps/web/node_modules/.bin/jest`, run `./scripts/worktree_bootstrap.sh`.
+3. Linear readiness:
    - verify MCP access before triage/ticket updates; if unavailable, mark `Linear issue: pending` in session notes.
-3. Playwright readiness:
+4. Playwright readiness:
    - verify Playwright path before UI-flow validation so browser checks do not block late.
-4. Approval priming:
+5. Approval priming:
    - request narrowly scoped reusable approvals early for expected commands/tools to reduce mid-flow interruptions.
 
 ## Production Smoke Minimum
@@ -214,7 +220,9 @@ cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav
 1. Read this file and `docs/active/current-state/triage-migration-2026-03-04.md`.
 2. Read `docs/canonical/ops/havi-autonomous-run-checklist.md` when running autonomously.
 3. Check git status + latest commit context.
-4. Confirm active feature spec exists under `docs/active/specs/` (or create it).
-5. Run local or production smoke depending on task scope.
-6. Confirm top P0/P1 items and pick first fix slice.
-7. Implement -> test -> deploy (if needed) -> smoke -> document outcome.
+4. Create/reuse the feature worktree via `./scripts/havi_session_orchestrator.sh --feature "<feature-name>"`.
+5. From the worktree root, run `./scripts/worktree_bootstrap.sh --check-only` and fix readiness if needed.
+6. Confirm active feature spec exists under `docs/active/specs/` (or create it).
+7. Run local or production smoke depending on task scope.
+8. Confirm top P0/P1 items and pick first fix slice.
+9. Implement -> test -> deploy (if needed) -> smoke -> document outcome.

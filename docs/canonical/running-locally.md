@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 3, 2026
+Last updated: March 20, 2026
 
 # Running Havi Locally (Supabase Mode)
 
@@ -12,6 +12,19 @@ Important: Havi does not use a local SQL database in this mode. Supabase is remo
 - Python virtualenv exists at `.venv` in repo root.
 - Node modules installed in `apps/web`.
 - Supabase project credentials available.
+
+For feature worktrees, dependencies are not shared automatically. After creating/reusing a worktree, run:
+
+```bash
+cd /path/to/worktree
+./scripts/worktree_bootstrap.sh
+```
+
+Readiness check only:
+
+```bash
+./scripts/worktree_bootstrap.sh --check-only
+```
 
 ## 1. API env (`apps/api/.env.local`)
 

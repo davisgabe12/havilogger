@@ -3435,14 +3435,14 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-dvh min-h-screen bg-background text-foreground">
       <div
         data-testid="app-ready"
         data-app-frame
         data-settings-ready={settingsHydrated ? "1" : "0"}
         data-active-child-ready={hasResolvedCoreChild ? "1" : "0"}
         data-core-ready={appCoreReady ? "1" : "0"}
-        className="flex min-h-screen w-full"
+        className="flex h-full min-h-0 w-full overflow-hidden"
       >
         <aside className="havi-app-sidebar">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -3529,7 +3529,7 @@ export default function Home() {
             </Select>
             <span data-testid="timezone-label">Times shown in {timezoneLabel}</span>
           </div>
-          <section>
+          <section className="flex min-h-0 flex-1">
             <div className="havi-app-shell">
           {conversationState === "network_offline" ? (
             <NoticeBanner tone="warning">
@@ -3813,14 +3813,14 @@ export default function Home() {
       ) : null}
 
       {activePanel === "timeline" ? (
-        <Card className="havi-card-shell">
+        <Card className="havi-card-shell flex min-h-0 flex-1 flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="havi-type-section-title">Timeline</CardTitle>
             <CardDescription className="text-muted-foreground">
               Review events for {childFirstName || "your child"}.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1 overflow-y-auto">
             <TimelinePanel
               key={activeChildId ?? primaryChildId}
               childName={activeChildName || childFirstName || "your child"}
@@ -3836,14 +3836,14 @@ export default function Home() {
       ) : null}
 
       {activePanel === "tasks" ? (
-        <Card className="havi-card-shell">
+        <Card className="havi-card-shell flex min-h-0 flex-1 flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="havi-type-section-title">Tasks</CardTitle>
             <CardDescription className="text-muted-foreground">
               Includes family tasks and items for the selected child.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto">
             <form
               className="flex flex-col gap-2 sm:flex-row sm:items-center"
               onSubmit={handleCreateTask}
@@ -4189,7 +4189,7 @@ export default function Home() {
       ) : null}
 
       {activePanel === "history" ? (
-        <Card className="havi-card-shell">
+        <Card className="havi-card-shell flex min-h-0 flex-1 flex-col">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -4203,7 +4203,7 @@ export default function Home() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {historyLoading ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : historyError ? (
@@ -4247,14 +4247,14 @@ export default function Home() {
       ) : null}
 
       {activePanel === "knowledge" ? (
-        <Card className="havi-card-shell">
+        <Card className="havi-card-shell flex min-h-0 flex-1 flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="havi-type-section-title">Memories</CardTitle>
             <CardDescription className="text-muted-foreground">
               Review what HAVI noticed and save the moments that matter.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="min-h-0 flex-1 space-y-6 overflow-y-auto">
             {knowledgeToast ? (
               <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 {knowledgeToast}
@@ -5184,13 +5184,11 @@ export default function Home() {
 
       {activePanel === "havi" ? (
         <>
-          <Card className="flex-1 havi-card-shell">
-            <CardHeader className="flex items-center justify-between gap-2 pb-2">
+          <section className="flex min-h-0 flex-1 flex-col">
+            <div className="flex items-center justify-between gap-2 pb-2">
               <div className="min-w-0">
                 {chatTitle ? (
-                  <CardTitle className="text-sm font-semibold truncate">
-                    {chatTitle}
-                  </CardTitle>
+                  <h2 className="truncate text-sm font-semibold">{chatTitle}</h2>
                 ) : null}
                 <p className="text-xs text-muted-foreground" data-testid="timezone-label">
                   Times shown in {timezoneLabel}
@@ -5209,7 +5207,7 @@ export default function Home() {
                   data-testid="share-conversation"
                 />
                 {shareMessage ? (
-                  <span className="absolute left-1/2 top-full z-10 -translate-x-1/2 mt-1 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
+                  <span className="absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 rounded-md bg-popover px-2 py-1 text-xs text-muted-foreground shadow">
                     Copied
                   </span>
                 ) : null}
@@ -5222,12 +5220,11 @@ export default function Home() {
                   </div>
                 ) : null}
               </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea
-                ref={handleScrollViewportRef}
-                className="h-[360px] space-y-3 rounded-md border border-[color:var(--havi-app-panel-border)] bg-[color:var(--havi-app-inset-bg)] p-3"
-              >
+            </div>
+            <ScrollArea
+              ref={handleScrollViewportRef}
+              className="flex-1 min-h-0 space-y-3 overflow-y-auto rounded-md border border-[color:var(--havi-app-panel-border)] bg-[color:var(--havi-app-inset-bg)] p-3"
+            >
                 {chatEntries.map((entry, index) => {
                   const currentSender =
                     entry.senderType ??
@@ -5302,9 +5299,8 @@ export default function Home() {
                     <span>{loadingMessage}</span>
                   </div>
                 ) : null}
-              </ScrollArea>
-            </CardContent>
-          </Card>
+            </ScrollArea>
+          </section>
 
           <div className="mt-4 space-y-3">
             <div className="flex flex-col gap-2">

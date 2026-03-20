@@ -15,6 +15,39 @@ Use this log for every coding session, regardless of whether Linear was updated.
 
 ---
 
+## 2026-03-20
+
+- Objective: Implement app-shell viewport layout refactor and remove fixed-height chat container for Chat, Timeline, Tasks, Memory, and History panels.
+- Scope completed:
+  - Converted the app frame and main shell to `100dvh`/flex `min-h-0` layout so panel scrolling stays inside the shell instead of the page.
+  - Updated Timeline, Tasks, History, and Memory cards to participate in `flex-1` vertical layout with internal `overflow-y-auto`.
+  - Removed Chat `Card` wrapper and replaced fixed chat viewport height (`h-[360px]`) with a flexing message area (`flex-1 min-h-0`) so messages fill available space between header and composer.
+  - Added `scripts/worktree_bootstrap.sh` and integrated it into `scripts/havi_session_orchestrator.sh` so dependency readiness is checked/bootstrapped during worktree setup.
+  - Updated canonical docs and local skills to require worktree dependency readiness checks before coding/tests.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/scripts/worktree_bootstrap.sh`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/scripts/havi_session_orchestrator.sh`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/canonical/ops/havi-session-bootstrap.md`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/canonical/running-locally.md`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/active/specs/full-viewport-app-shell-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/docs/active/current-state/session-notes.md`
+- Tests/smoke checks run:
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/worktree_bootstrap.sh --check-only` (initially failed: missing Jest)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/worktree_bootstrap.sh` (passes; installs web deps)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/worktree_bootstrap.sh --check-only` (passes)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx --runInBand` (passes)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell/apps/web && NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test_anon NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run build` (passes)
+  - `cd /Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell && ./scripts/havi_session_orchestrator.sh --feature "permission-prime-smoke" --repo-root "/Users/gabedavis/Desktop/projects/havi-worktrees/full-viewport-app-shell" --worktrees-root "/Users/gabedavis/Desktop/projects/havi-worktrees" --no-fetch --dry-run` (passes)
+- Results:
+  - 1A/1B structural refactor implemented in code and validated with targeted layout tests + production build.
+  - Worktree bootstrap/readiness gap is closed with script + orchestrator + doc/skill updates.
+- Risks/follow-ups:
+  - Large monolithic app page remains a maintainability risk; future slices should continue extracting shell/panel primitives.
+  - Build currently requires explicit env vars in this session context; ensure local `.env.local` is present for fully representative local builds.
+- Linear issue(s): pending
+
 ## 2026-03-11
 
 - Objective: Unblock production deploy by resolving auth sign-in merge conflict and verify live health after deploy.

@@ -138,11 +138,11 @@
   }
 
   .havi-app-shell {
-    @apply mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6;
+    @apply mx-auto flex h-full min-h-0 w-full max-w-5xl flex-1 flex-col gap-4 px-4 py-4 md:px-6 md:py-6;
   }
 
   .havi-app-main {
-    @apply flex-1 px-3 py-4 md:px-6 md:py-6 lg:px-8;
+    @apply flex min-h-0 flex-1 flex-col px-3 py-4 md:px-6 md:py-6 lg:px-8;
     background:
       radial-gradient(
         56rem 28rem at 84% -18%,

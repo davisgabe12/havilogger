@@ -11,6 +11,7 @@ BRANCH_NAME=""
 DO_FETCH=1
 DO_SPEC=1
 DRY_RUN=0
+BOOTSTRAP_WEB_DEPS=1
 
 usage() {
   cat <<'USAGE'
@@ -26,6 +27,8 @@ Optional:
   --worktrees-root PATH          Root folder for worktrees (default: /Users/gabedavis/Desktop/projects/havi-worktrees)
   --no-fetch                     Skip fetch of origin/<base-branch>
   --no-spec                      Do not scaffold feature spec
+  --no-bootstrap-web-deps        Skip worktree web dependency bootstrap
+  --bootstrap-web-deps           Force worktree web dependency bootstrap (default)
   --dry-run                      Print actions without mutating git/worktree
   --help                         Show this help
 
@@ -96,6 +99,14 @@ while [[ $# -gt 0 ]]; do
       DO_SPEC=0
       shift
       ;;
+    --no-bootstrap-web-deps)
+      BOOTSTRAP_WEB_DEPS=0
+      shift
+      ;;
+    --bootstrap-web-deps)
+      BOOTSTRAP_WEB_DEPS=1
+      shift
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -118,7 +129,7 @@ if [[ -z "$FEATURE_NAME" ]]; then
   exit 2
 fi
 
-if [[ ! -d "$REPO_ROOT/.git" ]]; then
+if [[ ! -e "$REPO_ROOT/.git" ]]; then
   echo "Invalid repo root: $REPO_ROOT" >&2
   exit 1
 fi
@@ -192,6 +203,19 @@ if [[ "$DO_SPEC" -eq 1 ]]; then
   fi
 fi
 
+if [[ "$BOOTSTRAP_WEB_DEPS" -eq 1 ]]; then
+  BOOTSTRAP_SCRIPT="$REPO_ROOT/scripts/worktree_bootstrap.sh"
+  if [[ ! -x "$BOOTSTRAP_SCRIPT" ]]; then
+    echo "Bootstrap script not executable or missing: $BOOTSTRAP_SCRIPT" >&2
+    exit 1
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "[dry-run] \"$BOOTSTRAP_SCRIPT\" --worktree \"$WORKTREE_PATH\""
+  else
+    "$BOOTSTRAP_SCRIPT" --worktree "$WORKTREE_PATH"
+  fi
+fi
+
 cat <<EOF
 [done] Session worktree is ready.
 - repo: $REPO_ROOT
@@ -203,5 +227,6 @@ cat <<EOF
 Next:
 1) cd "$WORKTREE_PATH"
 2) git status -sb
-3) start execution from the active spec
+3) verify readiness: ./scripts/worktree_bootstrap.sh --check-only
+4) start execution from the active spec
 EOF
