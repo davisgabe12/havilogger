@@ -5187,7 +5187,7 @@ export default function Home() {
 
       {activePanel === "havi" ? (
         <>
-          <Card className="flex-1 havi-card-shell havi-chat-header">
+          <Card className="flex-1 border-0 bg-transparent shadow-none havi-chat-header">
             <CardHeader className="flex items-center justify-between gap-2 pb-2 havi-chat-header">
               <div className="min-w-0">
                 {chatTitle ? (
@@ -5229,7 +5229,7 @@ export default function Home() {
             <CardContent>
               <ScrollArea
                 ref={handleScrollViewportRef}
-                className="havi-chat-scroll h-[360px] space-y-3 rounded-md border border-[color:var(--havi-app-panel-border)] bg-[color:var(--havi-app-inset-bg)] p-3"
+                className="havi-chat-scroll h-[360px] space-y-3 rounded-md p-3"
               >
                 {chatEntries.map((entry, index) => {
                   const currentSender =
