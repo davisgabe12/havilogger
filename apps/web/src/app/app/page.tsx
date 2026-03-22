@@ -500,7 +500,7 @@ const AutoResizeTextarea = ({
       ref={ref}
       {...props}
       className={cn(
-        "min-h-[52px] max-h-40 resize-none bg-card placeholder:text-muted-foreground placeholder:opacity-80",
+        "min-h-[52px] max-h-40 resize-none bg-card",
         CHAT_BODY_TEXT,
         className,
       )}
@@ -3513,7 +3513,7 @@ export default function Home() {
             <span>Active child</span>
             <Select
               id="active-child-select"
-              className="havi-select text-xs"
+              className="havi-select w-[90px] min-w-[90px] max-w-[90px] text-xs"
               data-testid="active-child-select"
               value={activeChildId ?? ""}
               onChange={(event) =>

@@ -298,9 +298,11 @@
     color: var(--havi-chat-text);
   }
 
+  .havi-chat-theme .havi-chat-context-row .havi-chat-new-pill:focus-visible,
   .havi-chat-theme .havi-chat-context-row .havi-chat-new-pill:hover:enabled {
     border-color: color-mix(in srgb, var(--havi-chat-border) 84%, #000);
     background: color-mix(in srgb, var(--havi-chat-surface) 86%, #fff);
+    color: var(--havi-chat-text);
   }
 
   .havi-chat-theme .havi-chat-context-row .havi-select:hover:enabled {
@@ -318,12 +320,12 @@
   }
 
   .havi-chat-theme .havi-chat-input::placeholder {
-    color: color-mix(in srgb, var(--havi-chat-text) 58%, var(--havi-chat-surface));
+    color: #3d342b;
     opacity: 1;
   }
 
   .havi-chat-theme .havi-chat-input:disabled::placeholder {
-    color: color-mix(in srgb, var(--havi-chat-text) 52%, var(--havi-chat-surface));
+    color: #4a4035;
     opacity: 1;
   }
 

@@ -218,6 +218,7 @@ describe("Home zones – V1 foundations", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("context-new-chat")).toBeInTheDocument();
+    expect(screen.getByTestId("active-child-select").className).toContain("w-[90px]");
   });
 
   it("renders Zones 1–5 when Home is selected", async () => {
