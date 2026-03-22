@@ -3536,7 +3536,7 @@ export default function Home() {
               variant="outline"
               data-testid="context-new-chat"
               aria-label="New chat"
-              className="havi-chat-new-pill h-8 rounded-full px-3 text-xs"
+              className="havi-chat-new-pill h-8 rounded-full px-3 text-xs text-[color:var(--havi-chat-text)] hover:text-[color:var(--havi-chat-text)] focus-visible:text-[color:var(--havi-chat-text)]"
               onClick={() => void handleNewChat()}
               disabled={!activeChildId || conversationState === "sending"}
             >
