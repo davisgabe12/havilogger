@@ -8,6 +8,7 @@ import { ArrowUpRight, Menu, Mic, Square } from "lucide-react";
 
 import { TimelinePanel } from "@/components/timeline/timeline-panel";
 import { ShareButton } from "@/components/ui/action-buttons";
+import { ActiveChildPill } from "@/components/ui/active-child-pill";
 import { DrawerPanel, NoticeBanner } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1099,24 +1100,6 @@ export default function Home() {
     }
   }, []);
 
-  const getTimezoneLabel = useCallback((value: string) => {
-    try {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: value,
-        timeZoneName: "short",
-      }).formatToParts(new Date());
-      const zone = parts.find((part) => part.type === "timeZoneName")?.value;
-      return zone || value;
-    } catch {
-      return value;
-    }
-  }, []);
-
-  const timezoneLabel = useMemo(
-    () => getTimezoneLabel(childTimezone || DEFAULT_TIMEZONE),
-    [childTimezone, getTimezoneLabel],
-  );
-
   const computeMissingProfileFields = useCallback(() => {
     const missing: string[] = [];
     if (!caregiverFirstName.trim()) {
@@ -1232,6 +1215,21 @@ export default function Home() {
   const showNewChatButton = hardErrorLower.includes("start a new chat");
   const showSignupButton = profileAccessLocked;
   const homeChildName = childFirstName?.trim() || "your child";
+  const activeChildDisplayName =
+    (activeChildName || childFirstName || "No child").trim() || "No child";
+  const childSwitchOptions = useMemo(
+    () =>
+      childrenList
+        .map((child) => {
+          const id = normalizeChildId(child.id);
+          if (!id) return null;
+          const name = (child.first_name || child.name || "Child").trim() || "Child";
+          return { id, name };
+        })
+        .filter((child): child is { id: string; name: string } => Boolean(child)),
+    [childrenList],
+  );
+  const timezoneDisplay = childTimezone?.trim() || "your local timezone";
   const homeGreeting = buildTimeGreeting();
   const homeAgeLabel = formatHomeAgeLabel(childDob, childDueDate);
   const comingUpWeek =
@@ -3487,18 +3485,32 @@ export default function Home() {
         </aside>
 
         <main className="havi-app-main">
-          <div className="havi-app-mobile-topbar">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Menu"
-              onClick={() => setNavOpen(true)}
-              className="h-9 w-9 p-0"
+          <div className="havi-app-topbar">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Menu"
+                onClick={() => setNavOpen(true)}
+                className="h-9 w-9 p-0 md:hidden"
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
+              <ActiveChildPill
+                activeChildId={activeChildId}
+                activeChildName={activeChildDisplayName}
+                children={childSwitchOptions}
+                onChange={handleChildChange}
+                disabled={childSwitchOptions.length === 0}
+              />
+            </div>
+            <span
+              className="havi-app-topbar-timezone"
+              data-testid="timezone-label"
             >
-              <Menu className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-semibold">HAVI</span>
+              Times shown in {timezoneDisplay}
+            </span>
           </div>
           {guard.error ? (
             <NoticeBanner
@@ -3509,29 +3521,6 @@ export default function Home() {
               {guard.error}
             </NoticeBanner>
           ) : null}
-          <div className="havi-chat-context-row mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>Active child</span>
-            <Select
-              id="active-child-select"
-              className="havi-select text-xs"
-              data-testid="active-child-select"
-              value={activeChildId ?? ""}
-              onChange={(event) =>
-                handleChildChange(event.target.value || null)
-              }
-              disabled={childrenList.length === 0}
-            >
-              {childrenList.length === 0 ? (
-                <option value="">No child yet</option>
-              ) : null}
-              {childrenList.map((child) => (
-                <option key={child.id} value={child.id}>
-                  {child.first_name || child.name || "Child"}
-                </option>
-              ))}
-            </Select>
-            <span data-testid="timezone-label">Times shown in {timezoneLabel}</span>
-          </div>
           <section>
             <div className={cn("havi-app-shell", activePanel === "havi" && "havi-chat-shell")}>
           {conversationState === "network_offline" ? (
@@ -5195,9 +5184,6 @@ export default function Home() {
                     {chatTitle}
                   </CardTitle>
                 ) : null}
-                <p className="text-xs text-muted-foreground" data-testid="timezone-label">
-                  Times shown in {timezoneLabel}
-                </p>
               </div>
               <div className="relative">
                 <ShareButton

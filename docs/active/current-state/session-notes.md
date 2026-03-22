@@ -592,3 +592,59 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - `./scripts/qa_gate.sh --label qa-gate-smoke --areas chat --test-cmd "echo targeted-tests-pass" --playwright-cmd "echo playwright-pass" --skip-green --skip-release-gate --artifact-root /tmp/havi-qa-gate --dry-run`
 - Risks/follow-ups:
   - Full non-dry-run QA gate should be validated in a feature worktree with real Playwright command and touched test suites before mandatory enforcement.
+
+## 2026-03-21
+
+- Objective: Reduce chat UI noise by removing timezone labels and making assistant actions smaller + contextual.
+- Scope completed:
+  - Removed "Times shown in ..." from app top context row and chat card header.
+  - Removed now-unused timezone label computation in app page state.
+  - Updated shared assistant action sizing tokens to mobile `36px` (`h-9 w-9`) and desktop `32px` (`md:h-8 md:w-8`) with icons at `14px` (`h-3.5 w-3.5`).
+  - Implemented hidden-at-rest assistant action row with reveal behavior:
+    - Desktop: reveal on hover/focus-within.
+    - Mobile: reveal on long-press (`450ms`) with auto-hide (`3200ms`).
+  - Updated message-bubble and message-feedback tests to match new shared sizing tokens and default hidden row state.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/components/chat/message-feedback.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/components/chat/message-bubble.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/components/chat/__tests__/message-bubble.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/components/chat/__tests__/message-feedback.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `cd apps/web && npm test -- --runInBand src/components/chat/__tests__/message-bubble.test.tsx src/components/chat/__tests__/message-feedback.test.tsx`
+  - `npm run tokens:check` passed as pre-step.
+- Validation outcome:
+  - Targeted jest tests could not execute in this worktree because `jest` binary is unavailable (`sh: jest: command not found`) due missing local `node_modules` bootstrap in this worktree.
+- Risks/follow-ups:
+  - Run `apps/web` dependency/bootstrap in this worktree, then rerun targeted tests to confirm runtime behavior before merge.
+
+## 2026-03-21
+
+- Objective: Replace full-width active-child select with compact walnut topbar pill (`90px`, left-aligned name, no avatar) and remove "Active child" label affordance.
+- Scope completed:
+  - Added new `ActiveChildPill` UI component with button + listbox popover interaction, keyboard support (open, navigate, select, escape), outside-click close, and focus return.
+  - Replaced old mobile topbar + context-row select in app shell with unified topbar containing menu button (mobile), active-child pill (all breakpoints), and timezone secondary label.
+  - Wired pill selection to existing `handleChildChange` path; no backend or persistence contract changes.
+  - Added dedicated topbar/pill styles in `globals.css` including fixed `90px` pill width, left-aligned truncation, walnut treatment, and popover option states.
+  - Updated active spec with locked constraints and acceptance criteria for this slice.
+  - Added and updated tests for new pill behavior and layout replacement.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/components/ui/active-child-pill.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/components/ui/__tests__/active-child-pill.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/src/app/__tests__/app-layout.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/docs/active/specs/session-bootstrap-20260321-spec.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/docs/active/current-state/session-notes.md`
+- Tests/smoke checks run:
+  - `cd apps/web && npm install`
+  - `cd apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx src/components/ui/__tests__/active-child-pill.test.tsx`
+  - `cd apps/web && npm run build`
+- Results:
+  - Targeted tests passed (`2/2`, `21` assertions passing).
+  - Build compiles successfully but fails during prerender on missing Supabase env (`Error: supabaseUrl is required`) for `/app/onboarding/care-member`.
+- Risks/follow-ups:
+  - Build in this environment remains blocked until required Supabase env vars are present for prerender.
+  - Visual QA should confirm truncation readability of long names in the fixed `90px` pill on mobile and desktop.
+- Linear issue(s): pending

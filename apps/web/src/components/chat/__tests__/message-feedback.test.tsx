@@ -209,7 +209,7 @@ describe("MessageFeedback", () => {
     const upButton = screen.getByLabelText("Thumbs up");
     const downButton = screen.getByLabelText("Thumbs down");
 
-    for (const token of ["h-10", "w-10", "items-center", "justify-center"]) {
+    for (const token of ["h-9", "w-9", "md:h-8", "md:w-8", "items-center", "justify-center"]) {
       expect(upButton.className).toContain(token);
       expect(downButton.className).toContain(token);
     }
@@ -228,7 +228,7 @@ describe("MessageFeedback", () => {
     await user.click(upButton);
     expect(screen.getByLabelText("Thumbs up")).toHaveAttribute("aria-pressed", "true");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    for (const token of ["h-10", "w-10"]) {
+    for (const token of ["h-9", "w-9", "md:h-8", "md:w-8"]) {
       expect(screen.getByLabelText("Thumbs up").className).toContain(token);
       expect(screen.getByLabelText("Thumbs down").className).toContain(token);
     }

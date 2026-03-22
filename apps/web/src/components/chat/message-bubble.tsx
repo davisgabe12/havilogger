@@ -1,4 +1,4 @@
-import type React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -15,6 +15,15 @@ import { cn } from "@/lib/utils";
 import type { ChatEntry } from "./types";
 
 export const CHAT_BODY_TEXT = "text-sm leading-relaxed font-normal";
+const MOBILE_ACTION_LONG_PRESS_MS = 450;
+const MOBILE_ACTION_AUTO_HIDE_MS = 3200;
+
+function isFinePointerDevice(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return true;
+  }
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
 
 function formatTimestamp(value: string, timezone?: string): string {
   const date = new Date(value);
@@ -200,6 +209,60 @@ export function MessageBubble({
   );
 
   const actionButtonBase = CHAT_ACTION_BUTTON_CLASS;
+  const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+  const autoHideTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+      if (autoHideTimerRef.current) {
+        window.clearTimeout(autoHideTimerRef.current);
+      }
+    };
+  }, []);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const scheduleAutoHide = () => {
+    if (autoHideTimerRef.current) {
+      window.clearTimeout(autoHideTimerRef.current);
+    }
+    autoHideTimerRef.current = window.setTimeout(() => {
+      setMobileActionsVisible(false);
+    }, MOBILE_ACTION_AUTO_HIDE_MS);
+  };
+
+  const handleAssistantPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isAssistant || isFinePointerDevice()) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea, select, [role='button']")) {
+      return;
+    }
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      setMobileActionsVisible(true);
+      scheduleAutoHide();
+    }, MOBILE_ACTION_LONG_PRESS_MS);
+  };
+
+  const handleAssistantPointerRelease = () => {
+    clearLongPressTimer();
+  };
+
+  const assistantActionRowClassName = cn(
+    "pt-2 transition-opacity duration-150",
+    mobileActionsVisible
+      ? "opacity-100 pointer-events-auto"
+      : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
+  );
 
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
@@ -263,9 +326,13 @@ export function MessageBubble({
     <div className="flex w-full items-start gap-2" data-testid="chat-message" data-sender={senderType}>
       {gutter}
       <div
-        className="flex flex-col"
+        className="group flex flex-col"
         style={bubbleMaxWidth}
         data-testid="message-bubble-wrapper"
+        onPointerDown={isAssistant ? handleAssistantPointerDown : undefined}
+        onPointerUp={isAssistant ? handleAssistantPointerRelease : undefined}
+        onPointerLeave={isAssistant ? handleAssistantPointerRelease : undefined}
+        onPointerCancel={isAssistant ? handleAssistantPointerRelease : undefined}
       >
         {isCaregiver && showSenderLabel && entry.senderName ? (
           <p className="mb-1 ml-1 text-xs font-medium text-[var(--havi-chat-muted,var(--color-muted-foreground))]">
@@ -328,7 +395,7 @@ export function MessageBubble({
               ) : null
             }
             buttonClassName={actionButtonBase}
-            actionRowClassName="pt-2"
+            actionRowClassName={assistantActionRowClassName}
           />
         ) : null}
       </div>

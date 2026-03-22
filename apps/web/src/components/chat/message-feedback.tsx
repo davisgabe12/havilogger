@@ -38,10 +38,10 @@ const RETRY_DELAYS_MS = [1200, 2400];
 type PersistStatus = "idle" | "submitting" | "retry_wait" | "retrying" | "failed";
 
 // Shared assistant-row action tokens for copy/thumb controls.
-export const CHAT_ACTION_ICON_CLASS = "h-4 w-4";
+export const CHAT_ACTION_ICON_CLASS = "h-3.5 w-3.5";
 export const CHAT_ACTION_BUTTON_CLASS =
-  "inline-flex h-10 w-10 items-center justify-center rounded-md border border-border/40 bg-muted/40 p-0 text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
-export const CHAT_ACTION_ROW_CLASS = "min-h-10 gap-1.5";
+  "inline-flex h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-md border border-border/40 bg-muted/40 p-0 text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+export const CHAT_ACTION_ROW_CLASS = "min-h-9 md:min-h-8 gap-1.5";
 
 class FeedbackPersistError extends Error {
   retryable: boolean;

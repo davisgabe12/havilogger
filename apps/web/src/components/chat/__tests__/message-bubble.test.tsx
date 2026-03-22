@@ -158,20 +158,24 @@ describe("MessageBubble width and spacing", () => {
     const downButton = screen.getByRole("button", { name: "Thumbs down" });
 
     for (const button of [copyButton, upButton, downButton]) {
-      expect(button.className).toContain("h-10");
-      expect(button.className).toContain("w-10");
+      expect(button.className).toContain("h-9");
+      expect(button.className).toContain("w-9");
+      expect(button.className).toContain("md:h-8");
+      expect(button.className).toContain("md:w-8");
       expect(button.className).toContain("items-center");
       expect(button.className).toContain("justify-center");
       const icon = button.querySelector("svg") as SVGElement | null;
       expect(icon).not.toBeNull();
-      expect(icon?.getAttribute("class") ?? "").toContain("h-4");
-      expect(icon?.getAttribute("class") ?? "").toContain("w-4");
+      expect(icon?.getAttribute("class") ?? "").toContain("h-3.5");
+      expect(icon?.getAttribute("class") ?? "").toContain("w-3.5");
     }
 
     const actionRow = upButton.parentElement;
     expect(actionRow).not.toBeNull();
-    expect(actionRow?.className ?? "").toContain("min-h-10");
+    expect(actionRow?.className ?? "").toContain("min-h-9");
+    expect(actionRow?.className ?? "").toContain("md:min-h-8");
     expect(actionRow?.className ?? "").toContain("gap-1.5");
+    expect(actionRow?.className ?? "").toContain("opacity-0");
   });
 
   it("shows caregiver label and initials only when sender label is enabled", () => {
