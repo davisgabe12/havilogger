@@ -229,11 +229,15 @@ const waitForAppCoreReady = async (page: any, timeout = 20_000) => {
     const settingsReady = await appReady.getAttribute("data-settings-ready");
     const childReady = await appReady.getAttribute("data-active-child-ready");
     if (settingsReady === "1" && childReady === "1") {
-      await page.getByTestId("active-child-select").waitFor({
-        timeout: Math.max(1_000, deadline - Date.now()),
-      });
+      const timeout = Math.max(1_000, deadline - Date.now());
+      const pill = page.getByTestId("active-child-pill");
+      const select = page.getByTestId("active-child-select");
+      await Promise.any([
+        pill.waitFor({ timeout }),
+        select.waitFor({ timeout }),
+      ]);
       await page.getByTestId("chat-input").waitFor({
-        timeout: Math.max(1_000, deadline - Date.now()),
+        timeout,
       });
       return;
     }
