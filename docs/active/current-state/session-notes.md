@@ -648,3 +648,60 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - Build in this environment remains blocked until required Supabase env vars are present for prerender.
   - Visual QA should confirm truncation readability of long names in the fixed `90px` pill on mobile and desktop.
 - Linear issue(s): pending
+
+## 2026-03-22
+
+- Objective: Ship and deploy chat UX refinements (timezone label removal + contextual action controls).
+- Release commit:
+  - `42e1892` (`Refine chat action affordances and remove timezone labels`)
+  - Branch: `codex/session-bootstrap-20260321` pushed to origin.
+- Deploy:
+  - Command: `cd apps/web && npx vercel --prod`
+  - Deployment id: `dpl_G9oeZZ3LbUWSfJ3hQVnyeDazRoi2`
+  - Inspector: `https://vercel.com/gabes-projects-4207ce9b/web/G9oeZZ3LbUWSfJ3hQVnyeDazRoi2`
+  - Production url: `https://web-1k8jvrnm3-gabes-projects-4207ce9b.vercel.app`
+  - Alias: `https://gethavi.com`
+- Validation before deploy:
+  - Targeted tests passed:
+    - `src/components/chat/__tests__/message-bubble.test.tsx`
+    - `src/components/chat/__tests__/message-feedback.test.tsx`
+  - Local web build passed after syncing `.env.local` into worktree.
+- Post-deploy smoke:
+  - Ran `HAVI_UI_SMOKE_LABEL=postdeploy-session-bootstrap-20260322 ./scripts/prod_ui_smoke_gate.sh` (elevated).
+  - Ran rerun with label `postdeploy-session-bootstrap-20260322-rerun`.
+  - Both failed consistently at GREEN smoke readiness waiting for `data-testid=active-child-select` visibility.
+  - Artifacts:
+    - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/docs/active/green-proof/prod-ui-smoke-postdeploy-session-bootstrap-20260322.json`
+    - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/docs/active/green-proof/prod-ui-smoke-postdeploy-session-bootstrap-20260322-rerun.json`
+- Risk/follow-up:
+  - Production deploy is live, but canonical production UI smoke gate is red due to app-ready selector visibility in existing-account GREEN flow; triage required before release can be considered fully green.
+
+## 2026-03-22
+
+- Objective: Finalize active-child pill ship by aligning production GREEN smoke selectors and rerunning post-deploy verification.
+- Scope completed:
+  - Updated smoke app-ready selectors to accept the new pill test id (`active-child-pill`) while keeping legacy fallback (`active-child-select`) for compatibility.
+  - Hardened GREEN feedback interaction clicks to avoid pointer-intercept flake during thumbs feedback checks.
+  - Deployed updated web build to production and re-aliased apex domain.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/tests/smoke/green.smoke.spec.ts`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/tests/smoke/helpers/app-bootstrap.ts`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/apps/web/tests/smoke/invite-join.smoke.spec.ts`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-bootstrap-20260321/docs/active/current-state/session-notes.md`
+- Tests/smoke checks run:
+  - `cd apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx src/components/ui/__tests__/active-child-pill.test.tsx`
+  - `cd apps/web && npm run build`
+  - `PLAYWRIGHT_BASE_URL=https://gethavi.com npm run test:green`
+  - `curl -I https://gethavi.com`
+  - `curl -I https://www.gethavi.com`
+  - `curl -s -o /dev/null -w "%{http_code}\n" https://api-production-0a5d.up.railway.app/health`
+- Results:
+  - Targeted tests passed.
+  - Web build passed.
+  - Production GREEN smoke passed (`1 passed`).
+  - Route checks passed (`gethavi.com=200`, `www` redirect=`308`, API health=`200`).
+  - Deployment id: `dpl_12hoNGsWBAAanTHMQWt8A2u6y2L2`
+  - Production URL: `https://web-afbsfu3um-gabes-projects-4207ce9b.vercel.app`
+  - Alias: `https://gethavi.com`
+- Risks/follow-ups:
+  - `apps/web/tests/smoke/green.spec.ts` still contains direct `<select>` interactions for active-child switching scenarios; migrate those paths to pill interaction before enabling that suite as a hard release gate.

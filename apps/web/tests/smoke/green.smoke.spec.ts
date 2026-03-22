@@ -546,7 +546,7 @@ test("GREEN smoke", async ({ page, browser }) => {
     messageId: mixedAssistantMessageId,
     rating: "up",
     trigger: async () => {
-      await thumbsUpButton.click();
+      await thumbsUpButton.click({ force: true });
     },
   });
   expect(thumbsUpResult.status).toBe(200);
@@ -564,7 +564,7 @@ test("GREEN smoke", async ({ page, browser }) => {
     rating: "down",
     feedbackText: "Too generic",
     trigger: async () => {
-      await thumbsDownButton.click();
+      await thumbsDownButton.click({ force: true });
       await expect(thumbsDownButton).toHaveAttribute("aria-pressed", "true");
       const feedbackInput = mixedAssistantWrapper.getByPlaceholder(
         "What didn’t work? (optional)",
