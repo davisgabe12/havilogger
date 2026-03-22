@@ -673,3 +673,24 @@ Use this log for every coding session, regardless of whether Linear was updated.
     - Result: PASS (2 suites, 26 tests)
 - Risks/follow-ups:
   - Production still reflects pre-ship styling until deploy is executed.
+
+## 2026-03-22
+
+- Objective: Add context-row `+ New chat` pill beside active-child selector and ship all chat polish updates.
+- Scope completed:
+  - Added `+ New chat` pill button in chat context row next to active child selector.
+  - Wired button to existing `handleNewChat` flow with guard disable when no active child or while sending.
+  - Styled context-row new-chat pill for chat theme consistency.
+  - Deployed web production to Vercel and confirmed alias to `https://gethavi.com`.
+  - Verified production UI now shows:
+    - `New chat` button next to child selector,
+    - voice control adjacent to send button in composer.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/__tests__/app-layout.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `cd apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx src/components/chat/__tests__/message-bubble.test.tsx` -> PASS
+  - `cd apps/web && npx vercel --prod --yes` -> READY + aliased to `https://gethavi.com`
+  - Production Playwright validation on `https://gethavi.com/app` -> new context-row button + voice/send adjacency visible.
