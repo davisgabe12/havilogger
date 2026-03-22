@@ -128,8 +128,10 @@ describe("App layout – desktop padding and nav", () => {
 
     expect(asideClass).toContain("havi-app-sidebar");
     expect(mainClass).toContain("havi-app-main");
-    expect(container.querySelector(".havi-app-mobile-topbar")).not.toBeNull();
+    expect(container.querySelector(".havi-app-topbar")).not.toBeNull();
     expect(container.querySelector(".havi-app-shell")).not.toBeNull();
+    expect(screen.queryByTestId("active-child-select")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-child-pill")).toBeInTheDocument();
   });
 
   it("renders Home first in the sidebar menu", async () => {

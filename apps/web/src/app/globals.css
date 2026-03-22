@@ -162,6 +162,77 @@
     @apply mb-4 flex items-center gap-3 md:hidden;
   }
 
+  .havi-app-topbar {
+    @apply mb-4 flex items-center justify-between gap-3;
+  }
+
+  .havi-app-topbar-timezone {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .havi-active-child-root {
+    @apply relative;
+  }
+
+  .havi-active-child-pill {
+    @apply inline-flex h-9 w-[90px] items-center rounded-full border px-2.5 text-left text-sm font-medium transition-colors;
+    border-color: #4b3f34;
+    background: #2e2720;
+    color: #f4ede2;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 12px rgba(29, 21, 16, 0.22);
+  }
+
+  .havi-active-child-pill:hover:enabled {
+    border-color: #5d4f42;
+    background: #362e26;
+  }
+
+  .havi-active-child-pill:focus-visible {
+    @apply outline-none;
+    border-color: #6a5b4d;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #d9c7af 58%, transparent);
+  }
+
+  .havi-active-child-pill:disabled {
+    @apply cursor-not-allowed opacity-70;
+  }
+
+  .havi-active-child-pill-name {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .havi-active-child-pill-chevron {
+    @apply h-3.5 w-3.5 shrink-0 text-[#b8ab97] transition-transform;
+  }
+
+  .havi-active-child-pill-chevron-open {
+    @apply rotate-180;
+  }
+
+  .havi-active-child-popover {
+    @apply absolute left-0 top-full z-40 mt-2 min-w-[148px] rounded-xl border p-1;
+    border-color: color-mix(in srgb, #4a3f35 68%, transparent);
+    background: color-mix(in srgb, #2d2620 90%, #1f1914);
+    box-shadow: 0 16px 30px rgba(29, 21, 16, 0.35);
+  }
+
+  .havi-active-child-list {
+    @apply m-0 list-none p-0 outline-none;
+  }
+
+  .havi-active-child-option {
+    @apply cursor-pointer rounded-lg px-2.5 py-1.5 text-sm text-[#efe4d5] transition-colors;
+  }
+
+  .havi-active-child-option-highlighted {
+    background: color-mix(in srgb, #5a4c3f 44%, transparent);
+  }
+
+  .havi-active-child-option-selected {
+    @apply font-semibold;
+    background: color-mix(in srgb, #7a664f 52%, transparent);
+  }
+
   .havi-panel-shell {
     border: 1px solid var(--havi-app-panel-border);
     background: color-mix(in srgb, var(--havi-app-panel-bg) 88%, var(--havi-neutral-2));
