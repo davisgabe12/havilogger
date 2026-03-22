@@ -80,6 +80,32 @@ describe("MessageBubble width and spacing", () => {
     expect(content).toContain(longText.slice(-100));
   });
 
+  it("renders assistant avatar as a circular H badge", () => {
+    const assistantEntry: ChatEntry = {
+      id: "assistant-avatar",
+      role: "havi",
+      text: "Avatar check",
+      createdAt: new Date().toISOString(),
+      senderType: "assistant",
+    };
+
+    render(
+      <MessageBubble
+        entry={assistantEntry}
+        onToggleTimestamp={noop}
+        isPinned={false}
+        onCopy={noop}
+        copiedMessageId={null}
+        highlightedMessageId={null}
+      />,
+    );
+
+    const avatar = screen.getByTestId("assistant-avatar");
+    expect(avatar).toHaveTextContent("H");
+    expect(avatar).toHaveClass("h-7", "w-7", "rounded-full");
+    expect(screen.queryByText("HAVI")).not.toBeInTheDocument();
+  });
+
   it("preserves paragraph spacing in markdown", () => {
     const assistantEntry: ChatEntry = {
       id: "assistant-paragraphs",

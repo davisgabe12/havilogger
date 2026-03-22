@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 18, 2026
+Last updated: March 22, 2026
 
 # Havi Autonomous Run Checklist
 
@@ -20,8 +20,11 @@ Ship meaningful progress safely with minimal user interruption, while keeping is
 5. Implement root-cause fix (avoid broad unrelated refactors).
 6. Run targeted tests for touched logic.
 7. Run build/runtime smoke as needed.
-8. Document outcome and residual risks.
-9. Commit and push when the slice is stable.
+8. For UI validation, complete app entry flow fully:
+   - do not stop at loading/family selector/profile-lock states.
+   - proceed to a usable chat state or raise a blocker immediately with exact missing input.
+9. Document outcome and residual risks.
+10. Commit and push when the slice is stable.
 
 ## Feature Work Location (Required)
 

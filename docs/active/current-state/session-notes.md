@@ -592,3 +592,84 @@ Use this log for every coding session, regardless of whether Linear was updated.
   - `./scripts/qa_gate.sh --label qa-gate-smoke --areas chat --test-cmd "echo targeted-tests-pass" --playwright-cmd "echo playwright-pass" --skip-green --skip-release-gate --artifact-root /tmp/havi-qa-gate --dry-run`
 - Risks/follow-ups:
   - Full non-dry-run QA gate should be validated in a feature worktree with real Playwright command and touched test suites before mandatory enforcement.
+
+## 2026-03-21
+
+- Objective: Start a fresh feature worktree and bootstrap session context/readiness before selecting execution scope.
+- Scope completed:
+  - Created dedicated worktree/branch via orchestrator:
+    - worktree: `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321`
+    - branch: `codex/session-up-to-speed-20260321`
+    - spec scaffolded: `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/active/specs/session-up-to-speed-20260321-spec.md`
+  - Read canonical context docs:
+    - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/product/havi-project-profile.md`
+    - `/Users/gabedavis/Desktop/projects/havilogger/docs/canonical/ops/havi-session-bootstrap.md`
+    - `/Users/gabedavis/Desktop/projects/havilogger/docs/active/current-state/triage-migration-2026-03-04.md`
+  - Verified tool readiness:
+    - Linear MCP reachable (`Side Projects` team visible).
+    - Playwright MCP reachable (`about:blank` navigation succeeded).
+  - Captured local runtime readiness snapshot:
+    - `restart.sh` present; no running local backend/frontend pids.
+    - Local probes returned `000` for API `/health` and web `/auth/sign-in` because services are not started yet in this worktree.
+  - Pulled actionable Linear context for Side Projects (open/in-progress examples include `SID-42`, `SID-73`, `SID-67`, `SID-65`, `SID-1`, `SID-3`).
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `git status -sb`
+  - `git worktree list`
+  - `/Users/gabedavis/.codex/skills/havi-session-orchestrator/scripts/run.sh --feature "session-up-to-speed-20260321" --no-fetch`
+  - `test -f README.md`
+  - `curl` local health probes for API/web
+  - Linear MCP `list_teams`
+  - Playwright MCP `browser_navigate about:blank`
+- Risks/follow-ups:
+  - `main` in the primary repo has pre-existing dirty changes; keep all execution in this dedicated worktree.
+  - `./scripts/worktree_bootstrap.sh` is not present in this snapshot; use current documented startup paths (`./restart.sh` / targeted test scripts) for runtime prep.
+  - Await user-selected scope before taking the first implementation slice.
+
+## 2026-03-22
+
+- Objective: Implement chat visual polish slice (assistant avatar + circular send button) without changing chat behavior.
+- Scope completed:
+  - Replaced assistant gutter badge text chip with circular `H` avatar (`28px`, walnut `#3d342b`, display-font bold) in chat message bubbles.
+  - Updated composer send control to a circular `42px` primary action while retaining existing click/focus behavior.
+  - Added weighted send-button theme styling (moss fill, subtle elevation, hover/active depth states, disabled reset) in chat theme CSS.
+  - Added test coverage for assistant avatar contract and send button circular geometry classes.
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/components/chat/message-bubble.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/components/chat/__tests__/message-bubble.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/__tests__/app-layout.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `cd apps/web && npm run test -- src/components/chat/__tests__/message-bubble.test.tsx src/app/__tests__/app-layout.test.tsx`
+    - Result: PASS (2 suites, 26 tests)
+  - Local visual verification run:
+    - Elevated `npm run dev` in worktree and Playwright capture on `http://127.0.0.1:3001/app`.
+    - Note: account lands on profile-lock state, so assistant-avatar preview was shown with temporary browser-side injected row for design review while validating implemented send button shape in-product.
+- Risks/follow-ups:
+  - In profile-lock state there are no assistant messages rendered by default, so true runtime avatar visibility still depends on an unlocked chat session during QA.
+
+## 2026-03-22
+
+- Objective: Address follow-up UX and process gaps from chat polish review.
+- Scope completed:
+  - Updated chat composer layout so voice control remains present and sits directly next to send control (ChatGPT-style action cluster).
+  - Updated voice button styling to circular icon action and preserved voice state behavior/accessibility labels.
+  - Increased chat input placeholder contrast for readable default prompt text, including disabled-state placeholder.
+  - Updated canonical run docs and local skill docs to require completion of entry flow (do not stop at loading/family selector/profile-lock states; escalate with exact blocker when stuck).
+- Files changed:
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/app/page.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/globals.css`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/apps/web/src/app/__tests__/app-layout.test.tsx`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/canonical/ops/havi-session-bootstrap.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/canonical/ops/havi-autonomous-run-checklist.md`
+  - `/Users/gabedavis/.codex/skills/havi-session-bootstrap/SKILL.md`
+  - `/Users/gabedavis/.codex/skills/havi-session-orchestrator/SKILL.md`
+  - `/Users/gabedavis/Desktop/projects/havilogger/.worktrees/session-up-to-speed-20260321/docs/active/current-state/session-notes.md`
+- Tests/checks run:
+  - `cd apps/web && npm run test -- src/app/__tests__/app-layout.test.tsx src/components/chat/__tests__/message-bubble.test.tsx`
+    - Result: PASS (2 suites, 26 tests)
+- Risks/follow-ups:
+  - Production still reflects pre-ship styling until deploy is executed.

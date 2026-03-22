@@ -204,8 +204,12 @@ export function MessageBubble({
   const gutter = (
     <div className="w-[28px] flex-shrink-0 flex items-start justify-center">
       {isAssistant ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--havi-chat-bubble-assistant,var(--color-muted))] text-[11px] font-semibold text-[var(--havi-chat-muted,var(--color-foreground))]">
-          HAVI
+        <span
+          data-testid="assistant-avatar"
+          aria-label="Havi assistant avatar"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#3d342b] font-[var(--havi-font-display)] text-[13px] font-bold text-[#f3eee6] shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
+        >
+          H
         </span>
       ) : isCaregiver ? (
         showSenderLabel ? (

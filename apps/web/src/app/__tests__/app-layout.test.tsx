@@ -217,6 +217,7 @@ describe("Home zones – V1 foundations", () => {
         "Ask a question, log a moment, or track anything…",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("context-new-chat")).toBeInTheDocument();
   });
 
   it("renders Zones 1–5 when Home is selected", async () => {
@@ -309,6 +310,14 @@ describe("Composer focus retention", () => {
     await waitFor(() => expect(screen.getByTestId("chat-input")).toHaveFocus());
   });
 
+  it("renders send button as circular primary action", async () => {
+    await renderHome();
+    const sendButton = screen.getByTestId("chat-send");
+    expect(sendButton.className).toContain("rounded-full");
+    expect(sendButton.className).toContain("h-[42px]");
+    expect(sendButton.className).toContain("w-[42px]");
+  });
+
   it("does not submit on Enter while IME composition is active", async () => {
     const { fetchMock } = await renderHome();
     const input = screen.getByTestId("chat-input") as HTMLTextAreaElement;
@@ -329,10 +338,15 @@ describe("Composer focus retention", () => {
 });
 
 describe("Voice-first composer", () => {
-  it("renders the primary voice control in chat composer", async () => {
+  it("renders the primary voice control next to send in chat composer", async () => {
     await renderHome();
-    expect(screen.getByTestId("voice-primary")).toBeInTheDocument();
-    expect(screen.getByText("Voice input")).toBeInTheDocument();
+    const voiceButton = screen.getByTestId("voice-primary");
+    const sendButton = screen.getByTestId("chat-send");
+    expect(voiceButton).toBeInTheDocument();
+    expect(voiceButton).toHaveAttribute("aria-label", "Voice input");
+    expect(voiceButton.closest(".havi-chat-composer")).toBe(
+      sendButton.closest(".havi-chat-composer"),
+    );
   });
 });
 

@@ -3530,6 +3530,18 @@ export default function Home() {
                 </option>
               ))}
             </Select>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="context-new-chat"
+              aria-label="New chat"
+              className="havi-chat-new-pill h-8 rounded-full px-3 text-xs"
+              onClick={() => void handleNewChat()}
+              disabled={!activeChildId || conversationState === "sending"}
+            >
+              + New chat
+            </Button>
             <span data-testid="timezone-label">Times shown in {timezoneLabel}</span>
           </div>
           <section>
@@ -5311,36 +5323,6 @@ export default function Home() {
 
           <div className="mt-4 space-y-3">
             <div className="flex flex-col gap-2">
-              <div className="havi-voice-toolbar">
-                <Button
-                  type="button"
-                  data-testid="voice-primary"
-                  data-recording={voiceState === "recording" ? "true" : "false"}
-                  className="havi-voice-primary"
-                  onClick={() =>
-                    voiceState === "recording" ? stopVoice() : startVoice()
-                  }
-                  disabled={isComposerLocked || voiceState === "transcribing"}
-                >
-                  {voiceState === "transcribing" ? (
-                    <InlineSpinner />
-                  ) : voiceState === "recording" ? (
-                    <Square className="h-4 w-4" />
-                  ) : (
-                    <Mic className="h-4 w-4" />
-                  )}
-                  <span>
-                    {voiceState === "recording"
-                      ? `Stop voice (${formatVoiceTime(voiceSeconds)})`
-                      : voiceState === "transcribing"
-                        ? "Transcribing…"
-                        : "Voice input"}
-                  </span>
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Voice and typing are always available.
-                </span>
-              </div>
               <div className="havi-panel-inset-alt havi-chat-composer flex items-end gap-2 rounded-2xl px-2 py-2">
                 <div className="flex-1 min-w-0">
                   {voiceState === "recording" ? (
@@ -5374,6 +5356,45 @@ export default function Home() {
                 </div>
                 <Button
                   type="button"
+                  data-testid="voice-primary"
+                  data-recording={voiceState === "recording" ? "true" : "false"}
+                  aria-label={
+                    voiceState === "recording"
+                      ? `Stop voice (${formatVoiceTime(voiceSeconds)})`
+                      : voiceState === "transcribing"
+                        ? "Transcribing voice input"
+                        : "Voice input"
+                  }
+                  title={
+                    voiceState === "recording"
+                      ? `Stop voice (${formatVoiceTime(voiceSeconds)})`
+                      : voiceState === "transcribing"
+                        ? "Transcribing voice input"
+                        : "Voice input"
+                  }
+                  className="havi-voice-primary mb-0.5 flex h-[42px] w-[42px] self-end items-center justify-center rounded-full p-0"
+                  onClick={() =>
+                    voiceState === "recording" ? stopVoice() : startVoice()
+                  }
+                  disabled={isComposerLocked || voiceState === "transcribing"}
+                >
+                  {voiceState === "transcribing" ? (
+                    <InlineSpinner />
+                  ) : voiceState === "recording" ? (
+                    <Square className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">
+                    {voiceState === "recording"
+                      ? `Stop voice (${formatVoiceTime(voiceSeconds)})`
+                      : voiceState === "transcribing"
+                        ? "Transcribing voice input"
+                        : "Voice input"}
+                  </span>
+                </Button>
+                <Button
+                  type="button"
                   aria-label="Send message"
                   data-testid="chat-send"
                   onClick={() => {
@@ -5385,7 +5406,7 @@ export default function Home() {
                     isComposerLocked ||
                     voiceState !== "idle"
                   }
-                  className="havi-chat-send mb-0.5 flex h-10 w-10 self-end items-center justify-center rounded-xl"
+                  className="havi-chat-send mb-0.5 flex h-[42px] w-[42px] self-end items-center justify-center rounded-full"
                 >
                   <ArrowUpRight className="h-4 w-4" />
                 </Button>

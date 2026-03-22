@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 18, 2026
+Last updated: March 22, 2026
 
 # Havi Session Bootstrap
 
@@ -188,6 +188,10 @@ cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav
    - verify Playwright path before UI-flow validation so browser checks do not block late.
 4. Approval priming:
    - request narrowly scoped reusable approvals early for expected commands/tools to reduce mid-flow interruptions.
+5. Entry-flow completion requirement:
+   - do not stop at `Getting your family ready`, family selector, or profile-lock screens.
+   - continue through auth/family selection/onboarding/profile completion until chat is usable for the intended validation.
+   - if blocked by missing credentials, missing required profile data, or irreversible account state, ask the user immediately with the exact blocker and required input.
 
 ## Production Smoke Minimum
 
