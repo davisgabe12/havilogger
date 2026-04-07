@@ -1,5 +1,5 @@
 Status: current
-Last updated: March 18, 2026
+Last updated: March 22, 2026
 
 # HAVI Deploy And Release Runbook
 
@@ -21,6 +21,11 @@ git status -sb
 git log --oneline -n 5
 ```
 
+Integration source rule:
+1. Production deploys come from `main` only.
+2. Feature branches/worktrees are not deployment sources.
+3. If user intent says `ship`, `merge and deploy`, or `release`, first integrate approved feature commit(s) into `main`, then deploy.
+
 Release preflight requirement before any manual API deploy:
 1. `git branch --show-current` must be `main`.
 2. `git status -sb` must not show uncommitted changes under `apps/api/`.
@@ -33,6 +38,18 @@ Release preflight requirement before any manual API deploy:
 ```bash
 git push origin main
 ```
+
+Parallel worktree safety gate (required when 2+ branches are active):
+1. Enumerate SHAs selected for this release from feature branches.
+2. Verify each SHA exists on `main` before deploy:
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git branch --contains <feature-sha>
+```
+
+3. If any SHA is missing, stop deploy and integrate that branch/commit first.
 
 3. Wait for production deploy propagation (Vercel + Railway) and run health checks
 
@@ -128,9 +145,10 @@ Minimum sections:
 
 Ship only when all are true:
 1. `git push origin main` succeeds
-2. production health endpoints are healthy
-3. production release gate passes
-4. release proof bundle is committed
+2. every intended release SHA is reachable from `main`
+3. production health endpoints are healthy
+4. production release gate passes
+5. release proof bundle is committed
 
 ## Rollback trigger and action
 

@@ -71,6 +71,13 @@ Havi is a parent/caregiver copilot that:
 4. Keep each worktree scoped to one feature slice to reduce merge conflicts and rollback risk.
 5. Use orchestrator script for deterministic setup:
    - `./scripts/havi_session_orchestrator.sh --feature "<feature-name>"`
+6. Never deploy production directly from a feature worktree branch; production deploy source is `main`.
+7. If a request says `ship`, `merge and deploy`, or `release`, execute this contract:
+   - integrate approved feature commit(s) into `main`,
+   - run required tests/gates on `main`,
+   - push `main`,
+   - deploy from `main`,
+   - attach release proof.
 
 ## Spec And Docs Lifecycle
 
@@ -188,6 +195,30 @@ cd apps/web && PLAYWRIGHT_WEBSERVER=1 npm run test:green:mobile-nav
    - verify Playwright path before UI-flow validation so browser checks do not block late.
 4. Approval priming:
    - request narrowly scoped reusable approvals early for expected commands/tools to reduce mid-flow interruptions.
+   - minimum expected approvals for most sessions:
+     - `git add`
+     - `git -c commit.gpgSign=false commit`
+     - `git push`
+     - deploy command family (`npx vercel --prod`, `railway up`, or project equivalent)
+     - test command family (`npm run test`, `pytest`, or project equivalent)
+
+## Parallel Worktree Integration Checklist (Required)
+
+When multiple feature worktrees are active:
+
+```bash
+cd /Users/gabedavis/Desktop/projects/havilogger
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+# integrate one approved feature at a time
+git merge --no-ff origin/codex/<feature-branch>
+# or: git cherry-pick <feature-sha>
+npm run test
+git push origin main
+```
+
+Do not deploy until every intended feature commit is present on `main`.
 
 ## Production Smoke Minimum
 
